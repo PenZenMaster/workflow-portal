@@ -18,3 +18,7 @@ sessions.db-journal
 
 *.log
 .DS_Store
+
+coverage/
+.vitest/
+*.tsbuildinfo
