@@ -4,8 +4,10 @@ import bcrypt from "bcryptjs";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { eq } from "drizzle-orm";
+import path from "node:path";
 
-const sqlite = new Database("data.db");
+const dbPath = path.resolve(process.env.DATA_DB_PATH || "data.db");
+const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");
 
 // Ensure table exists (no migrations runner in this template).
