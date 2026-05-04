@@ -1,0 +1,6 @@
+# Normalize all text files to LF on commit (matches Linux server)
+* text=auto eol=lf
+
+# Keep Windows batch files as CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
