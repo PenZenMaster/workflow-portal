@@ -14,6 +14,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { LaunchInputsDialog } from "@/components/LaunchInputsDialog";
 
 type Props = {
   workflow: Workflow;
@@ -35,6 +36,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props) {
   const [copied, setCopied] = useState(false);
+  const [launchDialogOpen, setLaunchDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const handleCopy = async () => {
@@ -181,20 +183,40 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
             )}
           </Button>
           {workflow.launchUrl && (
-            <Button
-              variant="outline"
-              size="sm"
-              asChild
-              data-testid={`button-launch-${workflow.id}`}
-            >
-              <a href={workflow.launchUrl} target="_blank" rel="noopener noreferrer">
+            workflow.inputs.length > 0 ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLaunchDialogOpen(true)}
+                data-testid={`button-launch-${workflow.id}`}
+              >
                 <ExternalLink className="h-4 w-4 mr-1.5" />
                 {workflow.launchLabel || "Launch"}
-              </a>
-            </Button>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                data-testid={`button-launch-${workflow.id}`}
+              >
+                <a href={workflow.launchUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4 mr-1.5" />
+                  {workflow.launchLabel || "Launch"}
+                </a>
+              </Button>
+            )
           )}
         </div>
       </CardContent>
+
+      {workflow.launchUrl && workflow.inputs.length > 0 && (
+        <LaunchInputsDialog
+          workflow={workflow}
+          open={launchDialogOpen}
+          onOpenChange={setLaunchDialogOpen}
+        />
+      )}
     </Card>
   );
 }
