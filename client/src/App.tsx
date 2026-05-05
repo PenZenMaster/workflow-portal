@@ -55,6 +55,9 @@ function App() {
           <AuthProvider>
             <Gate />
           </AuthProvider>
+          <div className="fixed bottom-2 right-3 text-xs text-muted-foreground/40 select-none pointer-events-none z-50">
+            v{__APP_VERSION__}
+          </div>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
