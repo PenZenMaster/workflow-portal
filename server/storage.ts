@@ -3,11 +3,12 @@ import type { InsertWorkflow, Workflow, PublicUser } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import path from "node:path";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
 
+// SCHEMA_SQL kept for in-memory test fixtures only.
 export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS workflows (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +36,6 @@ const rawPath = process.env.DATA_DB_PATH || "data.db";
 const dbPath = rawPath === ":memory:" ? rawPath : path.resolve(rawPath);
 const defaultSqlite = new Database(dbPath);
 defaultSqlite.pragma("journal_mode = WAL");
-defaultSqlite.exec(SCHEMA_SQL);
 
 export const db = drizzle(defaultSqlite);
 
@@ -167,8 +167,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async countUsers(): Promise<number> {
-    const rows = this._db.select().from(users).all();
-    return rows.length;
+    const result = this._db.select({ count: sql<number>`count(*)` }).from(users).get();
+    return result?.count ?? 0;
   }
 
   async createUser(username: string, password: string): Promise<PublicUser> {

@@ -1,13 +1,13 @@
 ## Resume From
 
 Last session: 2026-05-06
-Last commit: 213b0e4 — test: achieve 94% coverage across business-logic files
+Last commit: Sprint 1 tech debt — all S1 milestones complete
 Version: v0.2.1 | Live: https://portal.fullmetaljacketseo.com
 
 Pick up from:
-1. Review tech debt register below and agree priority order with user
-2. Begin Sprint 1 execution — start with quick wins (#4 remove supabase, #5 fix countUsers, #7 fix package name)
-3. Plan LaunchInputsDialog end-to-end QA on live server
+1. Deploy Sprint 1 build to cPanel and verify app starts cleanly (migrations run on boot)
+2. Drop next design specifications from user
+3. Begin Sprint 2 planning
 
 ---
 
@@ -18,14 +18,15 @@ Pick up from:
 
 ### Milestones
 
-- [ ] S1-01 Remove dead scaffold dependencies (supabase, script/build.ts allowlist)
-- [ ] S1-02 Add rate limiting to /api/auth/login and /api/auth/setup
-- [ ] S1-03 Fix countUsers() to use COUNT(*) instead of full table scan
-- [ ] S1-04 Fix package.json name ("rest-express" -> "workflow-portal")
-- [ ] S1-05 Add helmet middleware (security headers)
-- [ ] S1-06 Add React error boundary in App.tsx
-- [ ] S1-07 Fix staleTime: Infinity on queryClient (stale data across tabs)
-- [ ] S1-08 Add .nvmrc / engines field to pin Node version
+- [x] S1-01 Remove dead scaffold dependencies (supabase, script/build.ts allowlist)
+- [x] S1-02 Add rate limiting to /api/auth/login and /api/auth/setup
+- [x] S1-03 Fix countUsers() to use COUNT(*) instead of full table scan
+- [x] S1-04 Fix package.json name ("rest-express" -> "workflow-portal")
+- [x] S1-05 Add helmet middleware (security headers)
+- [x] S1-06 Add React error boundary in App.tsx
+- [x] S1-07 Fix staleTime: Infinity on queryClient (stale data across tabs)
+- [x] S1-08 Add .nvmrc / engines field to pin Node version
+- [x] S1-09 Database migrations infrastructure (drizzle-kit, auto-runs on boot)
 
 ---
 
@@ -66,20 +67,20 @@ Severities from audit conducted 2026-05-06. Update status as resolved.
 
 | ID  | Severity | Status | Description | File |
 |-----|----------|--------|-------------|------|
-| TD-01 | High | Open | Dead scaffold deps in build allowlist (16 unused packages) | script/build.ts |
-| TD-02 | High | Open | No rate limiting on auth endpoints | server/routes.ts |
-| TD-03 | High | Open | No database migrations infrastructure | drizzle.config.ts |
-| TD-04 | Medium | Open | @supabase/supabase-js in deps, never imported | package.json |
-| TD-05 | Medium | Open | countUsers() full table scan instead of COUNT(*) | server/storage.ts:169 |
-| TD-06 | Medium | Open | No security headers (helmet, CSP, X-Frame-Options) | server/index.ts |
-| TD-07 | Medium | Open | package.json name is "rest-express" (scaffold remnant) | package.json |
-| TD-08 | Medium | Open | staleTime: Infinity — queries never refetch | client/src/lib/queryClient.ts |
-| TD-09 | Medium | Open | No React error boundary — render error = blank screen | client/src/App.tsx |
+| TD-01 | High | Done | Dead scaffold deps in build allowlist (16 unused packages) | script/build.ts |
+| TD-02 | High | Done | No rate limiting on auth endpoints | server/routes.ts |
+| TD-03 | High | Done | No database migrations infrastructure | drizzle.config.ts |
+| TD-04 | Medium | Done | @supabase/supabase-js in deps, never imported | package.json |
+| TD-05 | Medium | Done | countUsers() full table scan instead of COUNT(*) | server/storage.ts |
+| TD-06 | Medium | Done | No security headers (helmet, CSP, X-Frame-Options) | server/index.ts |
+| TD-07 | Medium | Done | package.json name is "rest-express" (scaffold remnant) | package.json |
+| TD-08 | Medium | Done | staleTime: Infinity — queries never refetch | client/src/lib/queryClient.ts |
+| TD-09 | Medium | Done | No React error boundary — render error = blank screen | client/src/App.tsx |
 | TD-10 | Medium | Open | Session error callbacks lack request context in logs | server/routes.ts:73-86 |
-| TD-11 | Low | Open | Test files excluded from tsc type checking | tsconfig.json |
+| TD-11 | Low | Done | Test files excluded from tsc type checking | tsconfig.json |
 | TD-12 | Low | Open | Hardcoded seed data — no versioning or rollback | server/seed.ts |
 | TD-13 | Low | Open | skipLibCheck: true masks dep type errors | tsconfig.json |
-| TD-14 | Low | Open | No .nvmrc / engines field to pin Node version | package.json |
+| TD-14 | Low | Done | No .nvmrc / engines field to pin Node version | package.json |
 
 ---
 

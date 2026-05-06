@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
+import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { seedIfEmpty } from "./seed";
 import {
@@ -9,6 +10,14 @@ import {
   createUserSchema,
 } from "@shared/schema";
 import { requireAuth } from "./auth";
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Try again in 15 minutes." },
+});
 
 export async function registerRoutes(
   httpServer: Server,
@@ -29,7 +38,7 @@ export async function registerRoutes(
   });
 
   // First-run setup: only allowed when no users exist.
-  app.post("/api/auth/setup", async (req, res) => {
+  app.post("/api/auth/setup", authLimiter, async (req, res) => {
     const userCount = await storage.countUsers();
     if (userCount > 0) {
       return res
@@ -58,7 +67,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", authLimiter, async (req, res) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "Username and password required" });

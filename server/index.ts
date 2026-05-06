@@ -1,14 +1,23 @@
 import "dotenv/config";
 import express, { Response, NextFunction } from 'express';
 import type { Request } from 'express';
+import helmet from "helmet";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { db } from "./storage";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "node:http";
 import { configureSession } from "./auth";
+import path from "node:path";
+
+// Run pending migrations before accepting requests.
+// path.resolve uses CWD (project root) — correct for both dev and cPanel.
+migrate(db, { migrationsFolder: path.resolve("migrations") });
 
 const app = express();
 const httpServer = createServer(app);
 
+app.use(helmet());
 configureSession(app);
 
 declare module "http" {

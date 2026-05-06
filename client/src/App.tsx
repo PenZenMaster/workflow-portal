@@ -1,3 +1,4 @@
+import { Component, type ReactNode } from "react";
 import { Switch, Route, Router } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
 import { queryClient } from "./lib/queryClient";
@@ -10,6 +11,37 @@ import Home from "@/pages/Home";
 import NotFound from "@/pages/not-found";
 import { AuthScreen } from "@/pages/AuthScreen";
 import { Skeleton } from "@/components/ui/skeleton";
+
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 p-8 text-center">
+          <p className="text-lg font-semibold text-destructive">Something went wrong</p>
+          <p className="text-sm text-muted-foreground max-w-md">
+            {(this.state.error as Error).message}
+          </p>
+          <button
+            className="text-sm underline text-primary"
+            onClick={() => this.setState({ error: null })}
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function AppRouter() {
   return (
@@ -48,19 +80,21 @@ function Gate() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <TooltipProvider>
-          <Toaster />
-          <AuthProvider>
-            <Gate />
-          </AuthProvider>
-          <div className="fixed bottom-2 right-3 text-xs text-muted-foreground/40 select-none pointer-events-none z-50">
-            v{__APP_VERSION__}
-          </div>
-        </TooltipProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <TooltipProvider>
+            <Toaster />
+            <AuthProvider>
+              <Gate />
+            </AuthProvider>
+            <div className="fixed bottom-2 right-3 text-xs text-muted-foreground/40 select-none pointer-events-none z-50">
+              v{__APP_VERSION__}
+            </div>
+          </TooltipProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
