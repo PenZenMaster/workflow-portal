@@ -2,7 +2,7 @@
 
 Workflow Portal — private internal portal cataloging SEO/audit/schema/reporting workflows.
 Stack: Express 5 + React 18 + SQLite (Drizzle ORM) + TypeScript + Vite.
-Auth-gated via Passport.js local strategy. Deployed to cPanel.
+Auth-gated via Passport.js local strategy. Deployed to cPanel at portal.fullmetaljacketseo.com.
 
 ---
 
@@ -30,39 +30,43 @@ Auth-gated via Passport.js local strategy. Deployed to cPanel.
 
 Trigger phrase: **"Project start"**
 
-1. Pull latest from GitHub:
-   git pull origin main
+1. Pull latest and confirm clean state:
+   git pull origin main && git status
 
-2. Install dependencies only if package.json changed:
+2. Read docs/projectStatus.md — this is the single source of truth.
+   It contains: current sprint, active work, backlog, tech debt register, and
+   the last session's "Resume From" note. No other file needs to be read to
+   get fully current.
+
+3. Summarize aloud: current sprint goal, what was in progress, today's priority.
+
+4. Install dependencies only if package.json changed:
    npm install
 
-3. Create .env if missing (copy .env.example and fill SESSION_SECRET):
-   copy .env.example .env
+5. Verify .env exists (copy .env.example if missing):
+   copy .env.example .env   (then fill SESSION_SECRET)
 
-4. Push DB schema if shared/schema.ts changed:
+6. Push DB schema only if shared/schema.ts changed:
    npm run db:push
 
-5. Start dev server:
-   npm run dev
-   Server: http://localhost:5000  (Express + Vite HMR on same port)
-
-6. Read docs/projectStatus.md and the latest checkpoint in docs/archive/checkpoints/.
+7. Start dev server if local testing is needed:
+   npm run dev   -> http://localhost:5000
 
 ---
 
 ## Development Commands
 
-| Command              | Description                                  |
-|----------------------|----------------------------------------------|
-| npm run dev          | Start dev server (Express + Vite HMR)        |
-| npm run build        | Production build to dist/                    |
-| npm run check        | TypeScript type check (tsc --noEmit)         |
-| npm run db:push      | Push Drizzle schema changes to SQLite        |
-| npm test             | Run all tests once (vitest run)              |
-| npm run test:watch   | Watch mode (vitest)                          |
-| npm run test:ui      | Vitest browser UI                            |
-| npm run test:coverage| Coverage report (v8, HTML output)            |
-| start.cmd            | Windows double-click launcher (installs deps + dev) |
+| Command               | Description                                   |
+|-----------------------|-----------------------------------------------|
+| npm run dev           | Start dev server (Express + Vite HMR)         |
+| npm run build         | Production build to dist/                     |
+| npm run check         | TypeScript type check (tsc --noEmit)          |
+| npm run db:push       | Push Drizzle schema changes to SQLite         |
+| npm test              | Run all tests once (vitest run)               |
+| npm run test:watch    | Watch mode (vitest)                           |
+| npm run test:ui       | Vitest browser UI                             |
+| npm run test:coverage | Coverage report (v8, HTML output)             |
+| .\start.cmd           | Windows double-click launcher                 |
 
 ---
 
@@ -75,30 +79,24 @@ workflow-portal/
       components/     shadcn/ui + custom components
       pages/          Route pages (wouter)
       hooks/          Custom React hooks
-      lib/            auth, queryClient, theme, utils
+      lib/            auth, queryClient, theme, utils, launchUtils
   server/             Express backend
     index.ts          Entry point + middleware setup
     routes.ts         REST API routes
-    auth.ts           Passport.js local strategy
-    storage.ts        Data access layer (Drizzle)
+    auth.ts           Passport.js session auth
+    storage.ts        Data access layer (Drizzle, DI-testable)
     seed.ts           SQLite seed data
-    static.ts         Static file serving
-    vite.ts           Vite dev server integration
   shared/
     schema.ts         Drizzle schema (shared by client and server)
   tests/
-    setup.ts          Vitest global setup (@testing-library/jest-dom)
+    setup.ts          Vitest global setup
     server/           Server/API integration tests (node env)
   docs/
-    projectStatus.md  Current status, in-progress, deferred, next priorities
-    standards/        Development standards and references
-    archive/
-      checkpoints/    Session checkpoint markdown files
-  script/
-    build.ts          Production build script (esbuild)
+    projectStatus.md  SINGLE SOURCE OF TRUTH — sprint, backlog, tech debt
+    standards/        Development standards references
+    archive/          Historical sprint archives (major milestones only)
   .env                Local secrets (never commit)
   .env.example        Template for .env
-  vitest.config.ts    Test configuration
   CLAUDE.md           This file
 ```
 
@@ -106,15 +104,12 @@ workflow-portal/
 
 ## Testing Guidelines
 
-- Server/API tests: `server/**/*.test.ts` or `tests/server/**/*.test.ts`
-  - Environment: node (automatic via vitest.config.ts environmentMatchGlobs)
-  - Use supertest to mount the Express app without binding a port
-- React component tests: `client/src/**/*.test.tsx`
-  - Environment: jsdom (default)
-  - Use @testing-library/react + @testing-library/jest-dom matchers
-- Coverage target: >=80% on server/storage.ts and server/routes.ts
+- Server tests: `tests/server/**/*.test.ts` — node environment, supertest
+- Client tests: `client/src/**/*.test.{ts,tsx}` — jsdom environment
+- Coverage target: >=85% on business-logic files (currently 94%)
+- Run before every deploy: npm run check && npm test
 
-Generate SESSION_SECRET for .env:
+Generate SESSION_SECRET:
   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ---
@@ -123,28 +118,27 @@ Generate SESSION_SECRET for .env:
 
 Trigger phrase: **"Checkpoint now"** or **"Prepare for rollover"**
 
-1. Stage and commit all changes:
+1. Commit all changes:
    git add -A
-   git commit -m "chore(checkpoint): YYYY-MM-DD_HHMM - <short summary>"
+   git commit -m "chore(checkpoint): YYYY-MM-DD - <short summary>"
 
-2. Create checkpoint file at:
-   docs/archive/checkpoints/CheckPoint-YYYY-MM-DD_HHMM.md
+2. Update docs/projectStatus.md in-place:
+   - Move newly completed sprint items to the Completed section
+   - Update In Progress with current state
+   - Update the Resume From block at the top with exactly what to pick up next
+   - Add any new backlog items discovered this session
+   - Update tech debt entries if any were resolved or added
 
-   Contents:
-   - Context summary
-   - Accomplishments this session
-   - Technical changes (files changed, key diffs)
-   - Known issues or blockers
-   - Next session priorities
-   - Git status (branch, last commit)
+3. Commit the updated projectStatus.md:
+   git add docs/projectStatus.md
+   git commit -m "docs(status): update sprint status and resume point"
 
-3. Update docs/projectStatus.md:
-   - Move completed items to Completed
-   - Update In Progress
-   - List Next Session Priorities
-
-4. Push to GitHub:
+4. Push:
    git push origin main
+
+Note: Separate checkpoint files in docs/archive/ are only needed for major
+milestones (sprint completions, significant releases). Routine session
+checkpoints live entirely in projectStatus.md.
 
 ---
 
@@ -152,11 +146,12 @@ Trigger phrase: **"Checkpoint now"** or **"Prepare for rollover"**
 
 Trigger phrase: **"Project shutdown"**
 
-1. Run the full checkpoint procedure above.
-2. Verify push: git log --oneline -3 && git status
-3. Push if not done: git push origin main
-4. Stop the dev server (Ctrl+C in the terminal running npm run dev).
-5. List exactly 3 bullets for next session priorities.
+1. Run the full Checkpoint procedure above.
+2. Confirm: git log --oneline -3 && git status (tree must be clean)
+3. Push if not already done: git push origin main
+4. Stop the dev server (Ctrl+C).
+5. State exactly 3 bullets for next session — these go into the Resume From
+   block in projectStatus.md before committing.
 
 ---
 
@@ -167,19 +162,17 @@ Trigger phrase: **"Project shutdown"**
 | SESSION_SECRET    | Yes      | 32+ char hex string for Express session signing  |
 | PORT              | No       | Server port (default 5000; cPanel injects this)  |
 | NODE_ENV          | No       | development or production                        |
-| SESSION_DB_PATH   | No       | Override SQLite sessions file path               |
-
-Never commit .env. Generate SESSION_SECRET with:
-  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+| DATA_DB_PATH      | No       | Override main SQLite db path (use ../persistent/data.db on cPanel) |
+| SESSION_DB_PATH   | No       | Override sessions SQLite path (use ../persistent/sessions.db on cPanel) |
 
 ---
 
-## Deployment
+## Deployment (cPanel)
 
-See DEPLOY-CPANEL.md for full cPanel deployment instructions.
+Full guide: DEPLOY-CPANEL.md
 
-Build order:
-1. npm run build        -> creates dist/
-2. Upload dist/ to cPanel public_html or Node.js app root
-3. Set NODE_ENV=production and SESSION_SECRET in cPanel app settings
-4. Restart Node.js app in cPanel
+Quick update cycle:
+1. npm run check && npm test   (must be green)
+2. npm run build
+3. cd .. && Get-ChildItem workflow-portal -Exclude node_modules,*.db | Compress-Archive -DestinationPath deploy.zip -Force
+4. Upload deploy.zip to cPanel File Manager -> Extract -> Restart app
