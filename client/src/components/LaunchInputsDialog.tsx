@@ -13,59 +13,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { fillPrompt, buildPerplexityLaunchUrl } from "@/lib/launchUtils";
 
 type Props = {
   workflow: Workflow;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
-
-function fillPrompt(template: string, values: string[]): string {
-  let i = 0;
-  return template.replace(/<PASTE>/g, () => values[i++] ?? "");
-}
-
-// Perplexity supports ?q= for prefilled+auto-submitted searches.
-// Browsers and servers commonly cap full URLs at ~2000 chars; we stay
-// well under that to leave headroom for the base URL and encoding overhead.
-const PPLX_URL_PROMPT_MAX = 1800;
-
-function isPerplexityHost(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return /(^|\.)perplexity\.ai$/i.test(u.hostname);
-  } catch {
-    return false;
-  }
-}
-
-// Build a Perplexity launch URL that prefills + submits the prompt.
-// Returns null if the URL is not a Perplexity host or the prompt is too long
-// to fit safely in a URL — caller should fall back to clipboard.
-//
-// Path handling:
-//   - /computer, /agents, or any non-root path → preserved (skills/agents need
-//     to land on the right surface).
-//   - / or empty → routes to /search for the standard search experience.
-// In all cases the prompt is appended as ?q=<prompt> which Perplexity uses
-// to prefill and auto-submit on every surface that accepts it.
-function buildPerplexityLaunchUrl(launchUrl: string, prompt: string): string | null {
-  if (!isPerplexityHost(launchUrl)) return null;
-  const encoded = encodeURIComponent(prompt);
-  if (encoded.length > PPLX_URL_PROMPT_MAX) return null;
-  try {
-    const u = new URL(launchUrl);
-    // Only override the path when the user picked the bare homepage. Anything
-    // else (e.g. /computer, /agents, /search) is intentional — preserve it.
-    if (u.pathname === "/" || u.pathname === "") {
-      u.pathname = "/search";
-    }
-    u.searchParams.set("q", prompt);
-    return u.toString();
-  } catch {
-    return null;
-  }
-}
 
 export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
   const [values, setValues] = useState<string[]>([]);

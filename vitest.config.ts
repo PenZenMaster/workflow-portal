@@ -16,7 +16,15 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
-      exclude: ["node_modules/", "dist/", "script/", "tests/setup.ts"],
+      // Only measure coverage on business-logic files we own and test.
+      include: [
+        "server/storage.ts",
+        "server/routes.ts",
+        "shared/schema.ts",
+        "client/src/lib/launchUtils.ts",
+        "client/src/lib/utils.ts",
+      ],
+      exclude: ["node_modules/", "dist/"],
     },
     projects: [
       {
@@ -29,6 +37,7 @@ export default defineConfig({
         },
         test: {
           name: "client",
+          globals: true,
           environment: "jsdom",
           setupFiles: ["./tests/setup.ts"],
           include: [

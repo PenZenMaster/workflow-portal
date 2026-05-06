@@ -6,12 +6,9 @@ import Database from "better-sqlite3";
 import { eq } from "drizzle-orm";
 import path from "node:path";
 
-const dbPath = path.resolve(process.env.DATA_DB_PATH || "data.db");
-const sqlite = new Database(dbPath);
-sqlite.pragma("journal_mode = WAL");
+type DrizzleDb = ReturnType<typeof drizzle>;
 
-// Ensure table exists (no migrations runner in this template).
-sqlite.exec(`
+export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS workflows (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -32,9 +29,15 @@ sqlite.exec(`
     password_hash TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );
-`);
+`;
 
-export const db = drizzle(sqlite);
+const rawPath = process.env.DATA_DB_PATH || "data.db";
+const dbPath = rawPath === ":memory:" ? rawPath : path.resolve(rawPath);
+const defaultSqlite = new Database(dbPath);
+defaultSqlite.pragma("journal_mode = WAL");
+defaultSqlite.exec(SCHEMA_SQL);
+
+export const db = drizzle(defaultSqlite);
 
 type Row = typeof workflows.$inferSelect;
 
@@ -84,8 +87,14 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  private readonly _db: DrizzleDb;
+
+  constructor(database?: DrizzleDb) {
+    this._db = database ?? db;
+  }
+
   async listWorkflows(): Promise<Workflow[]> {
-    const rows = db.select().from(workflows).all();
+    const rows = this._db.select().from(workflows).all();
     return rows
       .map(hydrate)
       .sort((a, b) => {
@@ -95,13 +104,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getWorkflow(id: number): Promise<Workflow | undefined> {
-    const row = db.select().from(workflows).where(eq(workflows.id, id)).get();
+    const row = this._db.select().from(workflows).where(eq(workflows.id, id)).get();
     return row ? hydrate(row) : undefined;
   }
 
   async createWorkflow(data: InsertWorkflow): Promise<Workflow> {
     const now = Date.now();
-    const row = db
+    const row = this._db
       .insert(workflows)
       .values({
         name: data.name,
@@ -125,14 +134,14 @@ export class DatabaseStorage implements IStorage {
     id: number,
     data: InsertWorkflow
   ): Promise<Workflow | undefined> {
-    const existing = db
+    const existing = this._db
       .select()
       .from(workflows)
       .where(eq(workflows.id, id))
       .get();
     if (!existing) return undefined;
     const now = Date.now();
-    const row = db
+    const row = this._db
       .update(workflows)
       .set({
         name: data.name,
@@ -153,18 +162,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteWorkflow(id: number): Promise<boolean> {
-    const result = db.delete(workflows).where(eq(workflows.id, id)).run();
+    const result = this._db.delete(workflows).where(eq(workflows.id, id)).run();
     return result.changes > 0;
   }
 
   async countUsers(): Promise<number> {
-    const rows = db.select().from(users).all();
+    const rows = this._db.select().from(users).all();
     return rows.length;
   }
 
   async createUser(username: string, password: string): Promise<PublicUser> {
     const passwordHash = await bcrypt.hash(password, 12);
-    const row = db
+    const row = this._db
       .insert(users)
       .values({
         username,
@@ -180,7 +189,7 @@ export class DatabaseStorage implements IStorage {
     username: string,
     password: string
   ): Promise<PublicUser | null> {
-    const row = db
+    const row = this._db
       .select()
       .from(users)
       .where(eq(users.username, username))
@@ -192,7 +201,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserById(id: number): Promise<PublicUser | undefined> {
-    const row = db.select().from(users).where(eq(users.id, id)).get();
+    const row = this._db.select().from(users).where(eq(users.id, id)).get();
     return row ? { id: row.id, username: row.username } : undefined;
   }
 }
