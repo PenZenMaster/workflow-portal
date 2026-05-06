@@ -25,6 +25,38 @@ function fillPrompt(template: string, values: string[]): string {
   return template.replace(/<PASTE>/g, () => values[i++] ?? "");
 }
 
+// Perplexity supports ?q= for prefilled+auto-submitted searches.
+// Browsers and servers commonly cap full URLs at ~2000 chars; we stay
+// well under that to leave headroom for the base URL and encoding overhead.
+const PPLX_URL_PROMPT_MAX = 1800;
+
+function isPerplexityHost(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return /(^|\.)perplexity\.ai$/i.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+// Build a Perplexity search URL that prefills + submits the prompt.
+// Returns null if the URL is not a Perplexity host or the prompt is too long
+// to fit safely in a URL — caller should fall back to clipboard.
+function buildPerplexityLaunchUrl(launchUrl: string, prompt: string): string | null {
+  if (!isPerplexityHost(launchUrl)) return null;
+  const encoded = encodeURIComponent(prompt);
+  if (encoded.length > PPLX_URL_PROMPT_MAX) return null;
+  try {
+    const u = new URL(launchUrl);
+    // Always route to /search regardless of original path (e.g. "/")
+    u.pathname = "/search";
+    u.searchParams.set("q", prompt);
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
   const [values, setValues] = useState<string[]>([]);
   const { toast } = useToast();
@@ -45,17 +77,70 @@ export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
 
   const handleLaunch = async () => {
     const filled = fillPrompt(workflow.prompt, values);
+
+    // Try the Perplexity prefilled-search URL first — it auto-submits.
+    const directUrl = buildPerplexityLaunchUrl(workflow.launchUrl, filled);
+
+    if (directUrl) {
+      // Best path: open Perplexity with prompt prefilled and submitted.
+      // Still copy to clipboard as a safety net.
+      try {
+        await navigator.clipboard.writeText(filled);
+      } catch {
+        // non-fatal
+      }
+      window.open(directUrl, "_blank", "noopener,noreferrer");
+      toast({
+        title: "Launched in Perplexity",
+        description: "Your prompt was prefilled in a new tab.",
+      });
+      onOpenChange(false);
+      return;
+    }
+
+    // Fallback: copy to clipboard, open the launch URL, instruct paste.
+    let copied = false;
     try {
       await navigator.clipboard.writeText(filled);
+      copied = true;
     } catch {
-      // non-fatal — tab still opens
+      copied = false;
     }
     window.open(workflow.launchUrl, "_blank", "noopener,noreferrer");
-    toast({
-      title: "Prompt copied to clipboard",
-      description: `Paste it into ${workflow.launchLabel || "the AI tool"} to start the session.`,
-    });
+
+    if (copied) {
+      toast({
+        title: "Prompt copied to clipboard",
+        description: `Switch to the new tab and press Ctrl+V, then Enter to start the ${
+          workflow.launchLabel || "AI"
+        } session.`,
+      });
+    } else {
+      toast({
+        title: "Couldn't copy automatically",
+        description:
+          "Tab opened, but clipboard access was blocked. Reopen this dialog and use the Copy button below.",
+        variant: "destructive",
+      });
+    }
     onOpenChange(false);
+  };
+
+  const handleCopyOnly = async () => {
+    const filled = fillPrompt(workflow.prompt, values);
+    try {
+      await navigator.clipboard.writeText(filled);
+      toast({
+        title: "Prompt copied",
+        description: "Paste it into your AI tool to start.",
+      });
+    } catch {
+      toast({
+        title: "Couldn't copy",
+        description: "Clipboard access was blocked by your browser.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -84,9 +169,16 @@ export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
           ))}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleCopyOnly}
+            data-testid="button-launch-copy"
+          >
+            Copy prompt
           </Button>
           <Button onClick={handleLaunch} data-testid="button-launch-confirm">
             <ExternalLink className="h-4 w-4 mr-1.5" />
