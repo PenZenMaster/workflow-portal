@@ -1,13 +1,13 @@
 ## Resume From
 
-Last session: 2026-05-06
-Last commit: Sprint 1 tech debt — all S1 milestones complete
-Version: v0.2.1 | Live: https://portal.fullmetaljacketseo.com
+Last session: 2026-05-07
+Last commit: docs: fix deploy process — tar.gz format, correct archive command, full redeploy steps
+Version: v0.2.1 | Live: https://portal.fullmetaljacketseo.com (503 — startup crash undiagnosed)
 
 Pick up from:
-1. Deploy Sprint 1 build to cPanel and verify app starts cleanly (migrations run on boot)
-2. Drop next design specifications from user
-3. Begin Sprint 2 planning
+1. SSH into server: `ssh fullmetaljacket@69.72.136.208` then `cd ~/portal.fullmetaljacketseo.com && node dist/index.cjs` — paste crash output to diagnose 503
+2. Fix whatever is crashing (likely SESSION_SECRET missing or better-sqlite3 native binding)
+3. Confirm site is live, then begin Sprint 2 planning
 
 ---
 

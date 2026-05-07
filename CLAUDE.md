@@ -174,5 +174,6 @@ Full guide: DEPLOY-CPANEL.md
 Quick update cycle:
 1. npm run check && npm test   (must be green)
 2. npm run build
-3. cd .. && Get-ChildItem workflow-portal -Exclude node_modules,*.db | Compress-Archive -DestinationPath deploy.zip -Force
-4. Upload deploy.zip to cPanel File Manager -> Extract -> Restart app
+3. cd workflow-portal && tar -czf ..\workflow-portal-<version>.tar.gz --exclude="./node_modules" --exclude="./*.db" . && cd ..
+4. cPanel File Manager: delete dist/, upload deploy.tar.gz, extract
+5. Setup Node.js App -> Run NPM Install -> Restart

@@ -94,20 +94,23 @@ Click **Save**.
 
 ## 6. Upload the project files
 
-Easiest: **zip and upload**.
+Create a gzip-compressed tar archive (`.tar.gz`) — the correct format for Linux servers.
 
-In PowerShell, from the parent folder of the project:
+In PowerShell, from the parent folder of the project (replace `0.2.1` with the current version from `package.json`):
 
 ```powershell
-Compress-Archive -Path workflow-portal\* -DestinationPath workflow-portal.zip -Force
+cd workflow-portal
+tar -czf ..\workflow-portal-0.2.1.tar.gz --exclude="./node_modules" --exclude="./*.db" .
+cd ..
 ```
 
 Then in cPanel **File Manager**:
 
 1. Navigate to your application root (e.g. `/home/<user>/portal.fullmetaljacketseo.com/`).
-2. Upload `workflow-portal.zip`.
-3. Right-click → **Extract**. Confirm files land in the app root, **not** in a `workflow-portal/` subfolder. If they did, move them up.
-4. Delete the zip.
+2. Delete the existing `dist/` folder to avoid stale Vite-hashed assets.
+3. Upload `deploy.tar.gz`.
+4. Right-click → **Extract**. Confirm files land in the app root, **not** in a `workflow-portal/` subfolder. If they did, move them up.
+5. Delete the archive.
 
 You should now see at the app root:
 
@@ -175,9 +178,11 @@ The portal already requires login, but add belt-and-suspenders:
 
 When you want to ship changes:
 
-1. Make changes locally, run `npm run build`.
-2. Zip the project, upload, extract over the existing files.
-3. cPanel → **Setup Node.js App** → **Restart**.
+1. Make changes locally, run `npm run check && npm test && npm run build`.
+2. From inside the project folder: `cd workflow-portal && tar -czf ..\workflow-portal-<version>.tar.gz --exclude="./node_modules" --exclude="./*.db" . && cd ..`
+3. In cPanel File Manager: delete `dist/`, upload the archive, extract.
+4. cPanel → **Setup Node.js App** → **Run NPM Install**.
+5. cPanel → **Setup Node.js App** → **Restart**.
 
 Your `data.db` stays put across restarts and updates as long as you don't overwrite it.
 
