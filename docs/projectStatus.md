@@ -1,49 +1,38 @@
 ## Resume From
 
-Last session: 2026-05-07
-Last commit: 3239241 docs: add first-deploy checklist to CLAUDE.md
-Version: v0.2.1 | Live: https://portal.fullmetaljacketseo.com (503 — pending production fix)
+Last session: 2026-05-08
+Last commit: 4784322 feat: wire ESLint, AppError, and response helpers — v0.2.3
+Version: v0.2.3 | Live: https://portal.fullmetaljacketseo.com (UP)
 
 Pick up from:
-1. Hosting company needs to enable Jailed SSH access — contact them first
-2. Once SSH is available: confirm ~/persistent/ exists, verify .htaccess is in place, restart app in cPanel Node.js panel
-3. If still 503 after restart: SSH in and run `node dist/index.cjs` to see raw crash output
-4. Once live: verify password reset email flow end-to-end on production, then begin Sprint 2 planning
+1. Verify password reset email flow end-to-end on production
+2. Begin Sprint 2 planning — top backlog items are B-02 (structured logging) and B-03 (CI/CD)
+3. Consider response envelope migration for existing routes (incremental — new routes must use helpers)
 
-.htaccess content is confirmed correct (see last session — whitespace issues in original were corrected).
-All env vars are set in cPanel. The persistent/ directory may not exist yet — create it via SSH first.
+Production is live. All Sprint 2 foundation work (ESLint, AppError, response helpers) is complete.
+CLAUDE.md now enforces strict TDD, versioning, and deploy discipline.
 
 ---
 
-## Current Sprint — Sprint 1
+## Current Sprint — Sprint 2
 
-**Goal:** Harden the portal for reliable daily use (tech debt, security basics, UX polish)
-**Status: COMPLETE** — all milestones resolved. Blocked on production 503.
+**Goal:** Code quality gates, observability, and CI/CD
+**Status: IN PROGRESS**
 
 ### Milestones
 
-- [x] S1-01 Remove dead scaffold dependencies (supabase, script/build.ts allowlist)
-- [x] S1-02 Add rate limiting to /api/auth/login and /api/auth/setup
-- [x] S1-03 Fix countUsers() to use COUNT(*) instead of full table scan
-- [x] S1-04 Fix package.json name ("rest-express" -> "workflow-portal")
-- [x] S1-05 Add helmet middleware (security headers)
-- [x] S1-06 Add React error boundary in App.tsx
-- [x] S1-07 Fix staleTime: Infinity on queryClient (stale data across tabs)
-- [x] S1-08 Add .nvmrc / engines field to pin Node version
-- [x] S1-09 Database migrations infrastructure (drizzle-kit, auto-runs on boot)
-
-### Post-Sprint additions (shipped same session)
-
-- [x] Password reset feature — full secure flow (forgot/reset pages, nodemailer SMTP, hashed tokens, session invalidation)
-- [x] Account settings dialog — admin can set recovery email address
-- [x] npm run package — single command: check + test + build + creates versioned .tar.gz for cPanel deploy
-- [x] CSP dev fix — helmet contentSecurityPolicy disabled in development to unblock Vite HMR
+- [x] S2-01 ESLint setup — zero-warning enforcement in package pipeline
+- [x] S2-02 AppError class — structured server errors (server/errors.ts)
+- [x] S2-03 Response envelope helpers — ok(), created(), noContent() (server/response.ts)
+- [ ] S2-04 Structured logging with request context (B-02)
+- [ ] S2-05 CI/CD pipeline — check + lint + test on every push to main (B-03)
+- [ ] S2-06 .env validation on startup — fail fast if required vars missing (B-07)
 
 ---
 
 ## In Progress
 
-- Nothing actively in progress (session ended)
+- Nothing actively in progress (checkpoint)
 
 ---
 
@@ -53,14 +42,12 @@ Priority order within each tier. Move items to a sprint milestone when scheduled
 
 ### High Priority
 
-- B-02 Structured logging with request context (replace console.log in error handler)
-- B-03 CI/CD pipeline — run check + test on every push to main
+- B-03 CI/CD pipeline — run lint + check + test on every push to main
 
 ### Medium Priority
 
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
 - B-06 Session store: add session expiry cleanup configuration review
-- B-07 Add .env validation on startup (fail fast if required vars are missing)
 
 ### Low Priority
 
@@ -71,8 +58,6 @@ Priority order within each tier. Move items to a sprint milestone when scheduled
 ---
 
 ## Tech Debt Register
-
-Severities from audit conducted 2026-05-06. Update status as resolved.
 
 | ID  | Severity | Status | Description | File |
 |-----|----------|--------|-------------|------|
@@ -85,27 +70,54 @@ Severities from audit conducted 2026-05-06. Update status as resolved.
 | TD-07 | Medium | Done | package.json name is "rest-express" (scaffold remnant) | package.json |
 | TD-08 | Medium | Done | staleTime: Infinity — queries never refetch | client/src/lib/queryClient.ts |
 | TD-09 | Medium | Done | No React error boundary — render error = blank screen | client/src/App.tsx |
-| TD-10 | Medium | Open | Session error callbacks lack request context in logs | server/routes.ts:73-86 |
+| TD-10 | Medium | Open | Session error callbacks lack request context in logs | server/routes.ts |
 | TD-11 | Low | Done | Test files excluded from tsc type checking | tsconfig.json |
 | TD-12 | Low | Open | Hardcoded seed data — no versioning or rollback | server/seed.ts |
 | TD-13 | Low | Open | skipLibCheck: true masks dep type errors | tsconfig.json |
 | TD-14 | Low | Done | No .nvmrc / engines field to pin Node version | package.json |
+| TD-15 | Medium | Done | No ESLint — any types and console.log not enforced | multiple files |
+| TD-16 | Medium | Done | Global error handler used any type and wrong response format | server/index.ts |
+| TD-17 | Low | Done | better-sqlite3 bundled by esbuild — native addon path broken on Linux | script/build.ts |
+| TD-18 | Low | Done | Missing migration for email/reset columns — caused 500 on first login | migrations/ |
 
 ---
 
 ## Completed
 
+### Session 2026-05-08 (production fix + Sprint 2 foundation)
+
+**Production 503 root cause and fix:**
+- SSH diagnosed: ~/persistent/ directory missing — created via SSH
+- cPanel env vars had trailing spaces and a space in SESSION_DB_PATH name — corrected
+- better-sqlite3 was in esbuild bundle allowlist — native addons cannot be bundled; removed
+- Missing migration for email, reset_token_hash, reset_token_expiry columns — generated 0001_clever_talisman.sql
+- Portal now live at https://portal.fullmetaljacketseo.com on v0.2.2
+
+**Deploy discipline (all enforced in package pipeline):**
+- script/preflight.js: blocks packaging if git tag v{version} already exists
+- npm run db:check: blocks packaging if schema has unmigrated changes
+- CLAUDE.md: pre-deploy checklist, versioning rules table, TDD cycle, strict mode rules
+- Memory saved: version bump rule, migration-on-schema-change rule, no hollow affirmations
+
+**Sprint 2 foundation (v0.2.3):**
+- ESLint 9 flat config with typescript-eslint — zero warnings enforced
+- npm run lint wired as first gate in package pipeline
+- server/errors.ts: AppError class (TDD — test written first)
+- server/response.ts: ok(), created(), noContent() envelope helpers (TDD)
+- Global error handler updated to use AppError, { error, code } format
+- All no-explicit-any violations resolved across 6 files (server + client)
+- 90 tests passing
+
 ### Session 2026-05-07 (Sprint 1 completion + post-sprint)
 - Password reset: forgot-password page, reset-password page, nodemailer SMTP transport
 - Hashed single-use tokens (SHA-256), 60-min expiry, session invalidation on reset
 - Account settings dialog in portal header for setting recovery email
-- Email field added to first-run setup and users schema (email, reset_token_hash, reset_token_expiry)
+- Email field added to first-run setup and users schema
 - CSP fixed in dev: helmet contentSecurityPolicy disabled when NODE_ENV != production
 - npm run package: single command that runs check + test + build + creates versioned .tar.gz
-- First-deploy checklist added to CLAUDE.md (SESSION_SECRET, DB paths, NODE_ENV are 503 blockers)
-- Deploy archive fixed: inclusion list only (dist/, migrations/, package.json, package-lock.json)
+- First-deploy checklist added to CLAUDE.md
+- Deploy archive fixed: inclusion list only
 - .htaccess content confirmed and whitespace errors corrected
-- B-01 resolved (was backlog): DB migrations infrastructure completed as S1-09
 
 ### Session 2026-05-04 to 2026-05-06
 - Local dev environment configured and git remote initialized
@@ -118,5 +130,5 @@ Severities from audit conducted 2026-05-06. Update status as resolved.
 - Semantic versioning: v0.2.1 badge on all screens
 - server/storage.ts: dependency injection pattern for testability
 - client/src/lib/launchUtils.ts: pure functions extracted and unit tested
-- Deploy pipeline confirmed working on cPanel (portal.fullmetaljacketseo.com)
+- Deploy pipeline confirmed working on cPanel
 - Admin account persistence confirmed working after env var setup
