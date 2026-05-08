@@ -205,12 +205,21 @@ Optional (required for password reset):
 
 ---
 
+### Pre-deploy checklist — must pass before running npm run package
+
+- [ ] Schema changed? Run `npm run db:generate` and commit the new migration file.
+- [ ] Any shippable change (fix, feat, perf)? Bump version in package.json first.
+      patch = bug fix (+0.0.1), minor = new feature (+0.1.0), major = breaking (+1.0.0)
+- [ ] `npm run package` will block if the version tag already exists (preflight check).
+- [ ] `npm run package` will block if schema has unmigrated changes (db:check).
+
 ### Routine update cycle
 
-1. git add -A && git commit && git push
-2. npm run package          (runs check + test + build + creates ../<archive>.tar.gz)
-3. cPanel File Manager: upload the new .tar.gz, extract into app root (overwriting dist/)
-4. Setup Node.js App -> Run NPM Install -> Restart
+1. Complete the pre-deploy checklist above.
+2. git add -A && git commit && git push
+3. npm run package          (preflight -> check -> db:check -> test -> build -> archive -> git tag)
+4. cPanel File Manager: upload the new .tar.gz, extract into app root (overwriting dist/)
+5. Setup Node.js App -> Run NPM Install -> Restart
 
 The package script produces dist/, migrations/, package.json, package-lock.json only.
 Archive is named workflow-portal-v<version>.tar.gz and placed one level above the project root.

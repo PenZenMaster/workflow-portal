@@ -22,3 +22,10 @@ execSync(
 );
 
 console.log(`Created: ../${archive}`);
+
+try {
+  execSync(`git tag v${version}`, { cwd: root });
+  console.log(`Tagged:  v${version}  (run 'git push --tags' to push)`);
+} catch {
+  console.warn(`Warning: could not create tag v${version} — already exists or git unavailable`);
+}
