@@ -1,21 +1,24 @@
 ## Resume From
 
 Last session: 2026-05-07
-Last commit: build: add npm run package script for deployment archive (acf9b48)
-Version: v0.2.1 | Live: https://portal.fullmetaljacketseo.com (503 — startup crash undiagnosed)
+Last commit: 3239241 docs: add first-deploy checklist to CLAUDE.md
+Version: v0.2.1 | Live: https://portal.fullmetaljacketseo.com (503 — pending production fix)
 
 Pick up from:
-1. SSH into server: `ssh fullmetaljacket@69.72.136.208` then `cd ~/portal.fullmetaljacketseo.com && node dist/index.cjs` — paste crash output to diagnose 503
-2. Fix whatever is crashing (likely SESSION_SECRET missing or better-sqlite3 native binding)
-3. Once live, add SMTP env vars to cPanel .env (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, BASE_URL) to activate password reset
-4. Confirm password reset works end-to-end on production, then begin Sprint 2 planning
+1. Hosting company needs to enable Jailed SSH access — contact them first
+2. Once SSH is available: confirm ~/persistent/ exists, verify .htaccess is in place, restart app in cPanel Node.js panel
+3. If still 503 after restart: SSH in and run `node dist/index.cjs` to see raw crash output
+4. Once live: verify password reset email flow end-to-end on production, then begin Sprint 2 planning
+
+.htaccess content is confirmed correct (see last session — whitespace issues in original were corrected).
+All env vars are set in cPanel. The persistent/ directory may not exist yet — create it via SSH first.
 
 ---
 
 ## Current Sprint — Sprint 1
 
 **Goal:** Harden the portal for reliable daily use (tech debt, security basics, UX polish)
-**Status: COMPLETE** — all milestones resolved
+**Status: COMPLETE** — all milestones resolved. Blocked on production 503.
 
 ### Milestones
 
@@ -99,6 +102,9 @@ Severities from audit conducted 2026-05-06. Update status as resolved.
 - Email field added to first-run setup and users schema (email, reset_token_hash, reset_token_expiry)
 - CSP fixed in dev: helmet contentSecurityPolicy disabled when NODE_ENV != production
 - npm run package: single command that runs check + test + build + creates versioned .tar.gz
+- First-deploy checklist added to CLAUDE.md (SESSION_SECRET, DB paths, NODE_ENV are 503 blockers)
+- Deploy archive fixed: inclusion list only (dist/, migrations/, package.json, package-lock.json)
+- .htaccess content confirmed and whitespace errors corrected
 - B-01 resolved (was backlog): DB migrations infrastructure completed as S1-09
 
 ### Session 2026-05-04 to 2026-05-06
