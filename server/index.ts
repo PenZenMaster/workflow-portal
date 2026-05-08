@@ -17,7 +17,13 @@ migrate(db, { migrationsFolder: path.resolve("migrations") });
 const app = express();
 const httpServer = createServer(app);
 
-app.use(helmet());
+// CSP is disabled in development because Vite's HMR and React Fast Refresh
+// require inline scripts. Full CSP enforcement is only needed in production.
+app.use(
+  helmet({
+    contentSecurityPolicy: process.env.NODE_ENV === "production",
+  })
+);
 configureSession(app);
 
 declare module "http" {

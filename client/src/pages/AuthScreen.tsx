@@ -13,6 +13,7 @@ export function AuthScreen({ mode }: { mode: Mode }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -40,7 +41,7 @@ export function AuthScreen({ mode }: { mode: Mode }) {
     setBusy(true);
     try {
       if (isSetup) {
-        await setup(username.trim(), password);
+        await setup(username.trim(), password, email.trim() || undefined);
       } else {
         await login(username.trim(), password);
       }
@@ -125,6 +126,25 @@ export function AuthScreen({ mode }: { mode: Mode }) {
                 />
               </div>
             )}
+            {isSetup && (
+              <div className="space-y-1.5">
+                <Label htmlFor="email">
+                  Email address{" "}
+                  <span className="text-muted-foreground font-normal text-xs">
+                    (for password recovery)
+                  </span>
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  data-testid="input-auth-email"
+                />
+              </div>
+            )}
 
             {error && (
               <div
@@ -149,6 +169,17 @@ export function AuthScreen({ mode }: { mode: Mode }) {
                 ? "Create account"
                 : "Sign in"}
             </Button>
+
+            {!isSetup && (
+              <div className="text-center">
+                <a
+                  href="/forgot-password"
+                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                >
+                  Forgot your password?
+                </a>
+              </div>
+            )}
           </form>
         </div>
 

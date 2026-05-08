@@ -13,8 +13,9 @@ type AuthContextValue = {
   status: AuthStatus | undefined;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  setup: (username: string, password: string) => Promise<void>;
+  setup: (username: string, password: string, email?: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (email: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -38,13 +39,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const setupMut = useMutation({
-    mutationFn: async (vars: { username: string; password: string }) => {
+    mutationFn: async (vars: { username: string; password: string; email?: string }) => {
       const res = await apiRequest("POST", "/api/auth/setup", vars);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: STATUS_KEY });
       queryClient.invalidateQueries({ queryKey: ["/api/workflows"] });
+    },
+  });
+
+  const profileMut = useMutation({
+    mutationFn: async (vars: { email: string }) => {
+      const res = await apiRequest("PATCH", "/api/auth/profile", vars);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: STATUS_KEY });
     },
   });
 
@@ -64,11 +75,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login: async (username, password) => {
       await loginMut.mutateAsync({ username, password });
     },
-    setup: async (username, password) => {
-      await setupMut.mutateAsync({ username, password });
+    setup: async (username, password, email) => {
+      await setupMut.mutateAsync({ username, password, email });
     },
     logout: async () => {
       await logoutMut.mutateAsync();
+    },
+    updateProfile: async (email) => {
+      await profileMut.mutateAsync({ email });
     },
   };
 

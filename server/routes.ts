@@ -2,14 +2,19 @@ import type { Express } from "express";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import rateLimit from "express-rate-limit";
+import crypto from "node:crypto";
 import { storage } from "./storage";
 import { seedIfEmpty } from "./seed";
 import {
   insertWorkflowSchema,
   loginSchema,
   createUserSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  updateProfileSchema,
 } from "@shared/schema";
-import { requireAuth } from "./auth";
+import { requireAuth, invalidateUserSessions } from "./auth";
+import { sendPasswordResetEmail } from "./email";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -18,6 +23,8 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many attempts. Try again in 15 minutes." },
 });
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 60 minutes
 
 export async function registerRoutes(
   httpServer: Server,
@@ -55,7 +62,8 @@ export async function registerRoutes(
     try {
       const user = await storage.createUser(
         parsed.data.username.trim(),
-        parsed.data.password
+        parsed.data.password,
+        parsed.data.email?.trim()
       );
       req.session.user = user;
       res.status(201).json({ user });
@@ -104,6 +112,94 @@ export async function registerRoutes(
       res.clearCookie("wfp.sid");
       res.json({ ok: true });
     });
+  });
+
+  // --- Password reset -------------------------------------------------------
+
+  app.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
+    const parsed = forgotPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "A valid email address is required" });
+    }
+    const email = parsed.data.email.trim().toLowerCase();
+
+    // Always respond generically — never confirm whether the email exists.
+    const genericOk = () =>
+      res.json({ ok: true, message: "If an account exists for this email, a reset link has been sent." });
+
+    const user = await storage.getUserByEmail(email);
+    if (!user) return genericOk();
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const expiry = Date.now() + RESET_TOKEN_TTL_MS;
+
+    await storage.setResetToken(user.id, tokenHash, expiry);
+
+    const baseUrl = (process.env.BASE_URL ?? "http://localhost:5000").replace(/\/$/, "");
+    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+
+    try {
+      await sendPasswordResetEmail(user.email, resetUrl);
+    } catch (err) {
+      console.error("[forgot-password] email send failed:", err);
+      // Clear the token so a stale hash does not linger.
+      await storage.clearResetToken(user.id);
+      return res.status(500).json({ error: "Failed to send reset email. Check SMTP configuration." });
+    }
+
+    return genericOk();
+  });
+
+  app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
+    const parsed = resetPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(parsed.data.token)
+      .digest("hex");
+
+    const user = await storage.getUserByValidResetToken(tokenHash, Date.now());
+    if (!user) {
+      return res.status(400).json({ error: "Invalid or expired reset link." });
+    }
+
+    const bcryptjs = await import("bcryptjs");
+    const passwordHash = await bcryptjs.hash(parsed.data.password, 12);
+
+    await storage.updatePassword(user.id, passwordHash);
+    await storage.clearResetToken(user.id);
+    invalidateUserSessions(user.id);
+
+    res.json({ ok: true, message: "Password updated. Please sign in." });
+  });
+
+  // --- Profile (auth required) --------------------------------------------
+
+  app.patch("/api/auth/profile", requireAuth, async (req, res) => {
+    const parsed = updateProfileSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: parsed.error.flatten(),
+      });
+    }
+    const userId = req.session.user!.id;
+    try {
+      await storage.setEmail(userId, parsed.data.email.trim().toLowerCase());
+      res.json({ ok: true });
+    } catch (err: any) {
+      if (String(err?.message || "").includes("UNIQUE")) {
+        return res.status(409).json({ error: "That email is already in use" });
+      }
+      throw err;
+    }
   });
 
   // --- Workflow CRUD (auth required) --------------------------------------

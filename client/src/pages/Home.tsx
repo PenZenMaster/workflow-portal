@@ -17,24 +17,36 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Plus, Moon, Sun, Lock, LogOut, User } from "lucide-react";
+import { Search, Plus, Moon, Sun, Lock, LogOut, User, Settings } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { WorkflowCard } from "@/components/WorkflowCard";
 import { WorkflowDialog } from "@/components/WorkflowDialog";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 const ALL = "All";
 
 export default function Home() {
   const { theme, toggle } = useTheme();
   const { toast } = useToast();
-  const { status, logout } = useAuth();
+  const { status, logout, updateProfile } = useAuth();
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>(ALL);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Workflow | null>(null);
   const [deleting, setDeleting] = useState<Workflow | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const { data: workflows, isLoading } = useQuery<Workflow[]>({
     queryKey: ["/api/workflows"],
@@ -138,6 +150,19 @@ export default function Home() {
             title="Toggle theme"
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              setProfileEmail(status?.user?.email ?? "");
+              setProfileError(null);
+              setSettingsOpen(true);
+            }}
+            title="Account settings"
+            data-testid="button-settings"
+          >
+            <Settings className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
@@ -252,6 +277,60 @@ export default function Home() {
         onOpenChange={setDialogOpen}
         editing={editing}
       />
+
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Account settings</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setProfileError(null);
+              setProfileBusy(true);
+              try {
+                await updateProfile(profileEmail.trim());
+                toast({ title: "Email address saved" });
+                setSettingsOpen(false);
+              } catch (err: any) {
+                const msg = String(err?.message ?? "");
+                if (msg.includes("409")) {
+                  setProfileError("That email is already in use.");
+                } else {
+                  setProfileError("Failed to save. Try again.");
+                }
+              } finally {
+                setProfileBusy(false);
+              }
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-email">Recovery email</Label>
+              <Input
+                id="profile-email"
+                type="email"
+                value={profileEmail}
+                onChange={(e) => setProfileEmail(e.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Used to receive password reset links.
+              </p>
+            </div>
+            {profileError && (
+              <p className="text-sm text-destructive">{profileError}</p>
+            )}
+            <DialogFooter>
+              <Button type="submit" disabled={profileBusy}>
+                {profileBusy ? "Saving..." : "Save"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={!!deleting}

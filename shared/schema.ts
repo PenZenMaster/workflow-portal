@@ -56,6 +56,9 @@ export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  email: text("email").unique(),
+  resetTokenHash: text("reset_token_hash"),
+  resetTokenExpiry: integer("reset_token_expiry"),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -74,11 +77,31 @@ export const createUserSchema = z.object({
     .string()
     .min(10, "Password must be at least 10 characters")
     .max(200, "Password too long"),
+  email: z.string().email("Invalid email address").optional(),
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email("Invalid email address"),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+  password: z
+    .string()
+    .min(10, "Password must be at least 10 characters")
+    .max(200, "Password too long"),
+});
+
+export const updateProfileSchema = z.object({
+  email: z.string().email("Invalid email address"),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;
-export type PublicUser = { id: number; username: string };
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type PublicUser = { id: number; username: string; email?: string | null };
 
 export const CATEGORIES = [
   "Audit",

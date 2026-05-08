@@ -28,6 +28,9 @@ export const SCHEMA_SQL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
+    email TEXT UNIQUE,
+    reset_token_hash TEXT,
+    reset_token_expiry INTEGER,
     created_at INTEGER NOT NULL
   );
 `;
@@ -81,9 +84,16 @@ export interface IStorage {
   deleteWorkflow(id: number): Promise<boolean>;
   // Auth
   countUsers(): Promise<number>;
-  createUser(username: string, password: string): Promise<PublicUser>;
+  createUser(username: string, password: string, email?: string): Promise<PublicUser>;
   verifyUser(username: string, password: string): Promise<PublicUser | null>;
   getUserById(id: number): Promise<PublicUser | undefined>;
+  // Password reset
+  getUserByEmail(email: string): Promise<{ id: number; username: string; email: string } | undefined>;
+  setResetToken(userId: number, tokenHash: string, expiry: number): Promise<void>;
+  getUserByValidResetToken(tokenHash: string, now: number): Promise<{ id: number; username: string } | undefined>;
+  clearResetToken(userId: number): Promise<void>;
+  updatePassword(userId: number, passwordHash: string): Promise<void>;
+  setEmail(userId: number, email: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -171,18 +181,19 @@ export class DatabaseStorage implements IStorage {
     return result?.count ?? 0;
   }
 
-  async createUser(username: string, password: string): Promise<PublicUser> {
+  async createUser(username: string, password: string, email?: string): Promise<PublicUser> {
     const passwordHash = await bcrypt.hash(password, 12);
     const row = this._db
       .insert(users)
       .values({
         username,
         passwordHash,
+        email: email ?? null,
         createdAt: Date.now(),
       })
       .returning()
       .get();
-    return { id: row.id, username: row.username };
+    return { id: row.id, username: row.username, email: row.email };
   }
 
   async verifyUser(
@@ -197,12 +208,61 @@ export class DatabaseStorage implements IStorage {
     if (!row) return null;
     const ok = await bcrypt.compare(password, row.passwordHash);
     if (!ok) return null;
-    return { id: row.id, username: row.username };
+    return { id: row.id, username: row.username, email: row.email };
   }
 
   async getUserById(id: number): Promise<PublicUser | undefined> {
     const row = this._db.select().from(users).where(eq(users.id, id)).get();
-    return row ? { id: row.id, username: row.username } : undefined;
+    return row ? { id: row.id, username: row.username, email: row.email } : undefined;
+  }
+
+  async getUserByEmail(email: string): Promise<{ id: number; username: string; email: string } | undefined> {
+    const row = this._db.select().from(users).where(eq(users.email, email)).get();
+    if (!row || !row.email) return undefined;
+    return { id: row.id, username: row.username, email: row.email };
+  }
+
+  async setResetToken(userId: number, tokenHash: string, expiry: number): Promise<void> {
+    this._db
+      .update(users)
+      .set({ resetTokenHash: tokenHash, resetTokenExpiry: expiry })
+      .where(eq(users.id, userId))
+      .run();
+  }
+
+  async getUserByValidResetToken(tokenHash: string, now: number): Promise<{ id: number; username: string } | undefined> {
+    const row = this._db
+      .select()
+      .from(users)
+      .where(eq(users.resetTokenHash, tokenHash))
+      .get();
+    if (!row) return undefined;
+    if (!row.resetTokenExpiry || row.resetTokenExpiry < now) return undefined;
+    return { id: row.id, username: row.username };
+  }
+
+  async clearResetToken(userId: number): Promise<void> {
+    this._db
+      .update(users)
+      .set({ resetTokenHash: null, resetTokenExpiry: null })
+      .where(eq(users.id, userId))
+      .run();
+  }
+
+  async updatePassword(userId: number, passwordHash: string): Promise<void> {
+    this._db
+      .update(users)
+      .set({ passwordHash })
+      .where(eq(users.id, userId))
+      .run();
+  }
+
+  async setEmail(userId: number, email: string): Promise<void> {
+    this._db
+      .update(users)
+      .set({ email })
+      .where(eq(users.id, userId))
+      .run();
   }
 }
 

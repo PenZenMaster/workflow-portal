@@ -7,6 +7,15 @@ import crypto from "node:crypto";
 
 const SqliteStore = (BetterSqlite3SessionStoreFactory as any)(session);
 
+let _sessionDb: InstanceType<typeof Database> | null = null;
+
+export function invalidateUserSessions(userId: number): void {
+  if (!_sessionDb) return;
+  _sessionDb
+    .prepare("DELETE FROM sessions WHERE json_extract(sess, '$.user.id') = ?")
+    .run(userId);
+}
+
 export type SessionUser = { id: number; username: string };
 
 declare module "express-session" {
@@ -40,6 +49,7 @@ export function configureSession(app: Express) {
     process.env.SESSION_DB_PATH || "sessions.db"
   );
   const sessionDb = new Database(sessionDbPath);
+  _sessionDb = sessionDb;
 
   app.use(
     session({

@@ -164,6 +164,13 @@ Trigger phrase: **"Project shutdown"**
 | NODE_ENV          | No       | development or production                        |
 | DATA_DB_PATH      | No       | Override main SQLite db path (use ../persistent/data.db on cPanel) |
 | SESSION_DB_PATH   | No       | Override sessions SQLite path (use ../persistent/sessions.db on cPanel) |
+| SMTP_HOST         | No*      | SMTP server hostname (required for password reset) |
+| SMTP_PORT         | No*      | SMTP port — 465 for SSL, 587 for STARTTLS (default 465) |
+| SMTP_USER         | No*      | SMTP username / sender address                   |
+| SMTP_PASS         | No*      | SMTP password                                    |
+| BASE_URL          | No*      | Portal public URL for reset links (e.g. https://portal.fullmetaljacketseo.com) |
+
+\* Required together to enable the "Forgot password?" feature.
 
 ---
 

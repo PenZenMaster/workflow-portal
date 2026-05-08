@@ -10,6 +10,8 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import Home from "@/pages/Home";
 import NotFound from "@/pages/not-found";
 import { AuthScreen } from "@/pages/AuthScreen";
+import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { Skeleton } from "@/components/ui/skeleton";
 
 class ErrorBoundary extends Component<
@@ -54,6 +56,11 @@ function AppRouter() {
 
 function Gate() {
   const { status, isLoading } = useAuth();
+
+  // Public pre-auth routes — accessible regardless of login state.
+  const pathname = window.location.pathname;
+  if (pathname === "/forgot-password") return <ForgotPasswordPage />;
+  if (pathname === "/reset-password") return <ResetPasswordPage />;
 
   if (isLoading || !status) {
     return (
