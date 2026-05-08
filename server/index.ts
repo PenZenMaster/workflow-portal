@@ -1,6 +1,7 @@
 import "dotenv/config";
-import express, { Response, NextFunction } from 'express';
-import type { Request } from 'express';
+import express, { Response, NextFunction } from "express";
+import type { Request } from "express";
+import { AppError } from "./errors";
 import helmet from "helmet";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { db } from "./storage";
@@ -50,13 +51,13 @@ export function log(message: string, source = "express") {
     hour12: true,
   });
 
-  console.log(`${formattedTime} [${source}] ${message}`);
+  console.info(`${formattedTime} [${source}] ${message}`);
 }
 
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+  let capturedJsonResponse: Record<string, unknown> | undefined = undefined;
 
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
@@ -82,17 +83,15 @@ app.use((req, res, next) => {
 (async () => {
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    console.error("Internal Server Error:", err);
-
+  app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) {
       return next(err);
     }
-
-    return res.status(status).json({ message });
+    if (err instanceof AppError) {
+      return res.status(err.statusCode).json({ error: err.message, code: err.code ?? null });
+    }
+    console.error("[Unhandled error]", err);
+    return res.status(500).json({ error: "Internal server error" });
   });
 
   // importantly only setup vite in development and after

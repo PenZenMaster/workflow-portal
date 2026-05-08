@@ -146,10 +146,10 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
       });
       onOpenChange(false);
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Save failed",
-        description: err?.message ?? "Please try again.",
+        description: err instanceof Error ? err.message : "Please try again.",
       });
     },
   });

@@ -1,5 +1,4 @@
 import type { Express } from "express";
-import { createServer } from "node:http";
 import type { Server } from "node:http";
 import rateLimit from "express-rate-limit";
 import crypto from "node:crypto";
@@ -67,8 +66,9 @@ export async function registerRoutes(
       );
       req.session.user = user;
       res.status(201).json({ user });
-    } catch (err: any) {
-      if (String(err?.message || "").includes("UNIQUE")) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("UNIQUE")) {
         return res.status(409).json({ error: "Username already taken" });
       }
       throw err;
@@ -194,8 +194,9 @@ export async function registerRoutes(
     try {
       await storage.setEmail(userId, parsed.data.email.trim().toLowerCase());
       res.json({ ok: true });
-    } catch (err: any) {
-      if (String(err?.message || "").includes("UNIQUE")) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("UNIQUE")) {
         return res.status(409).json({ error: "That email is already in use" });
       }
       throw err;

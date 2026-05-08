@@ -45,8 +45,8 @@ export function AuthScreen({ mode }: { mode: Mode }) {
       } else {
         await login(username.trim(), password);
       }
-    } catch (err: any) {
-      const msg = String(err?.message ?? "");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       // apiRequest throws "STATUS: body". Surface a clean message.
       if (msg.includes("401")) setError("Invalid username or password.");
       else if (msg.includes("409")) setError("Username already taken.");

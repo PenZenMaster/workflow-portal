@@ -5,7 +5,16 @@ import type { Express, Request, Response, NextFunction } from "express";
 import path from "node:path";
 import crypto from "node:crypto";
 
-const SqliteStore = (BetterSqlite3SessionStoreFactory as any)(session);
+type SessionStoreFactory = (
+  s: typeof session,
+) => new (opts: {
+  client: InstanceType<typeof Database>;
+  expired?: { clear: boolean; intervalMs: number };
+}) => session.Store;
+
+const SqliteStore = (
+  BetterSqlite3SessionStoreFactory as unknown as SessionStoreFactory
+)(session);
 
 let _sessionDb: InstanceType<typeof Database> | null = null;
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
+import type { Request, Response, NextFunction } from "express";
 import session from "express-session";
 import { createServer } from "node:http";
 
@@ -23,7 +24,6 @@ vi.mock("../../server/seed", () => ({ seedIfEmpty: vi.fn() }));
 
 // Import AFTER mocks are registered
 const { registerRoutes } = await import("../../server/routes");
-const { requireAuth } = await import("../../server/auth");
 
 // ---------------------------------------------------------------------------
 
@@ -40,7 +40,7 @@ function buildApp(authenticated = false) {
     })
   );
   if (authenticated) {
-    app.use((req: any, _res: any, next: any) => {
+    app.use((req: Request, _res: Response, next: NextFunction) => {
       req.session.user = { id: 1, username: "testuser" };
       next();
     });

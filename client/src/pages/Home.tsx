@@ -292,8 +292,8 @@ export default function Home() {
                 await updateProfile(profileEmail.trim());
                 toast({ title: "Email address saved" });
                 setSettingsOpen(false);
-              } catch (err: any) {
-                const msg = String(err?.message ?? "");
+              } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : String(err);
                 if (msg.includes("409")) {
                   setProfileError("That email is already in use.");
                 } else {
