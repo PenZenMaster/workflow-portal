@@ -179,8 +179,10 @@ Trigger phrase: **"Project shutdown"**
 Full guide: DEPLOY-CPANEL.md
 
 Quick update cycle:
-1. npm run check && npm test   (must be green)
-2. npm run build
-3. cd workflow-portal && tar -czf ..\workflow-portal-v<version>.tar.gz --exclude="./node_modules" --exclude="./*.db" . && cd ..
-4. cPanel File Manager: delete dist/, upload deploy.tar.gz, extract
-5. Setup Node.js App -> Run NPM Install -> Restart
+1. git add -A && git commit && git push
+2. npm run package          (runs check + test + build + creates ../<archive>.tar.gz)
+3. cPanel File Manager: upload the new .tar.gz, extract into app root (overwriting dist/)
+4. Setup Node.js App -> Run NPM Install -> Restart
+
+The package script excludes node_modules, *.db files, and .env from the archive.
+Archive is named workflow-portal-v<version>.tar.gz and placed one level above the project root.
