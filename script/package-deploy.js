@@ -9,18 +9,15 @@ const archive = `workflow-portal-v${version}.tar.gz`;
 // Use a relative path — Windows tar cannot handle absolute drive-letter paths.
 const relOut = `../${archive}`;
 
+// Only include what the production server actually needs to run.
+// Everything else (source, tests, docs, git history, dev config) stays local.
+const include = ["dist/", "migrations/", "package.json", "package-lock.json"];
+
 console.log(`Packaging ${archive} ...`);
+console.log(`  Including: ${include.join(", ")}`);
 
 execSync(
-  [
-    "tar",
-    "-czf",
-    relOut,
-    "--exclude=./node_modules",
-    "--exclude=./*.db",
-    "--exclude=./.env",
-    ".",
-  ].join(" "),
+  ["tar", "-czf", relOut, ...include].join(" "),
   { cwd: root, stdio: "inherit", shell: true }
 );
 
