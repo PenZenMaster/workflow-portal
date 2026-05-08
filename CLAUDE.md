@@ -176,13 +176,41 @@ Trigger phrase: **"Project shutdown"**
 
 ## Deployment (cPanel)
 
-Full guide: DEPLOY-CPANEL.md
+### FIRST-DEPLOY CHECKLIST — must be done once before the app will run
 
-Quick update cycle:
+These must be set in the cPanel .env BEFORE starting the app for the first time.
+Missing or wrong values cause an immediate 503 with no visible error to the user.
+
+- [ ] SESSION_SECRET = <32+ char hex string>
+      Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+      The server THROWS and refuses to start in production if this is < 32 characters.
+
+- [ ] DATA_DB_PATH = ../persistent/data.db
+      Without this, the database is created inside the app folder and wiped on every deploy.
+
+- [ ] SESSION_DB_PATH = ../persistent/sessions.db
+      Without this, all sessions are lost on every deploy (users get logged out).
+
+- [ ] NODE_ENV = production
+
+- [ ] Create the persistent folder via SSH before first run:
+      mkdir -p ~/persistent
+
+Optional (required for password reset):
+- [ ] SMTP_HOST = portal.fullmetaljacketseo.com
+- [ ] SMTP_PORT = 465
+- [ ] SMTP_USER = security@portal.fullmetaljacketseo.com
+- [ ] SMTP_PASS = <email account password>
+- [ ] BASE_URL = https://portal.fullmetaljacketseo.com
+
+---
+
+### Routine update cycle
+
 1. git add -A && git commit && git push
 2. npm run package          (runs check + test + build + creates ../<archive>.tar.gz)
 3. cPanel File Manager: upload the new .tar.gz, extract into app root (overwriting dist/)
 4. Setup Node.js App -> Run NPM Install -> Restart
 
-The package script excludes node_modules, *.db files, and .env from the archive.
+The package script produces dist/, migrations/, package.json, package-lock.json only.
 Archive is named workflow-portal-v<version>.tar.gz and placed one level above the project root.
