@@ -1,20 +1,21 @@
 ## Resume From
 
 Last session: 2026-05-07
-Last commit: docs: fix deploy process — tar.gz format, correct archive command, full redeploy steps
+Last commit: build: add npm run package script for deployment archive (acf9b48)
 Version: v0.2.1 | Live: https://portal.fullmetaljacketseo.com (503 — startup crash undiagnosed)
 
 Pick up from:
 1. SSH into server: `ssh fullmetaljacket@69.72.136.208` then `cd ~/portal.fullmetaljacketseo.com && node dist/index.cjs` — paste crash output to diagnose 503
 2. Fix whatever is crashing (likely SESSION_SECRET missing or better-sqlite3 native binding)
-3. Confirm site is live, then begin Sprint 2 planning
+3. Once live, add SMTP env vars to cPanel .env (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, BASE_URL) to activate password reset
+4. Confirm password reset works end-to-end on production, then begin Sprint 2 planning
 
 ---
 
 ## Current Sprint — Sprint 1
 
 **Goal:** Harden the portal for reliable daily use (tech debt, security basics, UX polish)
-**Priority order:** Security > Correctness > Performance > Polish
+**Status: COMPLETE** — all milestones resolved
 
 ### Milestones
 
@@ -27,6 +28,13 @@ Pick up from:
 - [x] S1-07 Fix staleTime: Infinity on queryClient (stale data across tabs)
 - [x] S1-08 Add .nvmrc / engines field to pin Node version
 - [x] S1-09 Database migrations infrastructure (drizzle-kit, auto-runs on boot)
+
+### Post-Sprint additions (shipped same session)
+
+- [x] Password reset feature — full secure flow (forgot/reset pages, nodemailer SMTP, hashed tokens, session invalidation)
+- [x] Account settings dialog — admin can set recovery email address
+- [x] npm run package — single command: check + test + build + creates versioned .tar.gz for cPanel deploy
+- [x] CSP dev fix — helmet contentSecurityPolicy disabled in development to unblock Vite HMR
 
 ---
 
@@ -42,14 +50,12 @@ Priority order within each tier. Move items to a sprint milestone when scheduled
 
 ### High Priority
 
-- B-01 Database migrations infrastructure (drizzle-kit generate + migration runner)
 - B-02 Structured logging with request context (replace console.log in error handler)
 - B-03 CI/CD pipeline — run check + test on every push to main
 
 ### Medium Priority
 
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
-- B-05 Fix tsconfig to include test files in type checking
 - B-06 Session store: add session expiry cleanup configuration review
 - B-07 Add .env validation on startup (fail fast if required vars are missing)
 
@@ -85,6 +91,15 @@ Severities from audit conducted 2026-05-06. Update status as resolved.
 ---
 
 ## Completed
+
+### Session 2026-05-07 (Sprint 1 completion + post-sprint)
+- Password reset: forgot-password page, reset-password page, nodemailer SMTP transport
+- Hashed single-use tokens (SHA-256), 60-min expiry, session invalidation on reset
+- Account settings dialog in portal header for setting recovery email
+- Email field added to first-run setup and users schema (email, reset_token_hash, reset_token_expiry)
+- CSP fixed in dev: helmet contentSecurityPolicy disabled when NODE_ENV != production
+- npm run package: single command that runs check + test + build + creates versioned .tar.gz
+- B-01 resolved (was backlog): DB migrations infrastructure completed as S1-09
 
 ### Session 2026-05-04 to 2026-05-06
 - Local dev environment configured and git remote initialized
