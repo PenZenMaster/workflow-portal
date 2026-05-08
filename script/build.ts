@@ -4,10 +4,9 @@ import { rm, readFile } from "node:fs/promises";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
+// NOTE: native addons (better-sqlite3) must stay external — they cannot be bundled
 const allowlist = [
   "bcryptjs",
-  "better-sqlite3",
-  "better-sqlite3-session-store",
   "date-fns",
   "drizzle-orm",
   "drizzle-zod",
