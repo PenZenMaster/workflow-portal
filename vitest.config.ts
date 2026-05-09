@@ -18,6 +18,8 @@ export default defineConfig({
       reporter: ["text", "json", "html"],
       // Only measure coverage on business-logic files we own and test.
       include: [
+        "server/config.ts",
+        "server/logger.ts",
         "server/storage.ts",
         "server/routes.ts",
         "shared/schema.ts",

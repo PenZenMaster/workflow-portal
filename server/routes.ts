@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import crypto from "node:crypto";
 import { storage } from "./storage";
 import { seedIfEmpty } from "./seed";
+import { logger } from "./logger";
 import {
   insertWorkflowSchema,
   loginSchema,
@@ -89,13 +90,13 @@ export async function registerRoutes(
     }
     req.session.regenerate((err) => {
       if (err) {
-        console.error("session regenerate failed", err);
+        logger.error("session.regenerate failed", { error: String(err) });
         return res.status(500).json({ error: "Login failed" });
       }
       req.session.user = user;
       req.session.save((saveErr) => {
         if (saveErr) {
-          console.error("session save failed", saveErr);
+          logger.error("session.save failed", { error: String(saveErr) });
           return res.status(500).json({ error: "Login failed" });
         }
         res.json({ user });
@@ -106,7 +107,7 @@ export async function registerRoutes(
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) {
-        console.error("session destroy failed", err);
+        logger.error("session.destroy failed", { error: String(err) });
         return res.status(500).json({ error: "Logout failed" });
       }
       res.clearCookie("wfp.sid");
@@ -142,7 +143,7 @@ export async function registerRoutes(
     try {
       await sendPasswordResetEmail(user.email, resetUrl);
     } catch (err) {
-      console.error("[forgot-password] email send failed:", err);
+      logger.error("forgot-password email send failed", { error: String(err) });
       // Clear the token so a stale hash does not linger.
       await storage.clearResetToken(user.id);
       return res.status(500).json({ error: "Failed to send reset email. Check SMTP configuration." });

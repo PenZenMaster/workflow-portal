@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import type { Express, Request, Response, NextFunction } from "express";
 import path from "node:path";
 import crypto from "node:crypto";
+import { logger } from "./logger";
 
 type SessionStoreFactory = (
   s: typeof session,
@@ -49,9 +50,7 @@ export function configureSession(app: Express) {
       );
     }
     secret = crypto.randomBytes(32).toString("hex");
-    console.warn(
-      "[auth] SESSION_SECRET not set. Using an ephemeral dev secret; sessions will be invalidated on restart."
-    );
+    logger.warn("SESSION_SECRET not set — using ephemeral dev secret; sessions reset on restart");
   }
 
   const sessionDbPath = path.resolve(

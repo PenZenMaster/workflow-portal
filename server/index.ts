@@ -3,6 +3,7 @@ import express, { Response, NextFunction } from "express";
 import type { Request } from "express";
 import { AppError } from "./errors";
 import { validateEnv } from "./config";
+import { logger } from "./logger";
 import helmet from "helmet";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { db } from "./storage";
@@ -10,6 +11,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "node:http";
 import { configureSession } from "./auth";
+import crypto from "node:crypto";
 import path from "node:path";
 
 // Fail fast on bad environment before touching DB or accepting requests.
@@ -47,37 +49,20 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-
-  console.info(`${formattedTime} [${source}] ${message}`);
-}
-
 app.use((req, res, next) => {
+  const requestId = crypto.randomUUID();
   const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, unknown> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
 
   res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      log(logLine);
+    if (req.path.startsWith("/api")) {
+      logger.info("request", {
+        requestId,
+        userId: req.session?.user?.id ?? null,
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+        durationMs: Date.now() - start,
+      });
     }
   });
 
@@ -120,7 +105,7 @@ app.use((req, res, next) => {
       ...(process.platform !== "win32" && { reusePort: true }),
     },
     () => {
-      log(`serving on port ${port}`);
+      logger.info("server started", { port });
     },
   );
 })();
