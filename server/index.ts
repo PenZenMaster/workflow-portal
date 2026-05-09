@@ -2,6 +2,7 @@ import "dotenv/config";
 import express, { Response, NextFunction } from "express";
 import type { Request } from "express";
 import { AppError } from "./errors";
+import { validateEnv } from "./config";
 import helmet from "helmet";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { db } from "./storage";
@@ -10,6 +11,9 @@ import { serveStatic } from "./static";
 import { createServer } from "node:http";
 import { configureSession } from "./auth";
 import path from "node:path";
+
+// Fail fast on bad environment before touching DB or accepting requests.
+export const config = validateEnv();
 
 // Run pending migrations before accepting requests.
 // path.resolve uses CWD (project root) — correct for both dev and cPanel.
