@@ -15,6 +15,13 @@
       "when": 1778273906430,
       "tag": "0001_clever_talisman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1778354970953,
+      "tag": "0002_funny_shadowcat",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,9 @@ import type { Express, Request, Response, NextFunction } from "express";
 import path from "node:path";
 import crypto from "node:crypto";
 import { logger } from "./logger";
+import type { UserRole } from "@shared/schema";
+
+export type { UserRole };
 
 type SessionStoreFactory = (
   s: typeof session,
@@ -26,7 +29,7 @@ export function invalidateUserSessions(userId: number): void {
     .run(userId);
 }
 
-export type SessionUser = { id: number; username: string };
+export type SessionUser = { id: number; username: string; role: UserRole };
 
 declare module "express-session" {
   interface SessionData {
@@ -50,7 +53,9 @@ export function configureSession(app: Express) {
       );
     }
     secret = crypto.randomBytes(32).toString("hex");
-    logger.warn("SESSION_SECRET not set — using ephemeral dev secret; sessions reset on restart");
+    logger.warn(
+      "SESSION_SECRET not set — using ephemeral dev secret; sessions reset on restart"
+    );
   }
 
   const sessionDbPath = path.resolve(
@@ -80,7 +85,42 @@ export function configureSession(app: Express) {
   );
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (req.session?.user) return next();
-  return res.status(401).json({ error: "Unauthorized" });
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  if (req.session?.user) {
+    next();
+    return;
+  }
+  res.status(401).json({ error: "Unauthorized" });
+}
+
+export function requireRole(...roles: UserRole[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.session?.user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    if (!roles.includes(req.session.user.role)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    next();
+  };
+}
+
+// Sprint 1 will add per-client scoping via the client_users join table.
+// For now: super_admin and agency_admin have implicit access to all clients;
+// all other roles are rejected until their client_users entry is verified.
+export function requireClientAccess(_clientIdParam: string) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.session?.user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const { role } = req.session.user;
+    if (role === "super_admin" || role === "agency_admin") {
+      next();
+      return;
+    }
+    res.status(403).json({ error: "Forbidden" });
+  };
 }

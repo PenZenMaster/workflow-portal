@@ -41,7 +41,7 @@ function buildApp(authenticated = false) {
   );
   if (authenticated) {
     app.use((req: Request, _res: Response, next: NextFunction) => {
-      req.session.user = { id: 1, username: "testuser" };
+      req.session.user = { id: 1, username: "testuser", role: "agency_admin" };
       next();
     });
   }

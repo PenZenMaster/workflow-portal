@@ -52,10 +52,19 @@ export type Workflow = {
 };
 
 // --- Users -----------------------------------------------------------------
+
+export type UserRole =
+  | "super_admin"
+  | "agency_admin"
+  | "analyst"
+  | "account_manager"
+  | "client_viewer";
+
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  role: text("role").notNull().default("super_admin"),
   email: text("email").unique(),
   resetTokenHash: text("reset_token_hash"),
   resetTokenExpiry: integer("reset_token_expiry"),
@@ -101,7 +110,30 @@ export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
-export type PublicUser = { id: number; username: string; email?: string | null };
+export type PublicUser = {
+  id: number;
+  username: string;
+  email?: string | null;
+  role: UserRole;
+};
+
+// --- Jobs ------------------------------------------------------------------
+
+export const jobs = sqliteTable("jobs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  kind: text("kind").notNull(),
+  payload: text("payload").notNull().default("{}"),
+  status: text("status").notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(3),
+  nextRunAt: integer("next_run_at").notNull(),
+  lockedUntil: integer("locked_until"),
+  lastError: text("last_error"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// --- Constants -------------------------------------------------------------
 
 export const CATEGORIES = [
   "Audit",
