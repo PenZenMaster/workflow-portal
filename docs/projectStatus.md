@@ -1,16 +1,15 @@
 ## Resume From
 
 Last session: 2026-05-08
-Last commit: 4784322 feat: wire ESLint, AppError, and response helpers — v0.2.3
-Version: v0.2.3 | Live: https://portal.fullmetaljacketseo.com (UP)
+Last commit: 7a53dae fix(ui): relabel Launch URL field from optional to Required — v0.2.4
+Version: v0.2.4 | Live: https://portal.fullmetaljacketseo.com (UP)
 
 Pick up from:
-1. Verify password reset email flow end-to-end on production
-2. Begin Sprint 2 planning — top backlog items are B-02 (structured logging) and B-03 (CI/CD)
-3. Consider response envelope migration for existing routes (incremental — new routes must use helpers)
-
-Production is live. All Sprint 2 foundation work (ESLint, AppError, response helpers) is complete.
-CLAUDE.md now enforces strict TDD, versioning, and deploy discipline.
+1. Deploy v0.2.4 to production (npm run package, upload, NPM Install, Restart)
+2. Update seed data: both audit workflows that reference Use the "seo-site-audit" skill need
+   prompts rewritten to be self-contained for Perplexity — user to supply the correct prompt content
+3. Verify password reset email flow end-to-end on production
+4. Begin Sprint 2 remaining milestones: S2-04 structured logging, S2-05 CI/CD pipeline
 
 ---
 
