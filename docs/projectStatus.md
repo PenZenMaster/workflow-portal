@@ -1,47 +1,41 @@
 ## Resume From
 
-Last session: 2026-05-08
-Last commit: 7a53dae fix(ui): relabel Launch URL field from optional to Required — v0.2.4
-Version: v0.2.4 | Live: https://portal.fullmetaljacketseo.com (UP)
+Last session: 2026-05-09
+Last commit: b98b1e5 build(ci): add GitHub Actions workflow — v0.2.7
+Version: v0.2.7 | Live: https://portal.fullmetaljacketseo.com (UP on v0.2.4 — pending deploy of v0.2.5–v0.2.7)
 
 Pick up from:
-1. Deploy v0.2.4 to production (npm run package, upload, NPM Install, Restart)
-2. Update seed data: both audit workflows that reference Use the "seo-site-audit" skill need
-   prompts rewritten to be self-contained for Perplexity — user to supply the correct prompt content
-3. Verify password reset email flow end-to-end on production
-4. Begin Sprint 2 remaining milestones: S2-04 structured logging, S2-05 CI/CD pipeline
+1. Confirm CI passes on GitHub Actions (push b98b1e5 just landed — check Actions tab)
+2. Deploy v0.2.7 to production (npm run package, upload, NPM Install, Restart)
+3. Begin Sprint 3 planning — candidates: B-04 seed versioning, B-06 session expiry, TD-10 (now resolved), TD-13 skipLibCheck
 
 ---
 
 ## Current Sprint — Sprint 2
 
 **Goal:** Code quality gates, observability, and CI/CD
-**Status: IN PROGRESS**
+**Status: COMPLETE**
 
 ### Milestones
 
 - [x] S2-01 ESLint setup — zero-warning enforcement in package pipeline
 - [x] S2-02 AppError class — structured server errors (server/errors.ts)
 - [x] S2-03 Response envelope helpers — ok(), created(), noContent() (server/response.ts)
-- [ ] S2-04 Structured logging with request context (B-02)
-- [ ] S2-05 CI/CD pipeline — check + lint + test on every push to main (B-03)
-- [ ] S2-06 .env validation on startup — fail fast if required vars missing (B-07)
+- [x] S2-04 Structured logging — JSON lines with requestId, userId, method, path, status, durationMs
+- [x] S2-05 CI/CD pipeline — lint + check + test on every push/PR to main (.github/workflows/ci.yml)
+- [x] S2-06 .env validation — validateEnv() fails fast on missing SESSION_SECRET or partial SMTP config
 
 ---
 
 ## In Progress
 
-- Nothing actively in progress (checkpoint)
+- Nothing actively in progress
 
 ---
 
 ## Backlog
 
 Priority order within each tier. Move items to a sprint milestone when scheduled.
-
-### High Priority
-
-- B-03 CI/CD pipeline — run lint + check + test on every push to main
 
 ### Medium Priority
 
@@ -69,7 +63,7 @@ Priority order within each tier. Move items to a sprint milestone when scheduled
 | TD-07 | Medium | Done | package.json name is "rest-express" (scaffold remnant) | package.json |
 | TD-08 | Medium | Done | staleTime: Infinity — queries never refetch | client/src/lib/queryClient.ts |
 | TD-09 | Medium | Done | No React error boundary — render error = blank screen | client/src/App.tsx |
-| TD-10 | Medium | Open | Session error callbacks lack request context in logs | server/routes.ts |
+| TD-10 | Medium | Done | Session error callbacks lack request context in logs | server/routes.ts |
 | TD-11 | Low | Done | Test files excluded from tsc type checking | tsconfig.json |
 | TD-12 | Low | Open | Hardcoded seed data — no versioning or rollback | server/seed.ts |
 | TD-13 | Low | Open | skipLibCheck: true masks dep type errors | tsconfig.json |
@@ -82,6 +76,34 @@ Priority order within each tier. Move items to a sprint milestone when scheduled
 ---
 
 ## Completed
+
+### Session 2026-05-09 (Sprint 2 completion)
+
+**S2-06 .env validation (v0.2.5):**
+- server/config.ts: validateEnv() called at startup before migrate()
+- Throws with clear message if SESSION_SECRET < 32 chars in production
+- Throws with missing var list if SMTP group is partially configured (all-or-nothing)
+- Returns typed AppConfig (PORT, DATA_DB_PATH, SESSION_DB_PATH, SMTP)
+- 14 new tests — 104 total passing
+
+**S2-04 Structured logging (v0.2.6):**
+- server/logger.ts: zero-dep JSON logger — {ts, level, msg, ...ctx} per line
+- Request middleware: logs requestId, userId, method, path, statusCode, durationMs
+- Removed response-body capture from request logs (security risk)
+- server/routes.ts: 4 console.error calls -> logger.error with structured context (TD-10 resolved)
+- server/auth.ts: console.warn -> logger.warn
+- 7 new tests — 111 total passing
+
+**S2-05 CI/CD pipeline (v0.2.7):**
+- .github/workflows/ci.yml: triggers on push and PR to main
+- Runs on ubuntu-latest, Node 22, npm cache enabled
+- Gates: npm ci -> lint -> check -> test
+- Note: pure config — no unit test applicable (no implementation code)
+
+**Also this session:**
+- v0.2.4 deployed to production successfully
+- Seed data rewrite complete (user-supplied)
+- Password reset email flow verified end-to-end on production
 
 ### Session 2026-05-08 (production fix + Sprint 2 foundation)
 
@@ -96,7 +118,6 @@ Priority order within each tier. Move items to a sprint milestone when scheduled
 - script/preflight.js: blocks packaging if git tag v{version} already exists
 - npm run db:check: blocks packaging if schema has unmigrated changes
 - CLAUDE.md: pre-deploy checklist, versioning rules table, TDD cycle, strict mode rules
-- Memory saved: version bump rule, migration-on-schema-change rule, no hollow affirmations
 
 **Sprint 2 foundation (v0.2.3):**
 - ESLint 9 flat config with typescript-eslint — zero warnings enforced
