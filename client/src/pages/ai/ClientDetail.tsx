@@ -1,0 +1,79 @@
+import { useParams, Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import type { Client, Brand } from "@shared/schema";
+
+export default function ClientDetail() {
+  const { id } = useParams<{ id: string }>();
+
+  const { data: clientData, isLoading } = useQuery<{ data: Client }>({
+    queryKey: [`/api/clients/${id}`],
+    enabled: !!id,
+  });
+
+  const { data: brandsData } = useQuery<{ data: Brand[] }>({
+    queryKey: [`/api/clients/${id}/brands`],
+    enabled: !!id,
+  });
+
+  if (isLoading) {
+    return <div className="p-8 text-muted-foreground">Loading...</div>;
+  }
+
+  if (!clientData) {
+    return <div className="p-8 text-destructive">Client not found.</div>;
+  }
+
+  const client = clientData.data;
+  const brands = brandsData?.data ?? [];
+
+  return (
+    <div className="p-8 max-w-3xl mx-auto">
+      <div className="mb-6">
+        <Link
+          href="/ai/clients"
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          Back to Clients
+        </Link>
+      </div>
+
+      <h1 className="text-2xl font-bold mb-1">{client.name}</h1>
+      <p className="text-muted-foreground mb-6">{client.primaryDomain}</p>
+
+      {client.geographies.length > 0 && (
+        <div className="mb-4">
+          <span className="text-sm font-medium">Geographies: </span>
+          <span className="text-sm text-muted-foreground">
+            {client.geographies.join(", ")}
+          </span>
+        </div>
+      )}
+
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold mb-3">Brands</h2>
+        {brands.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No brands configured.</p>
+        ) : (
+          <ul className="space-y-2">
+            {brands.map((b) => (
+              <li
+                key={b.id}
+                className="border rounded p-3 flex items-center gap-3"
+              >
+                <span className="font-medium">{b.canonicalName}</span>
+                <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                  {b.kind}
+                </span>
+                {b.primaryDomain && (
+                  <span className="text-sm text-muted-foreground">
+                    {b.primaryDomain}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}

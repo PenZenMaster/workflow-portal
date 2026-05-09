@@ -12,6 +12,8 @@ import NotFound from "@/pages/not-found";
 import { AuthScreen } from "@/pages/AuthScreen";
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
+import ClientsList from "@/pages/ai/ClientsList";
+import ClientDetail from "@/pages/ai/ClientDetail";
 import { Skeleton } from "@/components/ui/skeleton";
 
 class ErrorBoundary extends Component<
@@ -49,6 +51,8 @@ function AppRouter() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/ai/clients/:id" component={ClientDetail} />
+      <Route path="/ai/clients" component={ClientsList} />
       <Route component={NotFound} />
     </Switch>
   );

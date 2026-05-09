@@ -11,24 +11,24 @@ Pick up from:
 
 ---
 
-## Current Sprint — AI Visibility Sprint 0 — Foundation Refactor
+## Current Sprint — AI Visibility Sprint 1 — Client / Brand / Competitor Setup
 
-**Goal:** Restructure server boundaries and add role + jobs scaffolding without changing any user-facing behavior. Unblocks all AI Visibility feature sprints.
-**Status: PLANNED**
-**Version target: v0.3.0**
+**Goal:** Agency admin can create a client with brands, aliases, and competitors; grant access to team members.
+**Status: COMPLETE**
+**Version target: v0.4.0**
 
 ### Milestones
 
-- [ ] Split `server/routes.ts` → `server/routes/index.ts`, `auth.ts`, `workflows.ts` (verbatim carve-out, no behavior change)
-- [ ] Split `server/storage.ts` → `server/storage/index.ts`, `workflowStore.ts`, `userStore.ts` (deprecation shims keep existing tests green)
-- [ ] Add `users.role` enum column (default `super_admin`) + `jobs` table to schema
-- [ ] Generate migration `0002_*.sql` and commit alongside schema changes
-- [ ] Add `requireRole(...)` and `requireClientAccess(...)` middleware to `server/auth.ts`
-- [ ] `server/jobs/runner.ts` — `JobRunner` class with 30s tick; no job kinds yet
-- [ ] `tests/server/_helpers/buildAuthApp.ts` — reusable role + client-access test harness
-- [ ] New tests: `auth.role.test.ts`, `jobs/runner.test.ts`, `storage/composition.test.ts`
-- [ ] All 111 existing tests stay green
-- [ ] Coverage whitelist updated for new files
+- [x] Schema: clients, brands, brand_aliases, competitors, client_users tables
+- [x] Migration: 0003_numerous_black_tarantula.sql
+- [x] Stores: clientStore, brandStore, aliasStore, competitorStore, clientUserStore
+- [x] Routes: server/routes/clients.ts (14 endpoints, { data } envelope)
+- [x] UI: ClientsList + ClientDetail pages, App.tsx routes (#/ai/clients, #/ai/clients/:id)
+- [x] Tests: 22 storage + 25 route tests; 181 total passing
+
+---
+
+## Previous Sprint — AI Visibility Sprint 0 — Foundation Refactor (COMPLETE)
 
 ---
 

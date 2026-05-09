@@ -117,6 +117,135 @@ export type PublicUser = {
   role: UserRole;
 };
 
+// --- AI Visibility: Clients, Brands, Aliases, Competitors, ClientUsers -----
+
+export const clients = sqliteTable("clients", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  primaryDomain: text("primary_domain").notNull(),
+  geographies: text("geographies").notNull().default("[]"), // JSON string[]
+  exclusions: text("exclusions").notNull().default("[]"),   // JSON string[]
+  ownerUserId: integer("owner_user_id"),
+  deletedAt: integer("deleted_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const brands = sqliteTable("brands", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  canonicalName: text("canonical_name").notNull(),
+  kind: text("kind").notNull().default("client"), // 'client' | 'competitor'
+  primaryDomain: text("primary_domain"),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const brandAliases = sqliteTable("brand_aliases", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  brandId: integer("brand_id").notNull(),
+  aliasText: text("alias_text").notNull(),
+  matchType: text("match_type").notNull().default("exact"), // 'exact' | 'fuzzy' | 'regex'
+  language: text("language"),
+});
+
+export const competitors = sqliteTable("competitors", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  brandId: integer("brand_id").notNull(),
+  priority: integer("priority").notNull().default(0),
+});
+
+export const clientUsers = sqliteTable("client_users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  userId: integer("user_id").notNull(),
+  roleOverride: text("role_override"),
+  createdAt: integer("created_at").notNull(),
+});
+
+// Zod schemas for client-domain API boundaries
+export const insertClientSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  primaryDomain: z.string().min(1, "Primary domain is required"),
+  geographies: z.array(z.string()).default([]),
+  exclusions: z.array(z.string()).default([]),
+  ownerUserId: z.number().int().optional(),
+});
+
+export const insertBrandSchema = z.object({
+  canonicalName: z.string().min(1, "Brand name is required"),
+  kind: z.enum(["client", "competitor"]).default("client"),
+  primaryDomain: z.string().optional(),
+});
+
+export const insertBrandAliasSchema = z.object({
+  aliasText: z.string().min(1, "Alias text is required"),
+  matchType: z.enum(["exact", "fuzzy", "regex"]).default("exact"),
+  language: z.string().optional(),
+});
+
+export const insertCompetitorSchema = z.object({
+  canonicalName: z.string().min(1, "Competitor name is required"),
+  primaryDomain: z.string().optional(),
+  priority: z.number().int().default(0),
+});
+
+export const grantClientUserSchema = z.object({
+  userId: z.number().int().positive("User ID is required"),
+  roleOverride: z
+    .enum(["analyst", "account_manager", "client_viewer"])
+    .optional(),
+});
+
+export type InsertClient = z.infer<typeof insertClientSchema>;
+export type InsertBrand = z.infer<typeof insertBrandSchema>;
+export type InsertBrandAlias = z.infer<typeof insertBrandAliasSchema>;
+export type InsertCompetitor = z.infer<typeof insertCompetitorSchema>;
+export type GrantClientUser = z.infer<typeof grantClientUserSchema>;
+
+export type Client = {
+  id: number;
+  name: string;
+  primaryDomain: string;
+  geographies: string[];
+  exclusions: string[];
+  ownerUserId: number | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type Brand = {
+  id: number;
+  clientId: number;
+  canonicalName: string;
+  kind: "client" | "competitor";
+  primaryDomain: string | null;
+  createdAt: number;
+};
+
+export type BrandAlias = {
+  id: number;
+  brandId: number;
+  aliasText: string;
+  matchType: "exact" | "fuzzy" | "regex";
+  language: string | null;
+};
+
+export type Competitor = {
+  id: number;
+  clientId: number;
+  brandId: number;
+  priority: number;
+};
+
+export type ClientUser = {
+  id: number;
+  clientId: number;
+  userId: number;
+  roleOverride: string | null;
+  createdAt: number;
+};
+
 // --- Jobs ------------------------------------------------------------------
 
 export const jobs = sqliteTable("jobs", {

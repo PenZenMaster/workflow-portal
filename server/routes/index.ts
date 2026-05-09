@@ -19,6 +19,7 @@ import type { Server } from "node:http";
 import { seedIfEmpty } from "../seed";
 import { registerAuthRoutes } from "./auth";
 import { registerWorkflowRoutes } from "./workflows";
+import { registerClientRoutes } from "./clients";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -29,6 +30,7 @@ export async function registerRoutes(
 
   registerAuthRoutes(app);
   registerWorkflowRoutes(app);
+  registerClientRoutes(app);
 
   return httpServer;
 }

@@ -4,11 +4,26 @@ import Database from "better-sqlite3";
 import path from "node:path";
 import { WorkflowStore } from "./storage/workflowStore";
 import { UserStore } from "./storage/userStore";
+import { ClientStore } from "./storage/clientStore";
+import { BrandStore } from "./storage/brandStore";
+import { AliasStore } from "./storage/aliasStore";
+import { CompetitorStore } from "./storage/competitorStore";
+import { ClientUserStore } from "./storage/clientUserStore";
 
 export type { IWorkflowStore } from "./storage/workflowStore";
 export type { IUserStore } from "./storage/userStore";
+export type { IClientStore } from "./storage/clientStore";
+export type { IBrandStore } from "./storage/brandStore";
+export type { IAliasStore } from "./storage/aliasStore";
+export type { ICompetitorStore } from "./storage/competitorStore";
+export type { IClientUserStore } from "./storage/clientUserStore";
 export { WorkflowStore } from "./storage/workflowStore";
 export { UserStore } from "./storage/userStore";
+export { ClientStore } from "./storage/clientStore";
+export { BrandStore } from "./storage/brandStore";
+export { AliasStore } from "./storage/aliasStore";
+export { CompetitorStore } from "./storage/competitorStore";
+export { ClientUserStore } from "./storage/clientUserStore";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
 
@@ -51,6 +66,45 @@ export const SCHEMA_SQL = `
     last_error TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS clients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    primary_domain TEXT NOT NULL,
+    geographies TEXT NOT NULL DEFAULT '[]',
+    exclusions TEXT NOT NULL DEFAULT '[]',
+    owner_user_id INTEGER,
+    deleted_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS brands (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    canonical_name TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'client',
+    primary_domain TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS brand_aliases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    brand_id INTEGER NOT NULL,
+    alias_text TEXT NOT NULL,
+    match_type TEXT NOT NULL DEFAULT 'exact',
+    language TEXT
+  );
+  CREATE TABLE IF NOT EXISTS competitors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    brand_id INTEGER NOT NULL,
+    priority INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS client_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role_override TEXT,
+    created_at INTEGER NOT NULL
   );
 `;
 
@@ -122,3 +176,11 @@ export class DatabaseStorage implements IStorage {
 }
 
 export const storage = new DatabaseStorage();
+
+// --- AI Visibility domain singletons --------------------------------------
+// New code imports these directly rather than going through DatabaseStorage.
+export const clientStore = new ClientStore(db);
+export const brandStore = new BrandStore(db);
+export const aliasStore = new AliasStore(db);
+export const competitorStore = new CompetitorStore(db);
+export const clientUserStore = new ClientUserStore(db);
