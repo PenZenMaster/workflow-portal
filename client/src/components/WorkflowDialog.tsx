@@ -307,7 +307,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
                 name="launchUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Launch URL (optional)</FormLabel>
+                    <FormLabel>Launch URL (Required)</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="https://www.perplexity.ai/"
