@@ -1,17 +1,61 @@
 ## Resume From
 
 Last session: 2026-05-09
-Last commit: b98b1e5 build(ci): add GitHub Actions workflow — v0.2.7
+Last commit: 17606f5 docs(status): Sprint 2 complete — v0.2.7
 Version: v0.2.7 | Live: https://portal.fullmetaljacketseo.com (UP on v0.2.4 — pending deploy of v0.2.5–v0.2.7)
 
 Pick up from:
-1. Confirm CI passes on GitHub Actions (push b98b1e5 just landed — check Actions tab)
+1. Confirm CI passes on GitHub Actions (check Actions tab for commit b98b1e5)
 2. Deploy v0.2.7 to production (npm run package, upload, NPM Install, Restart)
-3. Begin Sprint 3 planning — candidates: B-04 seed versioning, B-06 session expiry, TD-10 (now resolved), TD-13 skipLibCheck
+3. Begin AI Visibility Module — Sprint 0 (foundation refactor): split routes/storage, add roles + jobs scaffold
 
 ---
 
-## Current Sprint — Sprint 2
+## Current Sprint — AI Visibility Sprint 0 — Foundation Refactor
+
+**Goal:** Restructure server boundaries and add role + jobs scaffolding without changing any user-facing behavior. Unblocks all AI Visibility feature sprints.
+**Status: PLANNED**
+**Version target: v0.3.0**
+
+### Milestones
+
+- [ ] Split `server/routes.ts` → `server/routes/index.ts`, `auth.ts`, `workflows.ts` (verbatim carve-out, no behavior change)
+- [ ] Split `server/storage.ts` → `server/storage/index.ts`, `workflowStore.ts`, `userStore.ts` (deprecation shims keep existing tests green)
+- [ ] Add `users.role` enum column (default `super_admin`) + `jobs` table to schema
+- [ ] Generate migration `0002_*.sql` and commit alongside schema changes
+- [ ] Add `requireRole(...)` and `requireClientAccess(...)` middleware to `server/auth.ts`
+- [ ] `server/jobs/runner.ts` — `JobRunner` class with 30s tick; no job kinds yet
+- [ ] `tests/server/_helpers/buildAuthApp.ts` — reusable role + client-access test harness
+- [ ] New tests: `auth.role.test.ts`, `jobs/runner.test.ts`, `storage/composition.test.ts`
+- [ ] All 111 existing tests stay green
+- [ ] Coverage whitelist updated for new files
+
+---
+
+## AI Visibility Module — Sprint Roadmap
+
+Full spec: `docs/ai-visibility-reporting-spec.md`
+Plan file: `C:\Users\georg\.claude\plans\glistening-riding-pixel.md`
+
+Confirmed decisions:
+- PDF: CSV-only through MVP (Phase 2 revisit)
+- Sentiment: Rule-based lexicon only for MVP; Anthropic-assisted deferred to Phase 2
+- Perplexity API key + monthly USD ceiling: to be provided before Sprint 3
+
+| Sprint | Goal | Version |
+|--------|------|---------|
+| Sprint 0 | Foundation refactor — split routes/storage, add roles + jobs scaffold | v0.3.0 |
+| Sprint 1 | Client / brand / competitor setup + AI module shell UI | v0.4.0 |
+| Sprint 2 | Versioned prompt library | v0.5.0 |
+| Sprint 3 | Run engine + Perplexity adapter | v0.6.0 |
+| Sprint 4 | Mention/citation analysis + core metrics dashboard | v0.7.0 |
+| Sprint 5 | Sentiment, annotations, CSV exports | v0.8.0 |
+| Sprint 6 | Sources, recommendations, share links | v0.9.0 |
+| Sprint 7 | GA4 integration, calibration harness | v1.0.0 |
+
+---
+
+## Previous Sprint — Sprint 2
 
 **Goal:** Code quality gates, observability, and CI/CD
 **Status: COMPLETE**
