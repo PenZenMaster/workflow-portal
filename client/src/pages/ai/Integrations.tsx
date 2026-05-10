@@ -126,28 +126,21 @@ export default function Integrations() {
       <section>
         <h2 className="text-lg font-semibold mb-3">Google Analytics 4</h2>
 
-        {/* OAuth not configured warning */}
         {!googleOAuthOk && (
           <div className="border border-orange-500/30 rounded-lg p-4 mb-4 flex items-start gap-3 bg-orange-50/50 dark:bg-orange-950/20 text-sm">
             <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
             <div className="text-muted-foreground space-y-1.5">
               <p className="font-medium text-foreground">OAuth credentials not configured</p>
-              <p>Add these to your .env and restart before connecting a Google account:</p>
+              <p>Add these to your .env and restart:</p>
               <code className="block bg-muted px-2 py-1 rounded text-xs font-mono">GOOGLE_CLIENT_ID=...apps.googleusercontent.com</code>
               <code className="block bg-muted px-2 py-1 rounded text-xs font-mono">GOOGLE_CLIENT_SECRET=GOCSPX-...</code>
               <code className="block bg-muted px-2 py-1 rounded text-xs font-mono">GOOGLE_REDIRECT_URI=https://yourportal.com/api/oauth/google/callback</code>
-              <p className="text-xs pt-1">
-                Create these at <strong>console.cloud.google.com → APIs &amp; Services → Credentials</strong>.
-                Add the redirect URI to the authorised redirect URIs list. Enable the <strong>Google Analytics Data API</strong>.
-              </p>
             </div>
           </div>
         )}
 
-        {/* Connected state */}
         {ga4Integration ? (
           <div className="border rounded-lg p-5 space-y-4">
-            {/* Header row */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
@@ -165,7 +158,7 @@ export default function Integrations() {
                 <Button variant="ghost" size="sm" onClick={() => handleTest(ga4Integration.id)} disabled={testingId === ga4Integration.id}>
                   <TestTube className="h-4 w-4 mr-1" />{testingId === ga4Integration.id ? "Testing…" : "Test"}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate(ga4Integration.id)} disabled={deleteMutation.isPending} className="text-destructive hover:text-destructive" title="Disconnect">
+                <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate(ga4Integration.id)} disabled={deleteMutation.isPending} className="text-destructive hover:text-destructive">
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -177,11 +170,24 @@ export default function Integrations() {
               {editingPropertyId === ga4Integration.id ? (
                 <form
                   onSubmit={(e) => { e.preventDefault(); savePropertyMutation.mutate({ integrationId: ga4Integration.id, propertyId: propertyIdValue }); }}
-                  className="flex gap-2"
+                  className="space-y-1.5"
                 >
-                  <Input value={propertyIdValue} onChange={(e) => setPropertyIdValue(e.target.value)} placeholder="G-XXXXXXXXXX or numeric ID" className="max-w-xs" autoFocus />
-                  <Button type="submit" size="sm" disabled={savePropertyMutation.isPending}>{savePropertyMutation.isPending ? "Saving…" : "Save"}</Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setEditingPropertyId(null)}>Cancel</Button>
+                  <div className="flex gap-2">
+                    <Input
+                      value={propertyIdValue}
+                      onChange={(e) => setPropertyIdValue(e.target.value)}
+                      placeholder="123456789"
+                      className="max-w-xs"
+                      autoFocus
+                    />
+                    <Button type="submit" size="sm" disabled={savePropertyMutation.isPending}>
+                      {savePropertyMutation.isPending ? "Saving…" : "Save"}
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setEditingPropertyId(null)}>Cancel</Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Numbers only. Found in GA4 → Admin → Property Settings → Property ID (not the G-... Measurement ID).
+                  </p>
                 </form>
               ) : (
                 <div className="flex items-center gap-3">
@@ -193,9 +199,6 @@ export default function Integrations() {
                   </Button>
                 </div>
               )}
-              <p className="text-xs text-muted-foreground mt-1.5">
-                GA4 → Admin → Property Settings → Property ID. The connected Google account must have at least Viewer access to this property.
-              </p>
             </div>
 
             {ga4Integration.lastError && (
@@ -212,12 +215,10 @@ export default function Integrations() {
             )}
           </div>
         ) : (
-          /* Not yet connected */
           <div className="border border-dashed rounded-lg p-8 text-center space-y-3">
             <p className="font-medium">Connect Google Analytics</p>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Sign in with the Google account that has access to this client's GA4 property.
-              No service account or Cloud IAM configuration required.
+              Sign in with the Google account that has Viewer access to this client's GA4 property.
             </p>
             {googleOAuthOk ? (
               <a href={`/api/clients/${id}/integrations/ga4/auth`}>
@@ -227,9 +228,7 @@ export default function Integrations() {
                 </Button>
               </a>
             ) : (
-              <Button disabled className="mt-2" title="Configure OAuth credentials first">
-                Connect Google Analytics
-              </Button>
+              <Button disabled className="mt-2">Connect Google Analytics</Button>
             )}
           </div>
         )}
