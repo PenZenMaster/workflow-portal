@@ -1,28 +1,33 @@
 ## Resume From
 
 Last session: 2026-05-10
-Last commit: aa47093 feat(sprint-3): run engine, Perplexity adapter, schedules, job handlers — v0.6.0
-Branch: feature/ai-visibility-module | Version: v0.6.0
+Last commit: 21a8a3c feat(sprint-5): sentiment classification, annotations, CSV exports — v0.8.0
+Branch: feature/ai-visibility-module | Version: v0.8.0 | 357 tests passing
 Main branch: v0.2.7 (last production deploy — portal UP)
 
 Pick up from:
-1. Delete local data.db + sessions.db before starting dev server (migration 0005 must apply cleanly)
-2. Set PERPLEXITY_API_KEY in .env to enable live Perplexity runs
-3. Begin Sprint 4 — Mention/Citation Analysis + Core Metrics Dashboard (v0.7.0)
+1. Delete local data.db + sessions.db before npm run dev (migration 0007 must apply cleanly)
+2. Begin Sprint 6 — Sources, Recommendations, Share Links (v0.9.0)
 
 ---
 
-## Current Sprint — AI Visibility Sprint 4 — Mention/Citation Analysis + Metrics
+## Current Sprint — AI Visibility Sprint 6 — Sources, Recommendations, Share Links
 
-**Goal:** Every captured response is parsed into mentions, citations, and visibility scores; the Overview dashboard renders the four headline metrics with full traceability.
-**Status: PLANNED**
-**Version target: v0.7.0**
+**Goal:** Citation domain analysis, derived recommendations from detected gaps, signed share-link delivery.
+**Status: IN PROGRESS**
+**Version target: v0.9.0**
 
 ### Milestones
 
-- [ ] Schema: response_mentions, response_citations, metric_snapshots_daily
-- [ ] Migration: 0006_*.sql
-- [ ] Stores: mentionStore, citationStore, metricStore
+- [ ] Schema: share_tokens table; Migration 0008_*.sql
+- [ ] Services: sources.ts, recommendations.ts, shareLink.ts
+- [ ] Routes: server/routes/sources.ts (sources + recommendations + share links + public token endpoint)
+- [ ] UI: Sources, Recommendations, SharePage pages + ClientDetail nav links
+- [ ] Tests: domain extraction, recommendation rules, token verification/expiry/revocation
+
+---
+
+## Previous Sprints (AI Visibility Module)
 - [ ] Services: server/services/parser.ts, server/services/scoring.ts
 - [ ] Job kinds: parse-response (auto on insert), aggregate-snapshot-daily
 - [ ] Routes: server/routes/metrics.ts (6 endpoints)
@@ -47,9 +52,9 @@ Confirmed decisions:
 | Sprint 1 | Client / brand / competitor setup + AI module shell UI | v0.4.0 | DONE |
 | Sprint 2 | Versioned prompt library | v0.5.0 | DONE |
 | Sprint 3 | Run engine + Perplexity adapter | v0.6.0 | DONE |
-| Sprint 4 | Mention/citation analysis + core metrics dashboard | v0.7.0 | NEXT |
-| Sprint 5 | Sentiment, annotations, CSV exports | v0.8.0 | - |
-| Sprint 6 | Sources, recommendations, share links | v0.9.0 | - |
+| Sprint 4 | Mention/citation analysis + core metrics dashboard | v0.7.0 | DONE |
+| Sprint 5 | Sentiment, annotations, CSV exports | v0.8.0 | DONE |
+| Sprint 6 | Sources, recommendations, share links | v0.9.0 | IN PROGRESS |
 | Sprint 7 | GA4 integration, calibration harness | v1.0.0 | - |
 
 ---
