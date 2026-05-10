@@ -362,6 +362,78 @@ export type Prompt = {
   updatedAt: number;
 };
 
+// --- AI Visibility: Mentions, Citations, Metric Snapshots -----------------
+
+export const responseMentions = sqliteTable("response_mentions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  responseId: integer("response_id").notNull(),
+  brandId: integer("brand_id").notNull(),
+  matchedText: text("matched_text").notNull(),
+  matchType: text("match_type").notNull().default("exact"), // exact | fuzzy | regex
+  section: text("section").notNull().default("body"),       // summary | list | body
+  recommendationRank: integer("recommendation_rank"),
+  confidence: real("confidence").notNull().default(1.0),
+  evidenceExcerpt: text("evidence_excerpt"),
+});
+
+export const responseCitations = sqliteTable("response_citations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  responseId: integer("response_id").notNull(),
+  url: text("url").notNull(),
+  rootDomain: text("root_domain").notNull(),
+  ownedByBrandId: integer("owned_by_brand_id"),
+  position: integer("position").notNull(),
+  isTrustedThirdParty: integer("is_trusted_third_party").notNull().default(0),
+});
+
+export const metricSnapshotsDaily = sqliteTable("metric_snapshots_daily", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  dateIso: text("date_iso").notNull(),         // YYYY-MM-DD
+  scopeKind: text("scope_kind").notNull().default("overall"), // overall|category|geo|platform|competitor
+  scopeValue: text("scope_value"),
+  citationCount: integer("citation_count").notNull().default(0),
+  mentionCount: integer("mention_count").notNull().default(0),
+  allBrandMentions: integer("all_brand_mentions").notNull().default(0),
+  visibilityScoreSum: real("visibility_score_sum").notNull().default(0),
+  promptResponseCount: integer("prompt_response_count").notNull().default(0),
+});
+
+export type ResponseMention = {
+  id: number;
+  responseId: number;
+  brandId: number;
+  matchedText: string;
+  matchType: "exact" | "fuzzy" | "regex";
+  section: "summary" | "list" | "body";
+  recommendationRank: number | null;
+  confidence: number;
+  evidenceExcerpt: string | null;
+};
+
+export type ResponseCitation = {
+  id: number;
+  responseId: number;
+  url: string;
+  rootDomain: string;
+  ownedByBrandId: number | null;
+  position: number;
+  isTrustedThirdParty: boolean;
+};
+
+export type MetricSnapshotDaily = {
+  id: number;
+  clientId: number;
+  dateIso: string;
+  scopeKind: "overall" | "category" | "geo" | "platform" | "competitor";
+  scopeValue: string | null;
+  citationCount: number;
+  mentionCount: number;
+  allBrandMentions: number;
+  visibilityScoreSum: number;
+  promptResponseCount: number;
+};
+
 // --- AI Visibility: Runs, Responses, Schedules ----------------------------
 
 export const promptRuns = sqliteTable("prompt_runs", {

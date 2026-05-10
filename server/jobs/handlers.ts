@@ -27,8 +27,15 @@ import {
   scheduleStore,
   platformStore,
   promptStore,
+  mentionStore,
+  citationStore,
+  metricStore,
+  brandStore,
+  aliasStore,
 } from "../storage";
 import { getAdapter } from "../adapters/registry";
+import { parseResponse } from "../services/parser";
+import { computeVisibilityScore } from "../services/scoring";
 import { logger } from "../logger";
 
 function computeNextFireAt(cadence: "weekly" | "monthly", hourUtc: number): number {
@@ -40,6 +47,10 @@ function computeNextFireAt(cadence: "weekly" | "monthly", hourUtc: number): numb
     next.setUTCMonth(next.getUTCMonth() + 1);
   }
   return next.getTime();
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export function registerJobHandlers(runner: JobRunner): void {
@@ -106,6 +117,126 @@ export function registerJobHandlers(runner: JobRunner): void {
             : "complete";
         await runStore.updateStatus(run.id, finalStatus);
       }
+    },
+  });
+
+  // ---- parse-response -----------------------------------------------------
+  runner.register({
+    kind: "parse-response",
+    async handle(payload) {
+      const { responseId } = payload as { responseId: number };
+      const response = await responseStore.get(responseId);
+      if (!response || !response.responseText) {
+        logger.warn("parse-response: response not found or empty", { responseId });
+        return;
+      }
+
+      // Get the run to find the client.
+      const run = await runStore.get(response.runId);
+      if (!run) return;
+
+      // Load all brands + aliases for this client.
+      const allBrands = await brandStore.listByClient(run.clientId);
+      const brandInputs = await Promise.all(
+        allBrands.map(async (b) => ({
+          id: b.id,
+          primaryDomain: b.primaryDomain,
+          aliases: await aliasStore.listByBrand(b.id),
+        }))
+      );
+
+      // Parse citations from rawPayload if available.
+      const rawPayload = response.rawPayload as { citations?: string[] } | null;
+      const citationUrls: Array<{ url: string; position: number }> =
+        (rawPayload?.citations ?? []).map((url, idx) => ({ url, position: idx + 1 }));
+
+      // Clear old parse results (for re-runs).
+      await mentionStore.deleteByResponse(responseId);
+      await citationStore.deleteByResponse(responseId);
+
+      const { mentions, citations } = parseResponse(
+        response.responseText,
+        citationUrls,
+        brandInputs
+      );
+
+      if (mentions.length > 0) {
+        await mentionStore.bulkCreate(
+          mentions.map((m) => ({ ...m, responseId }))
+        );
+      }
+
+      if (citations.length > 0) {
+        await citationStore.bulkCreate(
+          citations.map((c) => ({ ...c, responseId }))
+        );
+      }
+
+      // Compute and store today's metric snapshot for this client.
+      runner.enqueue("aggregate-snapshot-daily", { clientId: run.clientId });
+
+      logger.info("parse-response: complete", {
+        responseId,
+        mentions: mentions.length,
+        citations: citations.length,
+      });
+    },
+  });
+
+  // ---- aggregate-snapshot-daily -------------------------------------------
+  runner.register({
+    kind: "aggregate-snapshot-daily",
+    async handle(payload) {
+      const { clientId } = payload as { clientId: number };
+
+      // Get all brands for this client to identify the "client" brand.
+      const allBrands = await brandStore.listByClient(clientId);
+      const clientBrand = allBrands.find((b) => b.kind === "client");
+      if (!clientBrand) return;
+
+      // Find all client runs to aggregate across.
+      const runs = await runStore.listByClient(clientId);
+      const today = todayIso();
+
+      let citationCount = 0;
+      let mentionCount = 0;
+      let allBrandMentions = 0;
+      let visibilityScoreSum = 0;
+      let promptResponseCount = 0;
+
+      // Aggregate today's completed responses.
+      for (const run of runs) {
+        const responses = await responseStore.listByRun(run.id);
+        const todayComplete = responses.filter((r) => r.status === "complete");
+
+        for (const resp of todayComplete) {
+          promptResponseCount++;
+          const mentions = await mentionStore.listByResponse(resp.id);
+          const citations = await citationStore.listByResponse(resp.id);
+
+          const hasMention = mentions.some((m) => m.brandId === clientBrand.id);
+          const hasCitation = citations.some((c) => c.ownedByBrandId === clientBrand.id);
+
+          if (hasMention || hasCitation) mentionCount++;
+          if (hasCitation) citationCount++;
+          allBrandMentions += mentions.length;
+          visibilityScoreSum += computeVisibilityScore(mentions, citations, clientBrand.id);
+        }
+      }
+
+      await metricStore.upsert({
+        clientId,
+        dateIso: today,
+        scopeKind: "overall",
+        scopeValue: null,
+        citationCount,
+        mentionCount,
+        allBrandMentions,
+        visibilityScoreSum,
+        promptResponseCount,
+      });
+
+      logger.info("aggregate-snapshot-daily: complete", { clientId, today });
     },
   });
 

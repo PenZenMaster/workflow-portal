@@ -15,6 +15,9 @@ import { PromptStore } from "./storage/promptStore";
 import { RunStore } from "./storage/runStore";
 import { ResponseStore } from "./storage/responseStore";
 import { ScheduleStore } from "./storage/scheduleStore";
+import { MentionStore } from "./storage/mentionStore";
+import { CitationStore } from "./storage/citationStore";
+import { MetricStore } from "./storage/metricStore";
 
 export type { IWorkflowStore } from "./storage/workflowStore";
 export type { IUserStore } from "./storage/userStore";
@@ -29,6 +32,9 @@ export type { IPromptStore } from "./storage/promptStore";
 export type { IRunStore } from "./storage/runStore";
 export type { IResponseStore } from "./storage/responseStore";
 export type { IScheduleStore } from "./storage/scheduleStore";
+export type { IMentionStore } from "./storage/mentionStore";
+export type { ICitationStore } from "./storage/citationStore";
+export type { IMetricStore } from "./storage/metricStore";
 export { WorkflowStore } from "./storage/workflowStore";
 export { UserStore } from "./storage/userStore";
 export { ClientStore } from "./storage/clientStore";
@@ -42,6 +48,9 @@ export { PromptStore } from "./storage/promptStore";
 export { RunStore } from "./storage/runStore";
 export { ResponseStore } from "./storage/responseStore";
 export { ScheduleStore } from "./storage/scheduleStore";
+export { MentionStore } from "./storage/mentionStore";
+export { CitationStore } from "./storage/citationStore";
+export { MetricStore } from "./storage/metricStore";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
 
@@ -190,6 +199,38 @@ export const SCHEMA_SQL = `
     error_message TEXT,
     captured_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS response_mentions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    response_id INTEGER NOT NULL,
+    brand_id INTEGER NOT NULL,
+    matched_text TEXT NOT NULL,
+    match_type TEXT NOT NULL DEFAULT 'exact',
+    section TEXT NOT NULL DEFAULT 'body',
+    recommendation_rank INTEGER,
+    confidence REAL NOT NULL DEFAULT 1.0,
+    evidence_excerpt TEXT
+  );
+  CREATE TABLE IF NOT EXISTS response_citations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    response_id INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    root_domain TEXT NOT NULL,
+    owned_by_brand_id INTEGER,
+    position INTEGER NOT NULL,
+    is_trusted_third_party INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS metric_snapshots_daily (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    date_iso TEXT NOT NULL,
+    scope_kind TEXT NOT NULL DEFAULT 'overall',
+    scope_value TEXT,
+    citation_count INTEGER NOT NULL DEFAULT 0,
+    mention_count INTEGER NOT NULL DEFAULT 0,
+    all_brand_mentions INTEGER NOT NULL DEFAULT 0,
+    visibility_score_sum REAL NOT NULL DEFAULT 0,
+    prompt_response_count INTEGER NOT NULL DEFAULT 0
+  );
   CREATE TABLE IF NOT EXISTS run_schedules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL,
@@ -290,3 +331,6 @@ export const promptStore = new PromptStore(db);
 export const runStore = new RunStore(db);
 export const responseStore = new ResponseStore(db);
 export const scheduleStore = new ScheduleStore(db);
+export const mentionStore = new MentionStore(db);
+export const citationStore = new CitationStore(db);
+export const metricStore = new MetricStore(db);

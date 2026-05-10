@@ -43,6 +43,13 @@
       "when": 1778377850832,
       "tag": "0005_majestic_anita_blake",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1778381374971,
+      "tag": "0006_previous_paladin",
+      "breakpoints": true
     }
   ]
 }

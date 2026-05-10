@@ -49,7 +49,13 @@ export default function ClientDetail() {
         </div>
       )}
 
-      <div className="flex gap-4 mb-8">
+      <div className="flex flex-wrap gap-3 mb-8">
+        <Link
+          href={`/ai/clients/${id}/overview`}
+          className="text-sm font-medium border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors"
+        >
+          Overview
+        </Link>
         <Link
           href={`/ai/clients/${id}/prompts`}
           className="text-sm font-medium border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors"
@@ -61,6 +67,18 @@ export default function ClientDetail() {
           className="text-sm font-medium border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors"
         >
           Runs
+        </Link>
+        <Link
+          href={`/ai/clients/${id}/mentions`}
+          className="text-sm font-medium border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors"
+        >
+          Mentions
+        </Link>
+        <Link
+          href={`/ai/clients/${id}/sov`}
+          className="text-sm font-medium border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors"
+        >
+          Share of Voice
         </Link>
       </div>
 

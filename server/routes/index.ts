@@ -23,6 +23,7 @@ import { registerWorkflowRoutes } from "./workflows";
 import { registerClientRoutes } from "./clients";
 import { registerPromptRoutes } from "./prompts";
 import { registerRunRoutes } from "./runs";
+import { registerMetricRoutes } from "./metrics";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -37,6 +38,7 @@ export async function registerRoutes(
   registerClientRoutes(app);
   registerPromptRoutes(app);
   registerRunRoutes(app);
+  registerMetricRoutes(app);
 
   return httpServer;
 }
