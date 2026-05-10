@@ -217,4 +217,38 @@ export function registerIntegrationRoutes(app: Express): void {
       });
     }
   });
+
+  // --- Monthly AI traffic (stacked bar chart data) -------------------------
+
+  app.get("/api/clients/:id/traffic/monthly", requireAuth, async (req, res) => {
+    const clientId = Number(req.params.id);
+    if (Number.isNaN(clientId)) throw new AppError(400, "Invalid client id", "INVALID_ID");
+
+    const period = typeof req.query.period === "string" ? req.query.period : "6m";
+    const months = period === "12m" ? 12 : period === "3m" ? 3 : 6;
+    const toDate = new Date().toISOString().slice(0, 10);
+    const from = new Date();
+    from.setMonth(from.getMonth() - months);
+    const fromDate = from.toISOString().slice(0, 10);
+
+    const allIntegrations = await integrationStore.listByClient(clientId);
+    const ga4Integration = allIntegrations.find((i) => i.kind === "ga4" && i.status === "active");
+
+    if (!ga4Integration) {
+      ok(res, { noIntegration: true, months: [], allSources: [], fromDate, toDate });
+      return;
+    }
+
+    try {
+      const ga4 = new Ga4Service();
+      const config = ga4Integration.config as Record<string, unknown>;
+      const data = await ga4.getMonthlyAiTraffic(config, fromDate, toDate, async (updated) => {
+        await integrationStore.updateConfig(ga4Integration.id, updated);
+      });
+      ok(res, { noIntegration: false, ...data });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      ok(res, { noIntegration: false, error: msg, months: [], allSources: [], fromDate, toDate });
+    }
+  });
 }

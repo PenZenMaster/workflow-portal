@@ -10,6 +10,7 @@ type AuthStatus = {
   config?: {
     perplexityConfigured: boolean;
     googleOAuthConfigured: boolean;
+    configuredPlatforms: string[];
   };
 };
 

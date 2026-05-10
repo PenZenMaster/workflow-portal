@@ -1,27 +1,30 @@
-/*
- * Module/Script Name: registry.ts
- * Path: server/adapters/registry.ts
- *
- * Description:
- * Maps platform slugs to adapter instances. Add new adapters here as
- * additional AI platforms are supported.
- *
- * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
- * Created Date: 2026-05-09
- * Last Modified Date: 2026-05-09
- * Comments:
- * - v1.00 Sprint 3 — Perplexity only
- */
-
 import type { PlatformAdapter } from "./types";
 import { PerplexityAdapter } from "./perplexity";
+import { OpenAIAdapter } from "./openai";
+import { AnthropicAdapter } from "./anthropic";
+import { GeminiAdapter } from "./gemini";
+import { GroqAdapter } from "./groq";
+import { MistralAdapter } from "./mistral";
+import { DeepSeekAdapter } from "./deepseek";
 
 function buildAdapters(): Map<string, PlatformAdapter> {
   const map = new Map<string, PlatformAdapter>();
-  const key = process.env.PERPLEXITY_API_KEY ?? "";
-  if (key) {
-    map.set("perplexity", new PerplexityAdapter(key));
-  }
+
+  if (process.env.PERPLEXITY_API_KEY)
+    map.set("perplexity", new PerplexityAdapter(process.env.PERPLEXITY_API_KEY));
+  if (process.env.OPENAI_API_KEY)
+    map.set("openai", new OpenAIAdapter(process.env.OPENAI_API_KEY));
+  if (process.env.ANTHROPIC_API_KEY)
+    map.set("anthropic", new AnthropicAdapter(process.env.ANTHROPIC_API_KEY));
+  if (process.env.GOOGLE_AI_API_KEY)
+    map.set("gemini", new GeminiAdapter(process.env.GOOGLE_AI_API_KEY));
+  if (process.env.GROQ_API_KEY)
+    map.set("groq", new GroqAdapter(process.env.GROQ_API_KEY));
+  if (process.env.MISTRAL_API_KEY)
+    map.set("mistral", new MistralAdapter(process.env.MISTRAL_API_KEY));
+  if (process.env.DEEPSEEK_API_KEY)
+    map.set("deepseek", new DeepSeekAdapter(process.env.DEEPSEEK_API_KEY));
+
   return map;
 }
 
@@ -29,4 +32,8 @@ const _adapters = buildAdapters();
 
 export function getAdapter(slug: string): PlatformAdapter | undefined {
   return _adapters.get(slug);
+}
+
+export function getConfiguredSlugs(): string[] {
+  return Array.from(_adapters.keys());
 }

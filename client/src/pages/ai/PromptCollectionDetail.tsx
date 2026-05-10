@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { Prompt, PromptCollection } from "@shared/schema";
+import type { Prompt, PromptCollection, Platform } from "@shared/schema";
 import { PROMPT_CATEGORIES } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,8 +14,11 @@ import { Plus, Trash2, Zap, Play, X } from "lucide-react";
 export default function PromptCollectionDetail() {
   const { id, collectionId } = useParams<{ id: string; collectionId: string }>();
   const [, navigate] = useLocation();
+  const { status: authStatus } = useAuth();
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
+  const [showRunForm, setShowRunForm] = useState(false);
+  const [selectedPlatformIds, setSelectedPlatformIds] = useState<number[]>([]);
   const [promptText, setPromptText] = useState("");
   const [category, setCategory] = useState<typeof PROMPT_CATEGORIES[number]>("category");
   const [geo, setGeo] = useState("");
@@ -27,6 +31,11 @@ export default function PromptCollectionDetail() {
   const { data: promptsData, isLoading } = useQuery<{ data: Prompt[] }>({
     queryKey: [`/api/prompt-collections/${collectionId}/prompts`],
     enabled: !!collectionId,
+  });
+
+  const { data: platformsData } = useQuery<{ data: Platform[] }>({
+    queryKey: ["/api/platforms"],
+    enabled: showRunForm,
   });
 
   const addPromptMutation = useMutation({
@@ -67,15 +76,14 @@ export default function PromptCollectionDetail() {
 
   const runMutation = useMutation({
     mutationFn: async () => {
-      // Platform 1 = Perplexity (seeded on startup)
       const res = await apiRequest("POST", `/api/clients/${id}/runs`, {
         collectionId: Number(collectionId),
-        platformIds: [1],
+        platformIds: selectedPlatformIds.length > 0 ? selectedPlatformIds : [1],
       });
-      return res.json() as Promise<{ data: { runId: number } }>;
+      return res.json() as Promise<{ data: { runId: number; totalJobs: number } }>;
     },
-    onSuccess: () => {
-      toast({ title: "Run started — processing prompts through Perplexity" });
+    onSuccess: (result) => {
+      toast({ title: `Run started — ${result.data.totalJobs} jobs queued` });
       navigate(`/ai/clients/${id}/runs`);
     },
     onError: (err) => toast({ title: "Run failed", description: String(err), variant: "destructive" }),
@@ -84,6 +92,10 @@ export default function PromptCollectionDetail() {
   const collection = collectionData?.data;
   const prompts = promptsData?.data ?? [];
   const isActive = collection?.status === "active";
+  const configuredSlugs = authStatus?.config?.configuredPlatforms ?? ["perplexity"];
+  const availablePlatforms = (platformsData?.data ?? []).filter(
+    (p) => configuredSlugs.includes(p.slug) && p.enabled
+  );
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
 
@@ -114,12 +126,51 @@ export default function PromptCollectionDetail() {
             )}
             <Button
               size="sm"
-              onClick={() => runMutation.mutate()}
-              disabled={runMutation.isPending || prompts.length === 0}
-              title={prompts.length === 0 ? "Add prompts first" : "Run all prompts through Perplexity"}
+              onClick={() => setShowRunForm(!showRunForm)}
+              disabled={prompts.length === 0}
+              title={prompts.length === 0 ? "Add prompts first" : "Select platforms and run"}
             >
               <Play className="h-4 w-4 mr-1.5" />
-              {runMutation.isPending ? "Starting…" : "Run Now"}
+              Run Now
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Platform selection for run */}
+      {showRunForm && collection && (
+        <div className="border rounded-lg p-4 mb-6 bg-muted/30 space-y-3">
+          <p className="text-sm font-medium">Select platforms to query</p>
+          {availablePlatforms.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No platforms configured — add API keys in environment variables.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {availablePlatforms.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelectedPlatformIds((prev) =>
+                    prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id]
+                  )}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                    selectedPlatformIds.includes(p.id)
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-input text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {p.displayName}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2 justify-end">
+            <Button variant="ghost" size="sm" onClick={() => { setShowRunForm(false); setSelectedPlatformIds([]); }}>Cancel</Button>
+            <Button
+              size="sm"
+              onClick={() => { setShowRunForm(false); runMutation.mutate(); }}
+              disabled={runMutation.isPending || selectedPlatformIds.length === 0}
+            >
+              {runMutation.isPending ? "Starting…" : `Start Run (${selectedPlatformIds.length} platform${selectedPlatformIds.length !== 1 ? "s" : ""})`}
             </Button>
           </div>
         </div>

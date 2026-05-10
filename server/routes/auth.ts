@@ -27,6 +27,7 @@ import {
 import { requireAuth, invalidateUserSessions } from "../auth";
 import { sendPasswordResetEmail } from "../email";
 import { logger } from "../logger";
+import { getConfiguredSlugs } from "../adapters/registry";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -54,6 +55,7 @@ export function registerAuthRoutes(app: Express): void {
             process.env.GOOGLE_CLIENT_SECRET &&
             process.env.GOOGLE_REDIRECT_URI
           ),
+          configuredPlatforms: getConfiguredSlugs(),
         },
       }),
     });

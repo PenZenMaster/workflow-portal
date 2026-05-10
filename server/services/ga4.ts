@@ -35,13 +35,33 @@ import { logger } from "../logger";
 // AI Search channel rule — pure, testable, unchanged
 
 export const AI_SEARCH_REFERRERS = [
-  "perplexity.ai",
-  "chatgpt.com",
-  "chat.openai.com",
-  "gemini.google.com",
-  "copilot.microsoft.com",
-  "claude.ai",
+  // Perplexity
+  "perplexity.ai", "labs.perplexity.ai", "pplex.link",
+  // OpenAI / ChatGPT
+  "chatgpt.com", "chat.openai.com", "platform.openai.com", "oaiusercontent.com",
+  // Anthropic / Claude
+  "claude.ai", "anthropic.com",
+  // Google Gemini
+  "gemini.google.com", "bard.google.com",
+  // Microsoft Copilot
+  "copilot.microsoft.com", "copilot.cloud.microsoft.com", "edgeservices.bing.com",
+  // Other AI search engines
+  "you.com", "phind.com", "andisearch.com", "duckduckgo.com",
+  "character.ai", "pi.ai", "blackbox.ai", "ora.ai",
+  "huggingface.co", "meta.ai",
+  // Grok / xAI
+  "grok.x.ai", "x.ai", "grok.com",
+  // DeepSeek / Mistral / Llama
+  "deepseek.com", "mistral.ai",
+  "llama.meta.com", "llama.org", "llama.ai",
+  // Poe (multi-model hub)
+  "poe.com",
 ];
+
+/** Strip leading www. so sessionSource values match the referrer list. */
+export function normalizeSource(source: string): string {
+  return source.replace(/^www\./i, "");
+}
 
 export interface SessionRow {
   sessionSource: string;
@@ -50,7 +70,19 @@ export interface SessionRow {
 }
 
 export function filterAiSearchRows<T extends SessionRow>(rows: T[]): T[] {
-  return rows.filter((r) => AI_SEARCH_REFERRERS.includes(r.sessionSource));
+  return rows.filter((r) => AI_SEARCH_REFERRERS.includes(normalizeSource(r.sessionSource)));
+}
+
+export interface MonthlyAiTrafficData {
+  months: Array<{
+    yearMonth: string;
+    label: string;
+    sources: Record<string, number>;
+    total: number;
+  }>;
+  allSources: string[];
+  fromDate: string;
+  toDate: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -316,5 +348,83 @@ export class Ga4Service {
       fromDate,
       toDate,
     };
+  }
+
+  async getMonthlyAiTraffic(
+    config: Record<string, unknown>,
+    fromDate: string,
+    toDate: string,
+    onTokenRefreshed: (updated: Record<string, unknown>) => Promise<void>
+  ): Promise<MonthlyAiTrafficData> {
+    const propertyId = String(config.propertyId ?? "");
+    if (!propertyId) throw new Error("GA4 property ID not set.");
+
+    const accessToken = await getOrRefreshAccessToken(config, onTokenRefreshed);
+
+    const url = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`;
+    const body = {
+      dateRanges: [{ startDate: fromDate, endDate: toDate }],
+      dimensions: [{ name: "yearMonth" }, { name: "sessionSource" }],
+      metrics: [{ name: "sessions" }],
+    };
+
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`GA4 API error (${resp.status}): ${text}`);
+    }
+
+    const data = (await resp.json()) as {
+      rows?: Array<{
+        dimensionValues: Array<{ value: string }>;
+        metricValues: Array<{ value: string }>;
+      }>;
+    };
+
+    // Aggregate per month + source
+    const monthMap = new Map<string, Record<string, number>>();
+    const allSourcesSet = new Set<string>();
+
+    for (const row of data.rows ?? []) {
+      const yearMonth = row.dimensionValues[0]?.value ?? "";
+      const source = normalizeSource(row.dimensionValues[1]?.value ?? "");
+      const sessions = parseInt(row.metricValues[0]?.value ?? "0", 10);
+
+      if (!AI_SEARCH_REFERRERS.includes(source)) continue;
+
+      if (!monthMap.has(yearMonth)) monthMap.set(yearMonth, {});
+      const monthSources = monthMap.get(yearMonth)!;
+      monthSources[source] = (monthSources[source] ?? 0) + sessions;
+      allSourcesSet.add(source);
+    }
+
+    function monthLabel(ym: string): string {
+      const year = ym.slice(0, 4);
+      const month = parseInt(ym.slice(4), 10) - 1;
+      return new Date(Number(year), month, 1).toLocaleString("en-US", { month: "short", year: "numeric" });
+    }
+
+    const months = Array.from(monthMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([yearMonth, sources]) => ({
+        yearMonth,
+        label: monthLabel(yearMonth),
+        sources,
+        total: Object.values(sources).reduce((s, n) => s + n, 0),
+      }));
+
+    // Sort sources by total sessions descending
+    const allSources = Array.from(allSourcesSet).sort((a, b) => {
+      const aTotal = months.reduce((s, m) => s + (m.sources[a] ?? 0), 0);
+      const bTotal = months.reduce((s, m) => s + (m.sources[b] ?? 0), 0);
+      return bTotal - aTotal;
+    });
+
+    return { months, allSources, fromDate, toDate };
   }
 }

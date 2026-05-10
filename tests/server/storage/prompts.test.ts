@@ -33,19 +33,19 @@ describe("PlatformStore", () => {
     store = new PlatformStore(makeDb());
   });
 
-  it("seedDefaults inserts perplexity platform when table is empty", async () => {
+  it("seedDefaults inserts all 7 platforms when table is empty", async () => {
     await store.seedDefaults();
     const list = await store.list();
-    expect(list).toHaveLength(1);
-    expect(list[0].slug).toBe("perplexity");
-    expect(list[0].enabled).toBe(true);
+    expect(list).toHaveLength(7);
+    expect(list.map((p) => p.slug)).toContain("perplexity");
+    expect(list.every((p) => p.enabled)).toBe(true);
   });
 
-  it("seedDefaults is idempotent", async () => {
+  it("seedDefaults is idempotent — running twice keeps 7 platforms", async () => {
     await store.seedDefaults();
     await store.seedDefaults();
     const list = await store.list();
-    expect(list).toHaveLength(1);
+    expect(list).toHaveLength(7);
   });
 
   it("get returns platform by id", async () => {

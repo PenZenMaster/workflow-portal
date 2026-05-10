@@ -33,6 +33,12 @@ export interface AppConfig {
   GOOGLE_CLIENT_ID: string | null;
   GOOGLE_CLIENT_SECRET: string | null;
   GOOGLE_REDIRECT_URI: string | null;
+  OPENAI_API_KEY: string | null;
+  ANTHROPIC_API_KEY: string | null;
+  GOOGLE_AI_API_KEY: string | null;
+  GROQ_API_KEY: string | null;
+  MISTRAL_API_KEY: string | null;
+  DEEPSEEK_API_KEY: string | null;
 }
 
 const SMTP_KEYS = [
@@ -85,5 +91,11 @@ export function validateEnv(): AppConfig {
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || null,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || null,
     GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || null,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY || null,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || null,
+    GOOGLE_AI_API_KEY: process.env.GOOGLE_AI_API_KEY || null,
+    GROQ_API_KEY: process.env.GROQ_API_KEY || null,
+    MISTRAL_API_KEY: process.env.MISTRAL_API_KEY || null,
+    DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || null,
   };
 }

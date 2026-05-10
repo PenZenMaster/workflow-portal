@@ -87,7 +87,7 @@ export function registerJobHandlers(runner: JobRunner): void {
       if (!adapter) {
         await responseStore.updateResult(responseId, {
           status: "failed",
-          errorMessage: `No adapter configured for platform: ${platform.slug}. Set PERPLEXITY_API_KEY in .env`,
+          errorMessage: `No adapter configured for platform: ${platform.slug}. Set the corresponding API key in your environment variables.`,
         });
         await runStore.incrementFailed(response.runId);
       } else {

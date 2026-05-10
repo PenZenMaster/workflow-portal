@@ -16,7 +16,7 @@
 
 import { platforms } from "@shared/schema";
 import type { Platform } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -34,6 +34,12 @@ function hydrate(row: Row): Platform {
 
 const DEFAULT_PLATFORMS = [
   { slug: "perplexity", displayName: "Perplexity" },
+  { slug: "openai",     displayName: "ChatGPT (OpenAI)" },
+  { slug: "anthropic",  displayName: "Claude (Anthropic)" },
+  { slug: "gemini",     displayName: "Gemini (Google)" },
+  { slug: "groq",       displayName: "Llama via Groq" },
+  { slug: "mistral",    displayName: "Mistral" },
+  { slug: "deepseek",   displayName: "DeepSeek" },
 ] as const;
 
 export interface IPlatformStore {
@@ -60,16 +66,13 @@ export class PlatformStore implements IPlatformStore {
   }
 
   async seedDefaults(): Promise<void> {
-    const count = this._db
-      .select({ n: sql<number>`count(*)` })
-      .from(platforms)
-      .get();
-    if (count && count.n > 0) return;
-
+    // INSERT OR IGNORE per slug — safe to call on existing DBs; adds new platforms
+    // without touching existing rows (fixes the "short-circuit on any rows" bug).
     for (const p of DEFAULT_PLATFORMS) {
       this._db
         .insert(platforms)
         .values({ slug: p.slug, displayName: p.displayName, enabled: 1, config: "{}" })
+        .onConflictDoNothing()
         .run();
     }
   }
