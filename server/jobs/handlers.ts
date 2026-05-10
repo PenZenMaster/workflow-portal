@@ -105,6 +105,8 @@ export function registerJobHandlers(runner: JobRunner): void {
             rawPayload: result.rawPayload,
           });
           await runStore.incrementCompleted(response.runId);
+          // Chain: parse the response for mentions, citations, and metrics.
+          runner.enqueue("parse-response", { responseId });
         } catch (err) {
           await responseStore.updateResult(responseId, {
             status: "failed",

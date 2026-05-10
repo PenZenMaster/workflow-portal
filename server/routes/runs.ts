@@ -110,6 +110,28 @@ export function registerRunRoutes(app: Express): void {
     }
   );
 
+  // --- Re-parse all completed responses in a run --------------------------
+  // Useful when brands/aliases are added after a run completed.
+
+  app.post(
+    "/api/runs/:id/reparse",
+    requireRole(...EDITOR_ROLES),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+      const run = await runStore.get(id);
+      if (!run) throw new AppError(404, "Run not found", "RUN_NOT_FOUND");
+
+      const responses = await responseStore.listByRun(id);
+      const completed = responses.filter((r) => r.status === "complete");
+      for (const resp of completed) {
+        jobRunner.enqueue("parse-response", { responseId: resp.id });
+      }
+
+      res.status(202).json({ data: { reparsedCount: completed.length } });
+    }
+  );
+
   // --- Retry failed --------------------------------------------------------
 
   app.post(
