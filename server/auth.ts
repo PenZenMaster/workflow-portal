@@ -5,6 +5,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import path from "node:path";
 import crypto from "node:crypto";
 import { logger } from "./logger";
+import { storage } from "./storage";
 import type { UserRole } from "@shared/schema";
 
 export type { UserRole };
@@ -94,10 +95,21 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 }
 
 export function requireRole(...roles: UserRole[]) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.session?.user) {
       res.status(401).json({ error: "Unauthorized" });
       return;
+    }
+    // Sessions created before the role column was added won't carry a role.
+    // Refresh it from the DB once and persist it into the session.
+    if (!req.session.user.role) {
+      const freshUser = await storage.getUserById(req.session.user.id);
+      if (!freshUser) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      req.session.user.role = freshUser.role;
+      await new Promise<void>((resolve) => req.session.save(() => resolve()));
     }
     if (!roles.includes(req.session.user.role)) {
       res.status(403).json({ error: "Forbidden" });
@@ -111,10 +123,19 @@ export function requireRole(...roles: UserRole[]) {
 // For now: super_admin and agency_admin have implicit access to all clients;
 // all other roles are rejected until their client_users entry is verified.
 export function requireClientAccess(_clientIdParam: string) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.session?.user) {
       res.status(401).json({ error: "Unauthorized" });
       return;
+    }
+    if (!req.session.user.role) {
+      const freshUser = await storage.getUserById(req.session.user.id);
+      if (!freshUser) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      req.session.user.role = freshUser.role;
+      await new Promise<void>((resolve) => req.session.save(() => resolve()));
     }
     const { role } = req.session.user;
     if (role === "super_admin" || role === "agency_admin") {
