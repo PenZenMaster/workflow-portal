@@ -362,6 +362,38 @@ export type Prompt = {
   updatedAt: number;
 };
 
+// --- AI Visibility: Share Tokens ------------------------------------------
+
+export const shareTokens = sqliteTable("share_tokens", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  kind: text("kind").notNull().default("export"), // export | live-dashboard
+  resourceId: integer("resource_id").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: integer("expires_at").notNull(),
+  createdByUserId: integer("created_by_user_id").notNull(),
+  revokedAt: integer("revoked_at"),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const createShareLinkSchema = z.object({
+  kind: z.enum(["export", "live-dashboard"]).default("export"),
+  resourceId: z.number().int().positive(),
+  ttlDays: z.number().int().min(1).max(365).default(30),
+});
+
+export type CreateShareLink = z.infer<typeof createShareLinkSchema>;
+
+export type ShareToken = {
+  id: number;
+  kind: "export" | "live-dashboard";
+  resourceId: number;
+  tokenHash: string;
+  expiresAt: number;
+  createdByUserId: number;
+  revokedAt: number | null;
+  createdAt: number;
+};
+
 // --- AI Visibility: Sentiment, Annotations, Exports -----------------------
 
 export const responseSentiment = sqliteTable("response_sentiment", {

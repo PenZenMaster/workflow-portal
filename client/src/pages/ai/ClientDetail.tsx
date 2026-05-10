@@ -92,6 +92,18 @@ export default function ClientDetail() {
         >
           Reports
         </Link>
+        <Link
+          href={`/ai/clients/${id}/sources`}
+          className="text-sm font-medium border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors"
+        >
+          Sources
+        </Link>
+        <Link
+          href={`/ai/clients/${id}/recommendations`}
+          className="text-sm font-medium border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors"
+        >
+          Recommendations
+        </Link>
       </div>
 
       <section className="mt-2">

@@ -57,6 +57,13 @@
       "when": 1778382595048,
       "tag": "0007_sad_moondragon",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1778386005455,
+      "tag": "0008_big_korath",
+      "breakpoints": true
     }
   ]
 }

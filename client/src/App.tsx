@@ -24,6 +24,9 @@ import SoV from "@/pages/ai/SoV";
 import Sentiment from "@/pages/ai/Sentiment";
 import ReviewQueue from "@/pages/ai/ReviewQueue";
 import Reports from "@/pages/ai/Reports";
+import Sources from "@/pages/ai/Sources";
+import Recommendations from "@/pages/ai/Recommendations";
+import SharePage from "@/pages/ai/SharePage";
 import { Skeleton } from "@/components/ui/skeleton";
 
 class ErrorBoundary extends Component<
@@ -61,6 +64,9 @@ function AppRouter() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/share/:token" component={SharePage} />
+      <Route path="/ai/clients/:id/sources" component={Sources} />
+      <Route path="/ai/clients/:id/recommendations" component={Recommendations} />
       <Route path="/ai/clients/:id/sentiment/review" component={ReviewQueue} />
       <Route path="/ai/clients/:id/sentiment" component={Sentiment} />
       <Route path="/ai/clients/:id/reports" component={Reports} />

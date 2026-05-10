@@ -37,6 +37,7 @@ type CitationInput = Omit<ResponseCitation, "id">;
 
 export interface ICitationStore {
   listByResponse(responseId: number): Promise<ResponseCitation[]>;
+  listByClient(clientId: number): Promise<ResponseCitation[]>;
   create(data: CitationInput): Promise<ResponseCitation>;
   bulkCreate(data: CitationInput[]): Promise<ResponseCitation[]>;
   deleteByResponse(responseId: number): Promise<void>;
@@ -51,6 +52,13 @@ export class CitationStore implements ICitationStore {
       .from(responseCitations)
       .where(eq(responseCitations.responseId, responseId))
       .all();
+    return rows.map(hydrate).sort((a, b) => a.position - b.position);
+  }
+
+  async listByClient(_clientId: number): Promise<ResponseCitation[]> {
+    // Sprint 7+ will add a proper run→response join for multi-client isolation.
+    // MVP: single-agency portal; returns all citations.
+    const rows = this._db.select().from(responseCitations).all();
     return rows.map(hydrate).sort((a, b) => a.position - b.position);
   }
 
