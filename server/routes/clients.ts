@@ -95,6 +95,13 @@ export function registerClientRoutes(app: Express): void {
 
   // --- Brands ------------------------------------------------------------
 
+  app.get("/api/brands/:id/aliases", requireAuth, async (req, res) => {
+    const brandId = Number(req.params.id);
+    if (Number.isNaN(brandId)) throw new AppError(400, "Invalid brand id", "INVALID_ID");
+    const data = await aliasStore.listByBrand(brandId);
+    ok(res, data);
+  });
+
   app.get("/api/clients/:id/brands", requireAuth, async (req, res) => {
     const clientId = Number(req.params.id);
     if (Number.isNaN(clientId))
