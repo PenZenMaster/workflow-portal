@@ -18,6 +18,9 @@ import { ScheduleStore } from "./storage/scheduleStore";
 import { MentionStore } from "./storage/mentionStore";
 import { CitationStore } from "./storage/citationStore";
 import { MetricStore } from "./storage/metricStore";
+import { SentimentStore } from "./storage/sentimentStore";
+import { AnnotationStore } from "./storage/annotationStore";
+import { ExportStore } from "./storage/exportStore";
 
 export type { IWorkflowStore } from "./storage/workflowStore";
 export type { IUserStore } from "./storage/userStore";
@@ -35,6 +38,9 @@ export type { IScheduleStore } from "./storage/scheduleStore";
 export type { IMentionStore } from "./storage/mentionStore";
 export type { ICitationStore } from "./storage/citationStore";
 export type { IMetricStore } from "./storage/metricStore";
+export type { ISentimentStore } from "./storage/sentimentStore";
+export type { IAnnotationStore } from "./storage/annotationStore";
+export type { IExportStore } from "./storage/exportStore";
 export { WorkflowStore } from "./storage/workflowStore";
 export { UserStore } from "./storage/userStore";
 export { ClientStore } from "./storage/clientStore";
@@ -51,6 +57,9 @@ export { ScheduleStore } from "./storage/scheduleStore";
 export { MentionStore } from "./storage/mentionStore";
 export { CitationStore } from "./storage/citationStore";
 export { MetricStore } from "./storage/metricStore";
+export { SentimentStore } from "./storage/sentimentStore";
+export { AnnotationStore } from "./storage/annotationStore";
+export { ExportStore } from "./storage/exportStore";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
 
@@ -199,6 +208,43 @@ export const SCHEMA_SQL = `
     error_message TEXT,
     captured_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS response_sentiment (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    response_id INTEGER NOT NULL,
+    brand_id INTEGER NOT NULL,
+    label TEXT NOT NULL DEFAULT 'neutral',
+    score REAL NOT NULL DEFAULT 0,
+    confidence REAL NOT NULL DEFAULT 0,
+    evidence_excerpt TEXT,
+    facet_labels TEXT NOT NULL DEFAULT '[]',
+    reviewed_by_user_id INTEGER,
+    reviewed_at INTEGER,
+    override_label TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS annotations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope_kind TEXT NOT NULL DEFAULT 'response',
+    scope_id INTEGER NOT NULL,
+    author_user_id INTEGER NOT NULL,
+    body TEXT NOT NULL,
+    visibility TEXT NOT NULL DEFAULT 'internal',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS report_exports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'csv-executive',
+    period_start TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'queued',
+    file_path TEXT,
+    last_error TEXT,
+    requested_by_user_id INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS response_mentions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     response_id INTEGER NOT NULL,
@@ -334,3 +380,6 @@ export const scheduleStore = new ScheduleStore(db);
 export const mentionStore = new MentionStore(db);
 export const citationStore = new CitationStore(db);
 export const metricStore = new MetricStore(db);
+export const sentimentStore = new SentimentStore(db);
+export const annotationStore = new AnnotationStore(db);
+export const exportStore = new ExportStore(db);

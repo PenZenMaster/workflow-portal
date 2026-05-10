@@ -24,6 +24,8 @@ import { registerClientRoutes } from "./clients";
 import { registerPromptRoutes } from "./prompts";
 import { registerRunRoutes } from "./runs";
 import { registerMetricRoutes } from "./metrics";
+import { registerSentimentRoutes } from "./sentiment";
+import { registerExportRoutes } from "./exports";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -39,6 +41,8 @@ export async function registerRoutes(
   registerPromptRoutes(app);
   registerRunRoutes(app);
   registerMetricRoutes(app);
+  registerSentimentRoutes(app);
+  registerExportRoutes(app);
 
   return httpServer;
 }

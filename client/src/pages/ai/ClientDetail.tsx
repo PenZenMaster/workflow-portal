@@ -80,6 +80,18 @@ export default function ClientDetail() {
         >
           Share of Voice
         </Link>
+        <Link
+          href={`/ai/clients/${id}/sentiment`}
+          className="text-sm font-medium border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors"
+        >
+          Sentiment
+        </Link>
+        <Link
+          href={`/ai/clients/${id}/reports`}
+          className="text-sm font-medium border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors"
+        >
+          Reports
+        </Link>
       </div>
 
       <section className="mt-2">

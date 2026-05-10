@@ -21,6 +21,8 @@
 
 import crypto from "node:crypto";
 import type { JobRunner } from "./runner";
+import fs from "node:fs";
+import path from "node:path";
 import {
   runStore,
   responseStore,
@@ -30,12 +32,16 @@ import {
   mentionStore,
   citationStore,
   metricStore,
+  sentimentStore,
+  exportStore,
   brandStore,
   aliasStore,
 } from "../storage";
 import { getAdapter } from "../adapters/registry";
 import { parseResponse } from "../services/parser";
 import { computeVisibilityScore } from "../services/scoring";
+import { classifySentiment } from "../services/sentiment";
+import { generateCsvLines } from "../services/csv";
 import { logger } from "../logger";
 
 function computeNextFireAt(cadence: "weekly" | "monthly", hourUtc: number): number {
@@ -172,7 +178,8 @@ export function registerJobHandlers(runner: JobRunner): void {
         );
       }
 
-      // Compute and store today's metric snapshot for this client.
+      // Chain downstream jobs.
+      runner.enqueue("sentiment-classify", { responseId });
       runner.enqueue("aggregate-snapshot-daily", { clientId: run.clientId });
 
       logger.info("parse-response: complete", {
@@ -180,6 +187,107 @@ export function registerJobHandlers(runner: JobRunner): void {
         mentions: mentions.length,
         citations: citations.length,
       });
+    },
+  });
+
+  // ---- sentiment-classify -------------------------------------------------
+  runner.register({
+    kind: "sentiment-classify",
+    async handle(payload) {
+      const { responseId } = payload as { responseId: number };
+      const response = await responseStore.get(responseId);
+      if (!response || !response.responseText) return;
+
+      const run = await runStore.get(response.runId);
+      if (!run) return;
+
+      const allBrands = await brandStore.listByClient(run.clientId);
+
+      await sentimentStore.deleteByResponse(responseId);
+
+      const mentions = await mentionStore.listByResponse(responseId);
+      const brandIds = Array.from(new Set(mentions.map((m) => m.brandId)));
+
+      for (const brandId of brandIds) {
+        const brandMentions = mentions.filter((m) => m.brandId === brandId);
+        const excerpts = brandMentions
+          .map((m) => m.evidenceExcerpt ?? "")
+          .filter(Boolean)
+          .join(" ");
+
+        const brand = allBrands.find((b) => b.id === brandId);
+        const context = [brand?.canonicalName ?? "", excerpts, response.responseText.slice(0, 400)].join(" ");
+
+        const result = classifySentiment(context);
+        await sentimentStore.create({
+          responseId,
+          brandId,
+          label: result.label,
+          score: result.score,
+          confidence: result.confidence,
+          evidenceExcerpt: result.evidenceExcerpt,
+          facetLabels: result.facetLabels,
+        });
+      }
+
+      logger.info("sentiment-classify: complete", { responseId, brands: brandIds.length });
+    },
+  });
+
+  // ---- build-export -------------------------------------------------------
+  runner.register({
+    kind: "build-export",
+    async handle(payload) {
+      const { exportId } = payload as { exportId: number };
+      const exportRecord = await exportStore.get(exportId);
+      if (!exportRecord) return;
+
+      const exportsDir = path.resolve("exports");
+      if (!fs.existsSync(exportsDir)) {
+        fs.mkdirSync(exportsDir, { recursive: true });
+      }
+      const filePath = path.join(exportsDir, `export-${exportId}.csv`);
+
+      try {
+        const { metricStore: ms, mentionStore: mns, sentimentStore: ss } = await import("../storage");
+
+        let lines: string[];
+
+        if (exportRecord.kind === "csv-executive") {
+          const snapshots = await ms.listByClient(
+            exportRecord.clientId,
+            exportRecord.periodStart,
+            exportRecord.periodEnd
+          );
+          lines = generateCsvLines("csv-executive", { snapshots });
+        } else {
+          // csv-analyst and csv-mentions: export mentions with sentiment
+          const rawMentions = await mns.listByClient(exportRecord.clientId);
+          const sentiments = await ss.listByClient(exportRecord.clientId);
+          const sentMap = new Map(sentiments.map((s) => [s.responseId, s]));
+          const mentions = rawMentions.map((m) => ({
+            id: m.id,
+            responseId: m.responseId,
+            brandId: m.brandId,
+            matchedText: m.matchedText,
+            section: m.section,
+            recommendationRank: m.recommendationRank,
+            evidenceExcerpt: m.evidenceExcerpt,
+            sentimentLabel: sentMap.get(m.responseId)?.label ?? "unknown",
+            sentimentScore: sentMap.get(m.responseId)?.score ?? 0,
+          }));
+          lines = generateCsvLines(exportRecord.kind, { mentions });
+        }
+
+        fs.writeFileSync(filePath, lines.join("\n") + "\n", "utf-8");
+        await exportStore.updateStatus(exportId, "ready", { filePath });
+        logger.info("build-export: complete", { exportId, filePath });
+      } catch (err) {
+        await exportStore.updateStatus(exportId, "failed", {
+          lastError: err instanceof Error ? err.message : String(err),
+        });
+        logger.error("build-export: failed", { exportId, error: String(err) });
+      }
     },
   });
 

@@ -362,6 +362,109 @@ export type Prompt = {
   updatedAt: number;
 };
 
+// --- AI Visibility: Sentiment, Annotations, Exports -----------------------
+
+export const responseSentiment = sqliteTable("response_sentiment", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  responseId: integer("response_id").notNull(),
+  brandId: integer("brand_id").notNull(),
+  label: text("label").notNull().default("neutral"), // positive|neutral|negative|mixed
+  score: real("score").notNull().default(0),          // -1.0 to +1.0
+  confidence: real("confidence").notNull().default(0),
+  evidenceExcerpt: text("evidence_excerpt"),
+  facetLabels: text("facet_labels").notNull().default("[]"), // JSON string[]
+  reviewedByUserId: integer("reviewed_by_user_id"),
+  reviewedAt: integer("reviewed_at"),
+  overrideLabel: text("override_label"),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const annotations = sqliteTable("annotations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  scopeKind: text("scope_kind").notNull().default("response"), // run|prompt|response|client
+  scopeId: integer("scope_id").notNull(),
+  authorUserId: integer("author_user_id").notNull(),
+  body: text("body").notNull(),
+  visibility: text("visibility").notNull().default("internal"), // internal|client
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const reportExports = sqliteTable("report_exports", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  kind: text("kind").notNull().default("csv-executive"), // csv-executive|csv-analyst|csv-mentions
+  periodStart: text("period_start").notNull(),
+  periodEnd: text("period_end").notNull(),
+  status: text("status").notNull().default("queued"), // queued|ready|failed
+  filePath: text("file_path"),
+  lastError: text("last_error"),
+  requestedByUserId: integer("requested_by_user_id"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const insertAnnotationSchema = z.object({
+  scopeKind: z.enum(["run", "prompt", "response", "client"]),
+  scopeId: z.number().int().positive(),
+  body: z.string().min(1, "Annotation body is required"),
+  visibility: z.enum(["internal", "client"]).default("internal"),
+});
+
+export const triggerExportSchema = z.object({
+  kind: z.enum(["csv-executive", "csv-analyst", "csv-mentions"]),
+  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD required"),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD required"),
+});
+
+export const sentimentOverrideSchema = z.object({
+  label: z.enum(["positive", "neutral", "negative", "mixed"]),
+});
+
+export type InsertAnnotation = z.infer<typeof insertAnnotationSchema>;
+export type TriggerExport = z.infer<typeof triggerExportSchema>;
+export type SentimentLabel = "positive" | "neutral" | "negative" | "mixed";
+
+export type ResponseSentiment = {
+  id: number;
+  responseId: number;
+  brandId: number;
+  label: SentimentLabel;
+  score: number;
+  confidence: number;
+  evidenceExcerpt: string | null;
+  facetLabels: string[];
+  reviewedByUserId: number | null;
+  reviewedAt: number | null;
+  overrideLabel: string | null;
+  createdAt: number;
+};
+
+export type Annotation = {
+  id: number;
+  scopeKind: "run" | "prompt" | "response" | "client";
+  scopeId: number;
+  authorUserId: number;
+  body: string;
+  visibility: "internal" | "client";
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type ReportExport = {
+  id: number;
+  clientId: number;
+  kind: "csv-executive" | "csv-analyst" | "csv-mentions";
+  periodStart: string;
+  periodEnd: string;
+  status: "queued" | "ready" | "failed";
+  filePath: string | null;
+  lastError: string | null;
+  requestedByUserId: number | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
 // --- AI Visibility: Mentions, Citations, Metric Snapshots -----------------
 
 export const responseMentions = sqliteTable("response_mentions", {
