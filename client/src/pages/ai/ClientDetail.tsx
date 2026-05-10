@@ -110,6 +110,12 @@ export default function ClientDetail() {
         >
           Traffic
         </Link>
+        <Link
+          href={`/ai/clients/${id}/settings/integrations`}
+          className="text-sm font-medium border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors bg-primary/5"
+        >
+          ⚙ Integrations
+        </Link>
       </div>
 
       <section className="mt-2">

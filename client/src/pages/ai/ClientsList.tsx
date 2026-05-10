@@ -3,14 +3,16 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import type { Client } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, X } from "lucide-react";
+import { Plus, X, AlertCircle } from "lucide-react";
 
 export default function ClientsList() {
   const [, navigate] = useLocation();
+  const { status: authStatus } = useAuth();
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -129,6 +131,27 @@ export default function ClientsList() {
             </Button>
           </div>
         </form>
+      )}
+
+      {/* Perplexity key warning — shown until key is configured */}
+      {authStatus?.config && !authStatus.config.perplexityConfigured && (
+        <div className="mb-6 border border-orange-500/30 rounded-lg p-4 bg-orange-50/50 dark:bg-orange-950/20 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-medium mb-1">Perplexity API key not configured</p>
+            <p className="text-muted-foreground mb-2">
+              Prompt runs will fail until you add your API key. Open any client's{" "}
+              <strong>⚙ Integrations</strong> page for setup instructions, or add it
+              directly to your <code className="bg-muted px-1 rounded">.env</code>:
+            </p>
+            <code className="block bg-muted px-2 py-1 rounded text-xs font-mono">
+              PERPLEXITY_API_KEY=pplx-...
+            </code>
+            <p className="text-xs text-muted-foreground mt-2">
+              On cPanel: Setup Node.js App → Environment Variables → restart.
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Client list */}
