@@ -1,29 +1,32 @@
 ## Resume From
 
 Last session: 2026-05-10
-Last commit: 21a8a3c feat(sprint-5): sentiment classification, annotations, CSV exports — v0.8.0
-Branch: feature/ai-visibility-module | Version: v0.8.0 | 357 tests passing
+Last commit: 5beafd4 feat(sprint-6): sources analysis, recommendations engine, share links — v0.9.0
+Branch: feature/ai-visibility-module | Version: v0.9.0 | 395 tests passing
 Main branch: v0.2.7 (last production deploy — portal UP)
 
 Pick up from:
-1. Delete local data.db + sessions.db before npm run dev (migration 0007 must apply cleanly)
-2. Begin Sprint 6 — Sources, Recommendations, Share Links (v0.9.0)
+1. Delete local data.db + sessions.db before npm run dev (migration 0008 must apply cleanly)
+2. Begin Sprint 7 — GA4 Integration, Calibration Harness, v1.0.0 cut
 
 ---
 
-## Current Sprint — AI Visibility Sprint 6 — Sources, Recommendations, Share Links
+## Current Sprint — AI Visibility Sprint 7 — GA4 + Calibration + v1.0.0
 
-**Goal:** Citation domain analysis, derived recommendations from detected gaps, signed share-link delivery.
-**Status: IN PROGRESS**
-**Version target: v0.9.0**
+**Goal:** AI referral traffic stitched into reports; calibration harness against a manual audit set; v1.0.0 cut.
+**Status: PLANNED**
+**Version target: v1.0.0**
 
 ### Milestones
 
-- [ ] Schema: share_tokens table; Migration 0008_*.sql
-- [ ] Services: sources.ts, recommendations.ts, shareLink.ts
-- [ ] Routes: server/routes/sources.ts (sources + recommendations + share links + public token endpoint)
-- [ ] UI: Sources, Recommendations, SharePage pages + ClientDetail nav links
-- [ ] Tests: domain extraction, recommendation rules, token verification/expiry/revocation
+- [ ] Schema: integrations table; Migration 0009_*.sql
+- [ ] Service: server/services/ga4.ts — AI Search channel rule for tracked AI referrers
+- [ ] Store: integrationStore
+- [ ] Job kind: refresh-ga4 (daily)
+- [ ] Routes: server/routes/integrations.ts (CRUD + test endpoint + traffic view)
+- [ ] UI: Traffic page + Settings/Integrations page
+- [ ] Calibration harness: tests/calibration/ with 20 fixture responses, precision/recall thresholds
+- [ ] v1.0.0 PR against main
 
 ---
 
@@ -54,12 +57,21 @@ Confirmed decisions:
 | Sprint 3 | Run engine + Perplexity adapter | v0.6.0 | DONE |
 | Sprint 4 | Mention/citation analysis + core metrics dashboard | v0.7.0 | DONE |
 | Sprint 5 | Sentiment, annotations, CSV exports | v0.8.0 | DONE |
-| Sprint 6 | Sources, recommendations, share links | v0.9.0 | IN PROGRESS |
-| Sprint 7 | GA4 integration, calibration harness | v1.0.0 | - |
+| Sprint 6 | Sources, recommendations, share links | v0.9.0 | DONE |
+| Sprint 7 | GA4 integration, calibration harness | v1.0.0 | NEXT |
 
 ---
 
 ## Previous Sprints (AI Visibility Module)
+
+### Sprint 6 — Sources, Recommendations, Share Links (COMPLETE — v0.9.0)
+
+- Schema: share_tokens table; Migration 0008_big_korath.sql (21 tables)
+- Services: sources.ts (domain analysis, owned split), recommendations.ts (4 gap rules), shareLink.ts (SHA-256 token lifecycle)
+- Store: shareTokenStore; citationStore gained listByClient()
+- Routes: sources.ts — sources, recommendations, share link create/revoke, public /api/share/:token/data
+- UI: Sources, Recommendations, SharePage pages; ClientDetail nav gains Sources + Recommendations
+- Tests: 38 new; 395 total passing
 
 ### Sprint 3 — Run Engine + Perplexity Adapter (COMPLETE — v0.6.0)
 
