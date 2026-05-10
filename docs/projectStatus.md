@@ -1,32 +1,33 @@
 ## Resume From
 
 Last session: 2026-05-10
-Last commit: 5beafd4 feat(sprint-6): sources analysis, recommendations engine, share links — v0.9.0
-Branch: feature/ai-visibility-module | Version: v0.9.0 | 395 tests passing
+Last commit: 0528148 feat(sprint-7): GA4 integration, calibration harness, v1.0.0 — MVP complete
+Branch: feature/ai-visibility-module | Version: v1.0.0 | 420 tests passing
 Main branch: v0.2.7 (last production deploy — portal UP)
 
 Pick up from:
-1. Delete local data.db + sessions.db before npm run dev (migration 0008 must apply cleanly)
-2. Begin Sprint 7 — GA4 Integration, Calibration Harness, v1.0.0 cut
+1. Delete local data.db + sessions.db before npm run dev (migration 0009 must apply cleanly)
+2. QA v1.0.0 on dev server — verify calibration harness passes with live data
+3. Open PR: feature/ai-visibility-module → main once QA is signed off
 
 ---
 
 ## Current Sprint — AI Visibility Sprint 7 — GA4 + Calibration + v1.0.0
 
 **Goal:** AI referral traffic stitched into reports; calibration harness against a manual audit set; v1.0.0 cut.
-**Status: PLANNED**
-**Version target: v1.0.0**
+**Status: COMPLETE — pending PR merge**
+**Version: v1.0.0**
 
 ### Milestones
 
-- [ ] Schema: integrations table; Migration 0009_*.sql
-- [ ] Service: server/services/ga4.ts — AI Search channel rule for tracked AI referrers
-- [ ] Store: integrationStore
-- [ ] Job kind: refresh-ga4 (daily)
-- [ ] Routes: server/routes/integrations.ts (CRUD + test endpoint + traffic view)
-- [ ] UI: Traffic page + Settings/Integrations page
-- [ ] Calibration harness: tests/calibration/ with 20 fixture responses, precision/recall thresholds
-- [ ] v1.0.0 PR against main
+- [x] Schema: integrations table; Migration 0009_chubby_celestials.sql (22 tables total)
+- [x] Service: server/services/ga4.ts — native fetch + JWT auth; filterAiSearchRows() covers 6 AI platforms
+- [x] Store: integrationStore (CRUD + updateStatus)
+- [x] Job kind: refresh-ga4 (daily connectivity sync)
+- [x] Routes: server/routes/integrations.ts — CRUD + test + traffic view (graceful noIntegration fallback)
+- [x] UI: Traffic + Integrations pages; ClientDetail nav gains Traffic button
+- [x] Calibration harness: tests/calibration/ — 20 synthetic fixtures; precision ≥0.85 on mentions, ≥0.90 on citations, ≥0.70 on sentiment — all PASS
+- [ ] PR feature/ai-visibility-module → main
 
 ---
 
