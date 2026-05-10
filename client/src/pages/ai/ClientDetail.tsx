@@ -56,6 +56,12 @@ export default function ClientDetail() {
         >
           Prompt Collections
         </Link>
+        <Link
+          href={`/ai/clients/${id}/runs`}
+          className="text-sm font-medium border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors"
+        >
+          Runs
+        </Link>
       </div>
 
       <section className="mt-2">

@@ -12,6 +12,9 @@ import { ClientUserStore } from "./storage/clientUserStore";
 import { PlatformStore } from "./storage/platformStore";
 import { PromptCollectionStore } from "./storage/promptCollectionStore";
 import { PromptStore } from "./storage/promptStore";
+import { RunStore } from "./storage/runStore";
+import { ResponseStore } from "./storage/responseStore";
+import { ScheduleStore } from "./storage/scheduleStore";
 
 export type { IWorkflowStore } from "./storage/workflowStore";
 export type { IUserStore } from "./storage/userStore";
@@ -23,6 +26,9 @@ export type { IClientUserStore } from "./storage/clientUserStore";
 export type { IPlatformStore } from "./storage/platformStore";
 export type { IPromptCollectionStore } from "./storage/promptCollectionStore";
 export type { IPromptStore } from "./storage/promptStore";
+export type { IRunStore } from "./storage/runStore";
+export type { IResponseStore } from "./storage/responseStore";
+export type { IScheduleStore } from "./storage/scheduleStore";
 export { WorkflowStore } from "./storage/workflowStore";
 export { UserStore } from "./storage/userStore";
 export { ClientStore } from "./storage/clientStore";
@@ -33,6 +39,9 @@ export { ClientUserStore } from "./storage/clientUserStore";
 export { PlatformStore } from "./storage/platformStore";
 export { PromptCollectionStore } from "./storage/promptCollectionStore";
 export { PromptStore } from "./storage/promptStore";
+export { RunStore } from "./storage/runStore";
+export { ResponseStore } from "./storage/responseStore";
+export { ScheduleStore } from "./storage/scheduleStore";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
 
@@ -148,6 +157,54 @@ export const SCHEMA_SQL = `
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS prompt_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    collection_id INTEGER NOT NULL,
+    batch_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'queued',
+    triggered_by TEXT NOT NULL DEFAULT 'manual',
+    triggered_by_user_id INTEGER,
+    total_prompts INTEGER NOT NULL DEFAULT 0,
+    completed_prompts INTEGER NOT NULL DEFAULT 0,
+    failed_prompts INTEGER NOT NULL DEFAULT 0,
+    started_at INTEGER,
+    finished_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS responses_raw (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL,
+    prompt_id INTEGER NOT NULL,
+    platform_id INTEGER NOT NULL,
+    query_text TEXT NOT NULL,
+    locale TEXT,
+    geo TEXT,
+    status TEXT NOT NULL DEFAULT 'queued',
+    response_text TEXT,
+    response_summary_block TEXT,
+    model_variant TEXT,
+    latency_ms INTEGER,
+    raw_payload TEXT,
+    error_message TEXT,
+    captured_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS run_schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    collection_id INTEGER NOT NULL,
+    platform_ids TEXT NOT NULL DEFAULT '[]',
+    cadence TEXT NOT NULL DEFAULT 'weekly',
+    day_of_week INTEGER,
+    day_of_month INTEGER,
+    hour_utc INTEGER NOT NULL DEFAULT 0,
+    last_fired_at INTEGER,
+    next_fire_at INTEGER NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
 `;
 
 const rawPath = process.env.DATA_DB_PATH || "data.db";
@@ -221,6 +278,7 @@ export const storage = new DatabaseStorage();
 
 // --- AI Visibility domain singletons --------------------------------------
 // New code imports these directly rather than going through DatabaseStorage.
+// SCHEMA_SQL additions for Sprint 3 tables are in the block above.
 export const clientStore = new ClientStore(db);
 export const brandStore = new BrandStore(db);
 export const aliasStore = new AliasStore(db);
@@ -229,3 +287,6 @@ export const clientUserStore = new ClientUserStore(db);
 export const platformStore = new PlatformStore(db);
 export const promptCollectionStore = new PromptCollectionStore(db);
 export const promptStore = new PromptStore(db);
+export const runStore = new RunStore(db);
+export const responseStore = new ResponseStore(db);
+export const scheduleStore = new ScheduleStore(db);

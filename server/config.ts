@@ -28,6 +28,8 @@ export interface AppConfig {
   DATA_DB_PATH: string;
   SESSION_DB_PATH: string;
   SMTP: SmtpConfig | null;
+  PERPLEXITY_API_KEY: string | null;
+  PERPLEXITY_DAILY_USD_LIMIT: number;
 }
 
 const SMTP_KEYS = [
@@ -73,5 +75,9 @@ export function validateEnv(): AppConfig {
             baseUrl: process.env.BASE_URL!,
           }
         : null,
+    PERPLEXITY_API_KEY: process.env.PERPLEXITY_API_KEY || null,
+    PERPLEXITY_DAILY_USD_LIMIT: parseFloat(
+      process.env.PERPLEXITY_DAILY_USD_LIMIT || "10"
+    ),
   };
 }

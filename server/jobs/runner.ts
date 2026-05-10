@@ -54,6 +54,21 @@ export class JobRunner {
     this.timer = null;
   }
 
+  enqueue(kind: string, payload: unknown, nextRunAt = Date.now()): void {
+    if (!this.db) return;
+    const now = Date.now();
+    this.db
+      .insert(jobs)
+      .values({
+        kind,
+        payload: JSON.stringify(payload),
+        nextRunAt,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+  }
+
   // Resets running jobs whose locks have expired back to queued so they will
   // be retried. Called on startup to recover from process crashes.
   rescueOrphans(): void {

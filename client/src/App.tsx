@@ -16,6 +16,8 @@ import ClientsList from "@/pages/ai/ClientsList";
 import ClientDetail from "@/pages/ai/ClientDetail";
 import PromptCollections from "@/pages/ai/PromptCollections";
 import PromptCollectionDetail from "@/pages/ai/PromptCollectionDetail";
+import RunsList from "@/pages/ai/RunsList";
+import RunDetail from "@/pages/ai/RunDetail";
 import { Skeleton } from "@/components/ui/skeleton";
 
 class ErrorBoundary extends Component<
@@ -53,6 +55,8 @@ function AppRouter() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/ai/runs/:runId" component={RunDetail} />
+      <Route path="/ai/clients/:id/runs" component={RunsList} />
       <Route path="/ai/clients/:id/prompts/:collectionId" component={PromptCollectionDetail} />
       <Route path="/ai/clients/:id/prompts" component={PromptCollections} />
       <Route path="/ai/clients/:id" component={ClientDetail} />

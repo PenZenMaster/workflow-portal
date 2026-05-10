@@ -362,6 +362,131 @@ export type Prompt = {
   updatedAt: number;
 };
 
+// --- AI Visibility: Runs, Responses, Schedules ----------------------------
+
+export const promptRuns = sqliteTable("prompt_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  collectionId: integer("collection_id").notNull(),
+  batchId: text("batch_id").notNull(),
+  status: text("status").notNull().default("queued"), // queued|running|partial|complete|failed
+  triggeredBy: text("triggered_by").notNull().default("manual"), // manual|schedule
+  triggeredByUserId: integer("triggered_by_user_id"),
+  totalPrompts: integer("total_prompts").notNull().default(0),
+  completedPrompts: integer("completed_prompts").notNull().default(0),
+  failedPrompts: integer("failed_prompts").notNull().default(0),
+  startedAt: integer("started_at"),
+  finishedAt: integer("finished_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const responsesRaw = sqliteTable("responses_raw", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runId: integer("run_id").notNull(),
+  promptId: integer("prompt_id").notNull(),
+  platformId: integer("platform_id").notNull(),
+  queryText: text("query_text").notNull(),
+  locale: text("locale"),
+  geo: text("geo"),
+  status: text("status").notNull().default("queued"), // queued|running|complete|failed
+  responseText: text("response_text"),
+  responseSummaryBlock: text("response_summary_block"),
+  modelVariant: text("model_variant"),
+  latencyMs: integer("latency_ms"),
+  rawPayload: text("raw_payload"), // JSON
+  errorMessage: text("error_message"),
+  capturedAt: integer("captured_at").notNull(),
+});
+
+export const runSchedules = sqliteTable("run_schedules", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  collectionId: integer("collection_id").notNull(),
+  platformIds: text("platform_ids").notNull().default("[]"), // JSON number[]
+  cadence: text("cadence").notNull().default("weekly"), // weekly|monthly
+  dayOfWeek: integer("day_of_week"), // 0-6
+  dayOfMonth: integer("day_of_month"), // 1-28
+  hourUtc: integer("hour_utc").notNull().default(0),
+  lastFiredAt: integer("last_fired_at"),
+  nextFireAt: integer("next_fire_at").notNull(),
+  enabled: integer("enabled").notNull().default(1),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const triggerRunSchema = z.object({
+  collectionId: z.number().int().positive("Collection ID is required"),
+  platformIds: z
+    .array(z.number().int().positive())
+    .min(1, "At least one platform is required"),
+});
+
+export const insertScheduleSchema = z.object({
+  collectionId: z.number().int().positive(),
+  platformIds: z.array(z.number().int().positive()).min(1),
+  cadence: z.enum(["weekly", "monthly"]),
+  dayOfWeek: z.number().int().min(0).max(6).optional(),
+  dayOfMonth: z.number().int().min(1).max(28).optional(),
+  hourUtc: z.number().int().min(0).max(23).default(0),
+  nextFireAt: z.number().int().optional(),
+  enabled: z.boolean().default(true),
+});
+
+export type TriggerRun = z.infer<typeof triggerRunSchema>;
+export type InsertSchedule = z.infer<typeof insertScheduleSchema>;
+
+export type PromptRun = {
+  id: number;
+  clientId: number;
+  collectionId: number;
+  batchId: string;
+  status: "queued" | "running" | "partial" | "complete" | "failed";
+  triggeredBy: "manual" | "schedule";
+  triggeredByUserId: number | null;
+  totalPrompts: number;
+  completedPrompts: number;
+  failedPrompts: number;
+  startedAt: number | null;
+  finishedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type ResponseRaw = {
+  id: number;
+  runId: number;
+  promptId: number;
+  platformId: number;
+  queryText: string;
+  locale: string | null;
+  geo: string | null;
+  status: "queued" | "running" | "complete" | "failed";
+  responseText: string | null;
+  responseSummaryBlock: string | null;
+  modelVariant: string | null;
+  latencyMs: number | null;
+  rawPayload: unknown;
+  errorMessage: string | null;
+  capturedAt: number;
+};
+
+export type RunSchedule = {
+  id: number;
+  clientId: number;
+  collectionId: number;
+  platformIds: number[];
+  cadence: "weekly" | "monthly";
+  dayOfWeek: number | null;
+  dayOfMonth: number | null;
+  hourUtc: number;
+  lastFiredAt: number | null;
+  nextFireAt: number;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
 // --- Jobs ------------------------------------------------------------------
 
 export const jobs = sqliteTable("jobs", {
