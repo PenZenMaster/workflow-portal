@@ -19,7 +19,11 @@ const mockStorage = {
   deleteWorkflow: vi.fn(),
 };
 
-vi.mock("../../server/storage", () => ({ storage: mockStorage }));
+vi.mock("../../server/storage", () => ({
+  storage: mockStorage,
+  // Sprint 2: platformStore.seedDefaults() is called in the route aggregator.
+  platformStore: { seedDefaults: vi.fn().mockResolvedValue(undefined) },
+}));
 vi.mock("../../server/seed", () => ({ seedIfEmpty: vi.fn() }));
 
 // Import AFTER mocks are registered

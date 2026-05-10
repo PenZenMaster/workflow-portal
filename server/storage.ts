@@ -9,6 +9,9 @@ import { BrandStore } from "./storage/brandStore";
 import { AliasStore } from "./storage/aliasStore";
 import { CompetitorStore } from "./storage/competitorStore";
 import { ClientUserStore } from "./storage/clientUserStore";
+import { PlatformStore } from "./storage/platformStore";
+import { PromptCollectionStore } from "./storage/promptCollectionStore";
+import { PromptStore } from "./storage/promptStore";
 
 export type { IWorkflowStore } from "./storage/workflowStore";
 export type { IUserStore } from "./storage/userStore";
@@ -17,6 +20,9 @@ export type { IBrandStore } from "./storage/brandStore";
 export type { IAliasStore } from "./storage/aliasStore";
 export type { ICompetitorStore } from "./storage/competitorStore";
 export type { IClientUserStore } from "./storage/clientUserStore";
+export type { IPlatformStore } from "./storage/platformStore";
+export type { IPromptCollectionStore } from "./storage/promptCollectionStore";
+export type { IPromptStore } from "./storage/promptStore";
 export { WorkflowStore } from "./storage/workflowStore";
 export { UserStore } from "./storage/userStore";
 export { ClientStore } from "./storage/clientStore";
@@ -24,6 +30,9 @@ export { BrandStore } from "./storage/brandStore";
 export { AliasStore } from "./storage/aliasStore";
 export { CompetitorStore } from "./storage/competitorStore";
 export { ClientUserStore } from "./storage/clientUserStore";
+export { PlatformStore } from "./storage/platformStore";
+export { PromptCollectionStore } from "./storage/promptCollectionStore";
+export { PromptStore } from "./storage/promptStore";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
 
@@ -106,6 +115,39 @@ export const SCHEMA_SQL = `
     role_override TEXT,
     created_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS platforms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    config TEXT NOT NULL DEFAULT '{}'
+  );
+  CREATE TABLE IF NOT EXISTS prompt_collections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'draft',
+    notes TEXT,
+    parent_collection_id INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS prompts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    collection_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'category',
+    funnel_stage TEXT NOT NULL DEFAULT 'awareness',
+    geo TEXT,
+    device_context TEXT,
+    priority_weight REAL NOT NULL DEFAULT 1.0,
+    status TEXT NOT NULL DEFAULT 'active',
+    target_platforms TEXT NOT NULL DEFAULT '[]',
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
 `;
 
 const rawPath = process.env.DATA_DB_PATH || "data.db";
@@ -184,3 +226,6 @@ export const brandStore = new BrandStore(db);
 export const aliasStore = new AliasStore(db);
 export const competitorStore = new CompetitorStore(db);
 export const clientUserStore = new ClientUserStore(db);
+export const platformStore = new PlatformStore(db);
+export const promptCollectionStore = new PromptCollectionStore(db);
+export const promptStore = new PromptStore(db);

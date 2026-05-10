@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -244,6 +244,122 @@ export type ClientUser = {
   userId: number;
   roleOverride: string | null;
   createdAt: number;
+};
+
+// --- AI Visibility: Platforms, Prompt Collections, Prompts ----------------
+
+export const PROMPT_CATEGORIES = [
+  "category",
+  "problem",
+  "comparison",
+  "alternative",
+  "brand",
+  "reputation",
+  "local",
+] as const;
+export type PromptCategory = (typeof PROMPT_CATEGORIES)[number];
+
+export const FUNNEL_STAGES = ["awareness", "consideration", "decision"] as const;
+export type FunnelStage = (typeof FUNNEL_STAGES)[number];
+
+export const platforms = sqliteTable("platforms", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  slug: text("slug").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  enabled: integer("enabled").notNull().default(1), // 0 | 1
+  config: text("config").notNull().default("{}"),   // JSON
+});
+
+export const promptCollections = sqliteTable("prompt_collections", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  name: text("name").notNull(),
+  version: integer("version").notNull().default(1),
+  status: text("status").notNull().default("draft"), // 'draft' | 'active' | 'archived'
+  notes: text("notes"),
+  parentCollectionId: integer("parent_collection_id"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const prompts = sqliteTable("prompts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  collectionId: integer("collection_id").notNull(),
+  text: text("text").notNull(),
+  category: text("category").notNull().default("category"),
+  funnelStage: text("funnel_stage").notNull().default("awareness"),
+  geo: text("geo"),
+  deviceContext: text("device_context"),
+  priorityWeight: real("priority_weight").notNull().default(1.0),
+  status: text("status").notNull().default("active"), // 'draft' | 'active'
+  targetPlatforms: text("target_platforms").notNull().default("[]"), // JSON string[]
+  position: integer("position").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const insertPromptCollectionSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  notes: z.string().optional(),
+});
+
+export const insertPromptSchema = z.object({
+  text: z.string().min(1, "Prompt text is required"),
+  category: z.enum(PROMPT_CATEGORIES),
+  funnelStage: z.enum(FUNNEL_STAGES).default("awareness"),
+  geo: z.string().optional(),
+  deviceContext: z.string().optional(),
+  priorityWeight: z.number().min(0).max(10).default(1),
+  status: z.enum(["draft", "active"]).default("active"),
+  targetPlatforms: z.array(z.string()).default([]),
+  position: z.number().int().default(0),
+});
+
+export const bulkInsertPromptsSchema = z.object({
+  prompts: z
+    .array(insertPromptSchema)
+    .min(1, "At least one prompt required")
+    .max(200, "Maximum 200 prompts per bulk import"),
+});
+
+export type InsertPromptCollection = z.infer<typeof insertPromptCollectionSchema>;
+export type InsertPrompt = z.infer<typeof insertPromptSchema>;
+export type BulkInsertPrompts = z.infer<typeof bulkInsertPromptsSchema>;
+
+export type Platform = {
+  id: number;
+  slug: string;
+  displayName: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+};
+
+export type PromptCollection = {
+  id: number;
+  clientId: number;
+  name: string;
+  version: number;
+  status: "draft" | "active" | "archived";
+  notes: string | null;
+  parentCollectionId: number | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type Prompt = {
+  id: number;
+  collectionId: number;
+  text: string;
+  category: PromptCategory;
+  funnelStage: FunnelStage;
+  geo: string | null;
+  deviceContext: string | null;
+  priorityWeight: number;
+  status: "draft" | "active";
+  targetPlatforms: string[];
+  position: number;
+  createdAt: number;
+  updatedAt: number;
 };
 
 // --- Jobs ------------------------------------------------------------------

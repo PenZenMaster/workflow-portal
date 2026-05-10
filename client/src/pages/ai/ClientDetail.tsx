@@ -49,7 +49,16 @@ export default function ClientDetail() {
         </div>
       )}
 
-      <section className="mt-8">
+      <div className="flex gap-4 mb-8">
+        <Link
+          href={`/ai/clients/${id}/prompts`}
+          className="text-sm font-medium border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors"
+        >
+          Prompt Collections
+        </Link>
+      </div>
+
+      <section className="mt-2">
         <h2 className="text-lg font-semibold mb-3">Brands</h2>
         {brands.length === 0 ? (
           <p className="text-muted-foreground text-sm">No brands configured.</p>
