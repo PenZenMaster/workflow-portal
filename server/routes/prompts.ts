@@ -54,6 +54,16 @@ export function registerPromptRoutes(app: Express): void {
     }
   );
 
+  // Get a single collection by id
+  app.get("/api/prompt-collections/:id", requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+    const collection = await promptCollectionStore.get(id);
+    if (!collection)
+      throw new AppError(404, "Collection not found", "COLLECTION_NOT_FOUND");
+    ok(res, collection);
+  });
+
   app.post(
     "/api/clients/:clientId/prompt-collections",
     requireRole(...EDITOR_ROLES),
