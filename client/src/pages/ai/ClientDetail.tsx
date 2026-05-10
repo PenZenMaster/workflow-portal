@@ -217,15 +217,15 @@ export default function ClientDetail() {
       <div className="flex flex-wrap gap-3 mb-8">
         {[
           ["Overview", `/ai/clients/${id}/overview`],
-          ["Prompt Collections", `/ai/clients/${id}/prompts`],
-          ["Runs", `/ai/clients/${id}/runs`],
           ["Mentions", `/ai/clients/${id}/mentions`],
           ["Share of Voice", `/ai/clients/${id}/sov`],
           ["Sentiment", `/ai/clients/${id}/sentiment`],
-          ["Reports", `/ai/clients/${id}/reports`],
           ["Sources", `/ai/clients/${id}/sources`],
           ["Recommendations", `/ai/clients/${id}/recommendations`],
           ["Traffic", `/ai/clients/${id}/traffic`],
+          ["Reports", `/ai/clients/${id}/reports`],
+          ["Prompt Collections", `/ai/clients/${id}/prompts`],
+          ["Runs", `/ai/clients/${id}/runs`],
         ].map(([label, href]) => (
           <Link
             key={href}
