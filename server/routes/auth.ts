@@ -45,6 +45,13 @@ export function registerAuthRoutes(app: Express): void {
       needsSetup: userCount === 0,
       authenticated: !!req.session?.user,
       user: req.session?.user ?? null,
+      // Only expose config status to authenticated users.
+      ...(req.session?.user && {
+        config: {
+          perplexityConfigured: !!process.env.PERPLEXITY_API_KEY,
+          ga4KeyConfigured: !!process.env.GA4_SERVICE_ACCOUNT_KEY_PATH,
+        },
+      }),
     });
   });
 
