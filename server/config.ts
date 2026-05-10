@@ -30,6 +30,9 @@ export interface AppConfig {
   SMTP: SmtpConfig | null;
   PERPLEXITY_API_KEY: string | null;
   PERPLEXITY_DAILY_USD_LIMIT: number;
+  GOOGLE_CLIENT_ID: string | null;
+  GOOGLE_CLIENT_SECRET: string | null;
+  GOOGLE_REDIRECT_URI: string | null;
 }
 
 const SMTP_KEYS = [
@@ -79,5 +82,8 @@ export function validateEnv(): AppConfig {
     PERPLEXITY_DAILY_USD_LIMIT: parseFloat(
       process.env.PERPLEXITY_DAILY_USD_LIMIT || "10"
     ),
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || null,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || null,
+    GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || null,
   };
 }

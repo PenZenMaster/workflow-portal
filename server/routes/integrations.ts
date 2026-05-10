@@ -3,27 +3,32 @@
  * Path: server/routes/integrations.ts
  *
  * Description:
- * REST API routes for the integrations domain: GA4, GSC, and future CRM
- * connectors. Includes CRUD, a connectivity test endpoint, and the AI
- * traffic view that aggregates data from a client's GA4 integration.
+ * REST API routes for the integrations domain. GA4 uses OAuth 2.0 —
+ * no service accounts required. Clients connect a normal Google account
+ * that has been granted Viewer access to their GA4 property.
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-10
  * Last Modified Date: 2026-05-10
  * Comments:
  * - v1.00 Sprint 7 initial implementation
+ * - v2.00 Refactored to OAuth 2.0
  */
 
 import type { Express } from "express";
+import { z } from "zod";
 import { integrationStore } from "../storage";
-import { insertIntegrationSchema } from "@shared/schema";
 import { requireAuth, requireRole } from "../auth";
-import { ok, created, noContent } from "../response";
+import { ok, noContent } from "../response";
 import { AppError } from "../errors";
-import { Ga4Service } from "../services/ga4";
+import { Ga4Service, buildAuthUrl, buildOAuthState } from "../services/ga4";
 import { logger } from "../logger";
 
 const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
+
+const updatePropertySchema = z.object({
+  propertyId: z.string().min(1, "Property ID is required"),
+});
 
 function periodToDates(period: string): { fromDate: string; toDate: string } {
   const toDate = new Date().toISOString().slice(0, 10);
@@ -34,7 +39,7 @@ function periodToDates(period: string): { fromDate: string; toDate: string } {
 }
 
 export function registerIntegrationRoutes(app: Express): void {
-  // --- CRUD ----------------------------------------------------------------
+  // --- List integrations ---------------------------------------------------
 
   app.get("/api/clients/:id/integrations", requireAuth, async (req, res) => {
     const clientId = Number(req.params.id);
@@ -44,20 +49,37 @@ export function registerIntegrationRoutes(app: Express): void {
     ok(res, list);
   });
 
-  app.post(
-    "/api/clients/:id/integrations",
+  // --- Initiate GA4 OAuth --------------------------------------------------
+  // Redirects the browser to Google's consent screen.
+  // This is a full-page redirect, not an XHR call.
+
+  app.get(
+    "/api/clients/:id/integrations/ga4/auth",
     requireRole(...ADMIN_ROLES),
-    async (req, res) => {
+    (req, res) => {
       const clientId = Number(req.params.id);
       if (Number.isNaN(clientId))
         throw new AppError(400, "Invalid client id", "INVALID_ID");
-      const parsed = insertIntegrationSchema.safeParse(req.body);
-      if (!parsed.success)
-        throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
-      const integration = await integrationStore.create(clientId, parsed.data);
-      created(res, integration);
+
+      const clientId_ = process.env.GOOGLE_CLIENT_ID;
+      const clientSecret_ = process.env.GOOGLE_CLIENT_SECRET;
+      const redirectUri_ = process.env.GOOGLE_REDIRECT_URI;
+
+      if (!clientId_ || !clientSecret_ || !redirectUri_) {
+        throw new AppError(
+          503,
+          "Google OAuth is not configured. Add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI to your environment variables.",
+          "OAUTH_NOT_CONFIGURED"
+        );
+      }
+
+      const state = buildOAuthState(clientId, req.session.user!.id);
+      const authUrl = buildAuthUrl(state);
+      res.redirect(authUrl);
     }
   );
+
+  // --- Delete integration --------------------------------------------------
 
   app.delete(
     "/api/clients/:id/integrations/:integrationId",
@@ -69,6 +91,35 @@ export function registerIntegrationRoutes(app: Express): void {
       if (!deleted)
         throw new AppError(404, "Integration not found", "INTEGRATION_NOT_FOUND");
       noContent(res);
+    }
+  );
+
+  // --- Update GA4 property ID ---------------------------------------------
+  // Called after OAuth connection to set/change the target GA4 property.
+
+  app.patch(
+    "/api/integrations/:id/property",
+    requireRole(...ADMIN_ROLES),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+
+      const parsed = updatePropertySchema.safeParse(req.body);
+      if (!parsed.success)
+        throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
+
+      const integration = await integrationStore.get(id);
+      if (!integration)
+        throw new AppError(404, "Integration not found", "INTEGRATION_NOT_FOUND");
+
+      const updatedConfig = {
+        ...(integration.config as Record<string, unknown>),
+        propertyId: parsed.data.propertyId,
+      };
+      await integrationStore.updateConfig(id, updatedConfig);
+      await integrationStore.updateStatus(id, "active");
+
+      ok(res, { ok: true, propertyId: parsed.data.propertyId });
     }
   );
 
@@ -89,23 +140,24 @@ export function registerIntegrationRoutes(app: Express): void {
 
       if (integration.kind === "ga4") {
         try {
-          const ga4 = new Ga4Service();
           const today = new Date().toISOString().slice(0, 10);
-          await ga4.getAiTraffic(integration.config, today, today);
+          const ga4 = new Ga4Service();
+          const config = integration.config as Record<string, unknown>;
+          await ga4.getAiTraffic(config, today, today, async (updated) => {
+            await integrationStore.updateConfig(id, updated);
+          });
           testOk = true;
-          await integrationStore.updateStatus(integration.id, "active", {
+          await integrationStore.updateStatus(id, "active", {
             lastSyncedAt: Date.now(),
             lastError: null,
           });
         } catch (err) {
           errorMsg = err instanceof Error ? err.message : String(err);
-          await integrationStore.updateStatus(integration.id, "failing", {
-            lastError: errorMsg,
-          });
+          await integrationStore.updateStatus(id, "failing", { lastError: errorMsg });
           logger.warn("integration test failed", { integrationId: id, error: errorMsg });
         }
       } else {
-        testOk = true; // other kinds: stub as passing for MVP
+        testOk = true;
       }
 
       ok(res, { ok: testOk, error: errorMsg });
@@ -144,7 +196,10 @@ export function registerIntegrationRoutes(app: Express): void {
 
     try {
       const ga4 = new Ga4Service();
-      const traffic = await ga4.getAiTraffic(ga4Integration.config, fromDate, toDate);
+      const config = ga4Integration.config as Record<string, unknown>;
+      const traffic = await ga4.getAiTraffic(config, fromDate, toDate, async (updated) => {
+        await integrationStore.updateConfig(ga4Integration.id, updated);
+      });
       ok(res, { noIntegration: false, ...traffic });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

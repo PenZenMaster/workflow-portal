@@ -10,6 +10,7 @@ const mockIntegrationStore = {
   create: vi.fn(),
   delete: vi.fn(),
   updateStatus: vi.fn(),
+  updateConfig: vi.fn(),
 };
 
 vi.mock("../../server/storage", () => ({
@@ -85,30 +86,44 @@ describe("GET /api/clients/:id/integrations", () => {
   });
 });
 
-describe("POST /api/clients/:id/integrations", () => {
+// POST /api/clients/:id/integrations is removed — integrations are now
+// created by the OAuth callback after Google consent. The initiation
+// endpoint is GET /api/clients/:id/integrations/ga4/auth (redirects to Google).
+
+describe("PATCH /api/integrations/:id/property", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns 403 for analyst", async () => {
     const res = await request(buildApp("analyst"))
-      .post("/api/clients/1/integrations")
-      .send({ kind: "ga4", config: { propertyId: "G-12345" } });
+      .patch("/api/integrations/1/property")
+      .send({ propertyId: "G-12345" });
     expect(res.status).toBe(403);
   });
 
-  it("returns 400 for invalid kind", async () => {
+  it("returns 400 for missing propertyId", async () => {
     const res = await request(buildApp("agency_admin"))
-      .post("/api/clients/1/integrations")
-      .send({ kind: "unknown", config: {} });
+      .patch("/api/integrations/1/property")
+      .send({});
     expect(res.status).toBe(400);
   });
 
-  it("returns 201 with created integration", async () => {
-    mockIntegrationStore.create.mockResolvedValue(SAMPLE_INTEGRATION);
+  it("returns 404 when integration not found", async () => {
+    mockIntegrationStore.get.mockResolvedValue(undefined);
     const res = await request(buildApp("agency_admin"))
-      .post("/api/clients/1/integrations")
-      .send({ kind: "ga4", config: { propertyId: "G-12345678" } });
-    expect(res.status).toBe(201);
-    expect(res.body.data.kind).toBe("ga4");
+      .patch("/api/integrations/999/property")
+      .send({ propertyId: "G-12345" });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 200 on success", async () => {
+    mockIntegrationStore.get.mockResolvedValue(SAMPLE_INTEGRATION);
+    mockIntegrationStore.updateConfig = vi.fn().mockResolvedValue(undefined);
+    mockIntegrationStore.updateStatus = vi.fn().mockResolvedValue(undefined);
+    const res = await request(buildApp("agency_admin"))
+      .patch("/api/integrations/1/property")
+      .send({ propertyId: "G-12345678" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.propertyId).toBe("G-12345678");
   });
 });
 

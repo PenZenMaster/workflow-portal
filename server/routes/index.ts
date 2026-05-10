@@ -28,6 +28,7 @@ import { registerSentimentRoutes } from "./sentiment";
 import { registerExportRoutes } from "./exports";
 import { registerSourceRoutes } from "./sources";
 import { registerIntegrationRoutes } from "./integrations";
+import { registerOAuthRoutes } from "./oauth";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -47,6 +48,7 @@ export async function registerRoutes(
   registerExportRoutes(app);
   registerSourceRoutes(app);
   registerIntegrationRoutes(app);
+  registerOAuthRoutes(app);
 
   return httpServer;
 }

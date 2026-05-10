@@ -49,7 +49,11 @@ export function registerAuthRoutes(app: Express): void {
       ...(req.session?.user && {
         config: {
           perplexityConfigured: !!process.env.PERPLEXITY_API_KEY,
-          ga4KeyConfigured: !!process.env.GA4_SERVICE_ACCOUNT_KEY_PATH,
+          googleOAuthConfigured: !!(
+            process.env.GOOGLE_CLIENT_ID &&
+            process.env.GOOGLE_CLIENT_SECRET &&
+            process.env.GOOGLE_REDIRECT_URI
+          ),
         },
       }),
     });

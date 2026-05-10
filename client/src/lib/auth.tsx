@@ -9,7 +9,7 @@ type AuthStatus = {
   user: PublicUser | null;
   config?: {
     perplexityConfigured: boolean;
-    ga4KeyConfigured: boolean;
+    googleOAuthConfigured: boolean;
   };
 };
 

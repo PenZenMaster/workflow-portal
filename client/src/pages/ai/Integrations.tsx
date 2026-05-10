@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams, Link } from "wouter";
+import { useState, useEffect } from "react";
+import { useParams, Link, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Integration } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, AlertCircle, CheckCircle2, Trash2, TestTube } from "lucide-react";
+import { AlertCircle, CheckCircle2, Trash2, TestTube, ExternalLink } from "lucide-react";
 
 const STATUS_STYLE: Record<string, string> = {
   active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
@@ -18,10 +18,15 @@ const STATUS_STYLE: Record<string, string> = {
 
 export default function Integrations() {
   const { id } = useParams<{ id: string }>();
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const justConnected = params.get("connected") === "1";
+  const oauthError = params.get("oauthError");
+
   const { status: authStatus } = useAuth();
   const { toast } = useToast();
-  const [showForm, setShowForm] = useState(false);
-  const [propertyId, setPropertyId] = useState("");
+  const [editingPropertyId, setEditingPropertyId] = useState<number | null>(null);
+  const [propertyIdValue, setPropertyIdValue] = useState("");
   const [testingId, setTestingId] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery<{ data: Integration[] }>({
@@ -29,21 +34,15 @@ export default function Integrations() {
     enabled: !!id,
   });
 
-  const createMutation = useMutation({
-    mutationFn: async (body: { kind: string; config: Record<string, unknown> }) => {
-      const res = await apiRequest("POST", `/api/clients/${id}/integrations`, body);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}/integrations`] });
-      setPropertyId("");
-      setShowForm(false);
-      toast({ title: "GA4 integration added" });
-    },
-    onError: (err) => {
-      toast({ title: "Failed to add integration", description: String(err), variant: "destructive" });
-    },
-  });
+  useEffect(() => {
+    if (justConnected) toast({ title: "Google Analytics connected successfully" });
+    if (oauthError)
+      toast({
+        title: "Google connection failed",
+        description: decodeURIComponent(oauthError),
+        variant: "destructive",
+      });
+  }, []); // fire once on mount — params are read from URL, no re-fetch needed
 
   const deleteMutation = useMutation({
     mutationFn: async (integrationId: number) => {
@@ -53,29 +52,30 @@ export default function Integrations() {
       queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}/integrations`] });
       toast({ title: "Integration removed" });
     },
-    onError: (err) => {
-      toast({ title: "Failed to remove", description: String(err), variant: "destructive" });
+    onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
+  });
+
+  const savePropertyMutation = useMutation({
+    mutationFn: async ({ integrationId, propertyId }: { integrationId: number; propertyId: string }) => {
+      await apiRequest("PATCH", `/api/integrations/${integrationId}/property`, { propertyId });
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}/integrations`] });
+      setEditingPropertyId(null);
+      toast({ title: "Property ID saved" });
+    },
+    onError: (err) => toast({ title: "Failed to save", description: String(err), variant: "destructive" }),
   });
 
   async function handleTest(integrationId: number) {
     setTestingId(integrationId);
     try {
-      const res = await apiRequest(
-        "POST",
-        `/api/clients/${id}/integrations/${integrationId}/test`
-      );
+      const res = await apiRequest("POST", `/api/clients/${id}/integrations/${integrationId}/test`);
       const result = (await res.json()) as { data: { ok: boolean; error: string | null } };
       queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}/integrations`] });
-      if (result.data.ok) {
-        toast({ title: "Connection test passed" });
-      } else {
-        toast({
-          title: "Connection test failed",
-          description: result.data.error ?? "Unknown error",
-          variant: "destructive",
-        });
-      }
+      result.data.ok
+        ? toast({ title: "Connection test passed" })
+        : toast({ title: "Test failed", description: result.data.error ?? "", variant: "destructive" });
     } catch (err) {
       toast({ title: "Test error", description: String(err), variant: "destructive" });
     } finally {
@@ -83,25 +83,18 @@ export default function Integrations() {
     }
   }
 
-  function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!propertyId.trim()) return;
-    createMutation.mutate({ kind: "ga4", config: { propertyId: propertyId.trim() } });
-  }
-
   const list = data?.data ?? [];
+  const ga4Integration = list.find((i) => i.kind === "ga4");
   const perplexityOk = authStatus?.config?.perplexityConfigured ?? false;
-  const ga4KeyOk = authStatus?.config?.ga4KeyConfigured ?? false;
+  const googleOAuthOk = authStatus?.config?.googleOAuthConfigured ?? false;
+  const ga4Config = ga4Integration?.config as { propertyId?: string; connectedEmail?: string } | undefined;
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <div className="mb-6">
-        <Link
-          href={`/ai/clients/${id}`}
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
+        <Link href={`/ai/clients/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
           Back to Client
         </Link>
       </div>
@@ -111,53 +104,18 @@ export default function Integrations() {
       {/* ── Perplexity API Key ────────────────────────────────────── */}
       <section className="mb-8">
         <h2 className="text-lg font-semibold mb-3">Perplexity API Key</h2>
-        <div
-          className={`border rounded-lg p-4 flex items-start gap-3 ${
-            perplexityOk
-              ? "border-green-500/30 bg-green-50/50 dark:bg-green-950/20"
-              : "border-orange-500/30 bg-orange-50/50 dark:bg-orange-950/20"
-          }`}
-        >
-          {perplexityOk ? (
-            <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-          ) : (
-            <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />
-          )}
+        <div className={`border rounded-lg p-4 flex items-start gap-3 ${perplexityOk ? "border-green-500/30 bg-green-50/50 dark:bg-green-950/20" : "border-orange-500/30 bg-orange-50/50 dark:bg-orange-950/20"}`}>
+          {perplexityOk
+            ? <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+            : <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />}
           <div className="text-sm">
-            <p className="font-medium mb-1">
-              {perplexityOk ? "API key is configured" : "API key is not configured"}
-            </p>
+            <p className="font-medium mb-1">{perplexityOk ? "API key configured" : "API key not configured"}</p>
             {!perplexityOk && (
               <div className="text-muted-foreground space-y-2">
-                <p>Without this key, prompt runs will fail. To configure:</p>
-                <ol className="list-decimal list-inside space-y-1 ml-1">
-                  <li>
-                    Get a key at{" "}
-                    <span className="font-mono text-xs bg-muted px-1 rounded">
-                      perplexity.ai/settings/api
-                    </span>
-                  </li>
-                  <li>
-                    Add to{" "}
-                    <span className="font-mono text-xs bg-muted px-1 rounded">.env</span>:
-                    <br />
-                    <span className="font-mono text-xs bg-muted px-1 rounded">
-                      PERPLEXITY_API_KEY=pplx-...
-                    </span>
-                  </li>
-                  <li>
-                    Optionally cap daily spend:
-                    <br />
-                    <span className="font-mono text-xs bg-muted px-1 rounded">
-                      PERPLEXITY_DAILY_USD_LIMIT=10
-                    </span>
-                  </li>
-                  <li>Restart the server</li>
-                </ol>
-                <p className="text-xs pt-1">
-                  On cPanel: add these in Setup Node.js App → Environment Variables, then
-                  restart.
-                </p>
+                <p>Add to <code className="bg-muted px-1 rounded">.env</code> and restart:</p>
+                <code className="block bg-muted px-2 py-1 rounded text-xs font-mono">PERPLEXITY_API_KEY=pplx-...</code>
+                <code className="block bg-muted px-2 py-1 rounded text-xs font-mono">PERPLEXITY_DAILY_USD_LIMIT=10</code>
+                <p className="text-xs">On cPanel: Setup Node.js App → Environment Variables → Restart.</p>
               </div>
             )}
           </div>
@@ -166,150 +124,114 @@ export default function Integrations() {
 
       {/* ── Google Analytics 4 ───────────────────────────────────── */}
       <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Google Analytics 4</h2>
-          {!showForm && (
-            <Button size="sm" variant="outline" onClick={() => setShowForm(true)}>
-              <Plus className="h-4 w-4 mr-1.5" />
-              Add GA4
-            </Button>
-          )}
-        </div>
+        <h2 className="text-lg font-semibold mb-3">Google Analytics 4</h2>
 
-        {/* Service account key status */}
-        <div
-          className={`border rounded-lg p-3 mb-4 flex items-start gap-2 text-sm ${
-            ga4KeyOk
-              ? "border-green-500/30 bg-green-50/50 dark:bg-green-950/20"
-              : "border-muted"
-          }`}
-        >
-          {ga4KeyOk ? (
-            <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-          ) : (
+        {/* OAuth not configured warning */}
+        {!googleOAuthOk && (
+          <div className="border border-orange-500/30 rounded-lg p-4 mb-4 flex items-start gap-3 bg-orange-50/50 dark:bg-orange-950/20 text-sm">
             <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
-          )}
-          <span className="text-muted-foreground">
-            {ga4KeyOk ? (
-              "Service account JSON is configured."
-            ) : (
-              <>
-                Service account not configured — set{" "}
-                <span className="font-mono text-xs bg-muted px-1 rounded">
-                  GA4_SERVICE_ACCOUNT_KEY_PATH
-                </span>{" "}
-                to the path of your service account JSON file, then restart.
-              </>
-            )}
-          </span>
-        </div>
-
-        {/* Creation form */}
-        {showForm && (
-          <form
-            onSubmit={handleCreate}
-            className="border rounded-lg p-5 mb-4 bg-muted/30 space-y-4"
-          >
-            <p className="font-medium text-sm">Add GA4 Integration</p>
-            <div className="space-y-1.5">
-              <Label htmlFor="ga4-property">GA4 Property ID *</Label>
-              <Input
-                id="ga4-property"
-                placeholder="G-XXXXXXXXXX or numeric property ID"
-                value={propertyId}
-                onChange={(e) => setPropertyId(e.target.value)}
-                required
-                autoFocus
-              />
-              <p className="text-xs text-muted-foreground">
-                Find this in GA4 → Admin → Property Settings → Property ID.
+            <div className="text-muted-foreground space-y-1.5">
+              <p className="font-medium text-foreground">OAuth credentials not configured</p>
+              <p>Add these to your .env and restart before connecting a Google account:</p>
+              <code className="block bg-muted px-2 py-1 rounded text-xs font-mono">GOOGLE_CLIENT_ID=...apps.googleusercontent.com</code>
+              <code className="block bg-muted px-2 py-1 rounded text-xs font-mono">GOOGLE_CLIENT_SECRET=GOCSPX-...</code>
+              <code className="block bg-muted px-2 py-1 rounded text-xs font-mono">GOOGLE_REDIRECT_URI=https://yourportal.com/api/oauth/google/callback</code>
+              <p className="text-xs pt-1">
+                Create these at <strong>console.cloud.google.com → APIs &amp; Services → Credentials</strong>.
+                Add the redirect URI to the authorised redirect URIs list. Enable the <strong>Google Analytics Data API</strong>.
               </p>
             </div>
-            <div className="flex gap-2 justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowForm(false);
-                  setPropertyId("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={createMutation.isPending || !propertyId.trim()}
-              >
-                {createMutation.isPending ? "Adding…" : "Add integration"}
-              </Button>
-            </div>
-          </form>
+          </div>
         )}
 
-        {/* Integration list */}
-        {list.length === 0 && !showForm ? (
-          <p className="text-sm text-muted-foreground">
-            No GA4 integrations yet. Add one above to track AI-sourced traffic.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {list.map((i) => (
-              <li key={i.id} className="border rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm uppercase">{i.kind}</span>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLE[i.status]}`}
-                    >
-                      {i.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleTest(i.id)}
-                      disabled={testingId === i.id}
-                      title="Test connection"
-                    >
-                      <TestTube className="h-4 w-4 mr-1" />
-                      {testingId === i.id ? "Testing…" : "Test"}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteMutation.mutate(i.id)}
-                      disabled={deleteMutation.isPending}
-                      className="text-destructive hover:text-destructive"
-                      title="Remove"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                {i.kind === "ga4" &&
-                  (i.config as { propertyId?: string }).propertyId && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Property:{" "}
-                      <span className="font-mono text-xs">
-                        {(i.config as { propertyId: string }).propertyId}
-                      </span>
-                    </p>
+        {/* Connected state */}
+        {ga4Integration ? (
+          <div className="border rounded-lg p-5 space-y-4">
+            {/* Header row */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">Google Analytics connected</p>
+                  {ga4Config?.connectedEmail && (
+                    <p className="text-xs text-muted-foreground">{ga4Config.connectedEmail}</p>
                   )}
-                {i.lastSyncedAt && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Last synced: {new Date(i.lastSyncedAt).toLocaleString()}
-                  </p>
-                )}
-                {i.lastError && (
-                  <p className="text-xs text-red-600 mt-1">{i.lastError}</p>
-                )}
-              </li>
-            ))}
-          </ul>
+                </div>
+                <span className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLE[ga4Integration.status]}`}>
+                  {ga4Integration.status}
+                </span>
+              </div>
+              <div className="flex gap-1">
+                <Button variant="ghost" size="sm" onClick={() => handleTest(ga4Integration.id)} disabled={testingId === ga4Integration.id}>
+                  <TestTube className="h-4 w-4 mr-1" />{testingId === ga4Integration.id ? "Testing…" : "Test"}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate(ga4Integration.id)} disabled={deleteMutation.isPending} className="text-destructive hover:text-destructive" title="Disconnect">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Property ID */}
+            <div className="border-t pt-4">
+              <Label className="text-sm font-medium block mb-1.5">GA4 Property ID</Label>
+              {editingPropertyId === ga4Integration.id ? (
+                <form
+                  onSubmit={(e) => { e.preventDefault(); savePropertyMutation.mutate({ integrationId: ga4Integration.id, propertyId: propertyIdValue }); }}
+                  className="flex gap-2"
+                >
+                  <Input value={propertyIdValue} onChange={(e) => setPropertyIdValue(e.target.value)} placeholder="G-XXXXXXXXXX or numeric ID" className="max-w-xs" autoFocus />
+                  <Button type="submit" size="sm" disabled={savePropertyMutation.isPending}>{savePropertyMutation.isPending ? "Saving…" : "Save"}</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setEditingPropertyId(null)}>Cancel</Button>
+                </form>
+              ) : (
+                <div className="flex items-center gap-3">
+                  {ga4Config?.propertyId
+                    ? <code className="text-sm bg-muted px-2 py-0.5 rounded">{ga4Config.propertyId}</code>
+                    : <span className="text-sm text-orange-600">Not set — required to fetch traffic data</span>}
+                  <Button variant="ghost" size="sm" onClick={() => { setEditingPropertyId(ga4Integration.id); setPropertyIdValue(ga4Config?.propertyId ?? ""); }}>
+                    {ga4Config?.propertyId ? "Change" : "Set property ID"}
+                  </Button>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1.5">
+                GA4 → Admin → Property Settings → Property ID. The connected Google account must have at least Viewer access to this property.
+              </p>
+            </div>
+
+            {ga4Integration.lastError && (
+              <p className="text-xs text-red-600 border-t pt-3">{ga4Integration.lastError}</p>
+            )}
+
+            {googleOAuthOk && (
+              <div className="border-t pt-3">
+                <p className="text-xs text-muted-foreground mb-1">Need to switch to a different Google account?</p>
+                <a href={`/api/clients/${id}/integrations/ga4/auth`} className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                  Re-connect Google account <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Not yet connected */
+          <div className="border border-dashed rounded-lg p-8 text-center space-y-3">
+            <p className="font-medium">Connect Google Analytics</p>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              Sign in with the Google account that has access to this client's GA4 property.
+              No service account or Cloud IAM configuration required.
+            </p>
+            {googleOAuthOk ? (
+              <a href={`/api/clients/${id}/integrations/ga4/auth`}>
+                <Button className="mt-2">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Connect Google Analytics
+                </Button>
+              </a>
+            ) : (
+              <Button disabled className="mt-2" title="Configure OAuth credentials first">
+                Connect Google Analytics
+              </Button>
+            )}
+          </div>
         )}
       </section>
     </div>

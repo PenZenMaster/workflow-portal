@@ -46,6 +46,7 @@ export interface IIntegrationStore {
     status: Integration["status"],
     extra?: { lastSyncedAt?: number; lastError?: string | null }
   ): Promise<void>;
+  updateConfig(id: number, config: Record<string, unknown>): Promise<void>;
 }
 
 export class IntegrationStore implements IIntegrationStore {
@@ -106,6 +107,14 @@ export class IntegrationStore implements IIntegrationStore {
         lastError: extra.lastError ?? null,
         updatedAt: Date.now(),
       })
+      .where(eq(integrations.id, id))
+      .run();
+  }
+
+  async updateConfig(id: number, config: Record<string, unknown>): Promise<void> {
+    this._db
+      .update(integrations)
+      .set({ config: JSON.stringify(config), updatedAt: Date.now() })
       .where(eq(integrations.id, id))
       .run();
   }

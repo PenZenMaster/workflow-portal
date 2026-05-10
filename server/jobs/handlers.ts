@@ -362,7 +362,10 @@ export function registerJobHandlers(runner: JobRunner): void {
       const today = new Date().toISOString().slice(0, 10);
 
       try {
-        await ga4.getAiTraffic(integration.config, today, today);
+        const config = integration.config as Record<string, unknown>;
+        await ga4.getAiTraffic(config, today, today, async (updated) => {
+          await integrationStore.updateConfig(integration.id, updated);
+        });
         await integrationStore.updateStatus(integration.id, "active", {
           lastSyncedAt: Date.now(),
           lastError: null,
