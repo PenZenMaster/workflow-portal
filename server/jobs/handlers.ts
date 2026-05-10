@@ -34,6 +34,7 @@ import {
   metricStore,
   sentimentStore,
   exportStore,
+  integrationStore,
   brandStore,
   aliasStore,
 } from "../storage";
@@ -42,6 +43,7 @@ import { parseResponse } from "../services/parser";
 import { computeVisibilityScore } from "../services/scoring";
 import { classifySentiment } from "../services/sentiment";
 import { generateCsvLines } from "../services/csv";
+import { Ga4Service } from "../services/ga4";
 import { logger } from "../logger";
 
 function computeNextFireAt(cadence: "weekly" | "monthly", hourUtc: number): number {
@@ -345,6 +347,32 @@ export function registerJobHandlers(runner: JobRunner): void {
       });
 
       logger.info("aggregate-snapshot-daily: complete", { clientId, today });
+    },
+  });
+
+  // ---- refresh-ga4 --------------------------------------------------------
+  runner.register({
+    kind: "refresh-ga4",
+    async handle(payload) {
+      const { integrationId } = payload as { integrationId: number };
+      const integration = await integrationStore.get(integrationId);
+      if (!integration || integration.kind !== "ga4") return;
+
+      const ga4 = new Ga4Service();
+      const today = new Date().toISOString().slice(0, 10);
+
+      try {
+        await ga4.getAiTraffic(integration.config, today, today);
+        await integrationStore.updateStatus(integration.id, "active", {
+          lastSyncedAt: Date.now(),
+          lastError: null,
+        });
+        logger.info("refresh-ga4: sync complete", { integrationId });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await integrationStore.updateStatus(integration.id, "failing", { lastError: msg });
+        logger.error("refresh-ga4: sync failed", { integrationId, error: msg });
+      }
     },
   });
 

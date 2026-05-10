@@ -22,6 +22,7 @@ import { SentimentStore } from "./storage/sentimentStore";
 import { AnnotationStore } from "./storage/annotationStore";
 import { ExportStore } from "./storage/exportStore";
 import { ShareTokenStore } from "./storage/shareTokenStore";
+import { IntegrationStore } from "./storage/integrationStore";
 
 export type { IWorkflowStore } from "./storage/workflowStore";
 export type { IUserStore } from "./storage/userStore";
@@ -43,6 +44,7 @@ export type { ISentimentStore } from "./storage/sentimentStore";
 export type { IAnnotationStore } from "./storage/annotationStore";
 export type { IExportStore } from "./storage/exportStore";
 export type { IShareTokenStore } from "./storage/shareTokenStore";
+export type { IIntegrationStore } from "./storage/integrationStore";
 export { WorkflowStore } from "./storage/workflowStore";
 export { UserStore } from "./storage/userStore";
 export { ClientStore } from "./storage/clientStore";
@@ -63,6 +65,7 @@ export { SentimentStore } from "./storage/sentimentStore";
 export { AnnotationStore } from "./storage/annotationStore";
 export { ExportStore } from "./storage/exportStore";
 export { ShareTokenStore } from "./storage/shareTokenStore";
+export { IntegrationStore } from "./storage/integrationStore";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
 
@@ -210,6 +213,17 @@ export const SCHEMA_SQL = `
     raw_payload TEXT,
     error_message TEXT,
     captured_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS integrations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'ga4',
+    config TEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'active',
+    last_synced_at INTEGER,
+    last_error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS share_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -397,3 +411,4 @@ export const sentimentStore = new SentimentStore(db);
 export const annotationStore = new AnnotationStore(db);
 export const exportStore = new ExportStore(db);
 export const shareTokenStore = new ShareTokenStore(db);
+export const integrationStore = new IntegrationStore(db);

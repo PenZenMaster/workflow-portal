@@ -59,6 +59,9 @@ export default defineConfig({
         "server/services/sources.ts",
         "server/services/recommendations.ts",
         "server/services/shareLink.ts",
+        "server/services/ga4.ts",
+        "server/storage/integrationStore.ts",
+        "server/routes/integrations.ts",
         "server/adapters/perplexity.ts",
         "server/jobs/runner.ts",
         "shared/schema.ts",
@@ -99,6 +102,7 @@ export default defineConfig({
           include: [
             "server/**/*.{test,spec}.ts",
             "tests/server/**/*.{test,spec}.ts",
+            "tests/calibration/**/*.{test,spec}.ts",
             "shared/**/*.{test,spec}.ts",
           ],
         },

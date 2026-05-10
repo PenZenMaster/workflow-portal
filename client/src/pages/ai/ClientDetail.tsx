@@ -104,6 +104,12 @@ export default function ClientDetail() {
         >
           Recommendations
         </Link>
+        <Link
+          href={`/ai/clients/${id}/traffic`}
+          className="text-sm font-medium border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors"
+        >
+          Traffic
+        </Link>
       </div>
 
       <section className="mt-2">

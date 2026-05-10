@@ -362,6 +362,39 @@ export type Prompt = {
   updatedAt: number;
 };
 
+// --- AI Visibility: Integrations ------------------------------------------
+
+export const integrations = sqliteTable("integrations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  kind: text("kind").notNull().default("ga4"), // ga4 | gsc | crm
+  config: text("config").notNull().default("{}"), // JSON (non-sensitive: propertyId, etc.)
+  status: text("status").notNull().default("active"), // active | failing | disabled
+  lastSyncedAt: integer("last_synced_at"),
+  lastError: text("last_error"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const insertIntegrationSchema = z.object({
+  kind: z.enum(["ga4", "gsc", "crm"]),
+  config: z.record(z.unknown()).default({}),
+});
+
+export type InsertIntegration = z.infer<typeof insertIntegrationSchema>;
+
+export type Integration = {
+  id: number;
+  clientId: number;
+  kind: "ga4" | "gsc" | "crm";
+  config: Record<string, unknown>;
+  status: "active" | "failing" | "disabled";
+  lastSyncedAt: number | null;
+  lastError: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
 // --- AI Visibility: Share Tokens ------------------------------------------
 
 export const shareTokens = sqliteTable("share_tokens", {

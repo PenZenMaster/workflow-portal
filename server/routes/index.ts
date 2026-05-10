@@ -27,6 +27,7 @@ import { registerMetricRoutes } from "./metrics";
 import { registerSentimentRoutes } from "./sentiment";
 import { registerExportRoutes } from "./exports";
 import { registerSourceRoutes } from "./sources";
+import { registerIntegrationRoutes } from "./integrations";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -45,6 +46,7 @@ export async function registerRoutes(
   registerSentimentRoutes(app);
   registerExportRoutes(app);
   registerSourceRoutes(app);
+  registerIntegrationRoutes(app);
 
   return httpServer;
 }
