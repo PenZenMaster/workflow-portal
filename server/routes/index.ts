@@ -29,6 +29,7 @@ import { registerExportRoutes } from "./exports";
 import { registerSourceRoutes } from "./sources";
 import { registerIntegrationRoutes } from "./integrations";
 import { registerOAuthRoutes } from "./oauth";
+import { registerUserRoutes } from "./users";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -49,6 +50,7 @@ export async function registerRoutes(
   registerSourceRoutes(app);
   registerIntegrationRoutes(app);
   registerOAuthRoutes(app);
+  registerUserRoutes(app);
 
   return httpServer;
 }

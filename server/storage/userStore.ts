@@ -24,7 +24,9 @@ type DrizzleDb = ReturnType<typeof drizzle>;
 
 export interface IUserStore {
   count(): Promise<number>;
-  create(username: string, password: string, email?: string): Promise<PublicUser>;
+  listAll(): Promise<PublicUser[]>;
+  create(username: string, password: string, email?: string, role?: UserRole): Promise<PublicUser>;
+  deleteById(id: number): Promise<boolean>;
   verify(username: string, password: string): Promise<PublicUser | null>;
   getById(id: number): Promise<PublicUser | undefined>;
   getByEmail(
@@ -51,10 +53,21 @@ export class UserStore implements IUserStore {
     return result?.count ?? 0;
   }
 
+  async listAll(): Promise<PublicUser[]> {
+    const rows = this._db.select().from(users).all();
+    return rows.map((r) => ({
+      id: r.id,
+      username: r.username,
+      email: r.email,
+      role: r.role as UserRole,
+    }));
+  }
+
   async create(
     username: string,
     password: string,
-    email?: string
+    email?: string,
+    role: UserRole = "analyst"
   ): Promise<PublicUser> {
     const passwordHash = await bcrypt.hash(password, 12);
     const row = this._db
@@ -62,6 +75,7 @@ export class UserStore implements IUserStore {
       .values({
         username,
         passwordHash,
+        role,
         email: email ?? null,
         createdAt: Date.now(),
       })
@@ -73,6 +87,11 @@ export class UserStore implements IUserStore {
       email: row.email,
       role: row.role as UserRole,
     };
+  }
+
+  async deleteById(id: number): Promise<boolean> {
+    const result = this._db.delete(users).where(eq(users.id, id)).run();
+    return result.changes > 0;
   }
 
   async verify(

@@ -60,6 +60,14 @@ export type UserRole =
   | "account_manager"
   | "client_viewer";
 
+export const USER_ROLES = [
+  "super_admin",
+  "agency_admin",
+  "analyst",
+  "account_manager",
+  "client_viewer",
+] as const satisfies readonly UserRole[];
+
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   username: text("username").notNull().unique(),

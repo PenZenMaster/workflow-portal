@@ -335,11 +335,14 @@ export interface IStorage {
   updateWorkflow(id: number, data: InsertWorkflow): Promise<Workflow | undefined>;
   deleteWorkflow(id: number): Promise<boolean>;
   countUsers(): Promise<number>;
+  listUsers(): Promise<PublicUser[]>;
   createUser(
     username: string,
     password: string,
-    email?: string
+    email?: string,
+    role?: import("@shared/schema").UserRole
   ): Promise<PublicUser>;
+  deleteUser(id: number): Promise<boolean>;
   verifyUser(username: string, password: string): Promise<PublicUser | null>;
   getUserById(id: number): Promise<PublicUser | undefined>;
   getUserByEmail(
@@ -377,7 +380,9 @@ export class DatabaseStorage implements IStorage {
 
   // --- User delegation shims ---
   countUsers() { return this._users.count(); }
-  createUser(username: string, password: string, email?: string) { return this._users.create(username, password, email); }
+  listUsers() { return this._users.listAll(); }
+  createUser(username: string, password: string, email?: string, role?: import("@shared/schema").UserRole) { return this._users.create(username, password, email, role); }
+  deleteUser(id: number) { return this._users.deleteById(id); }
   verifyUser(username: string, password: string) { return this._users.verify(username, password); }
   getUserById(id: number) { return this._users.getById(id); }
   getUserByEmail(email: string) { return this._users.getByEmail(email); }
