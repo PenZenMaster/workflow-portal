@@ -1,22 +1,29 @@
 ## Resume From
 
 Last session: 2026-05-10
-Last commit: 0528148 feat(sprint-7): GA4 integration, calibration harness, v1.0.0 — MVP complete
-Branch: feature/ai-visibility-module | Version: v1.0.0 | 420 tests passing
-Main branch: v0.2.7 (last production deploy — portal UP)
+Last commit: 9e62dac feat(multi-llm): 6 new AI adapters, GA4 stacked chart, platform selection on runs — v1.2.0
+Branch: feature/ai-visibility-module | Version: v1.2.0 | 437 tests passing
+Production: v1.1.1 deployed (needs v1.2.0 upgrade)
+PR open: https://github.com/PenZenMaster/workflow-portal/pull/1 (feature → main)
 
 Pick up from:
-1. Delete local data.db + sessions.db before npm run dev (migration 0009 must apply cleanly)
-2. QA v1.0.0 on dev server — verify calibration harness passes with live data
-3. Open PR: feature/ai-visibility-module → main once QA is signed off
+1. Delete local data.db + sessions.db before npm run dev (platforms table now has 7 rows via upsert seed)
+2. Add API keys for desired LLMs in cPanel env vars (OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_AI_API_KEY, GROQ_API_KEY, MISTRAL_API_KEY, DEEPSEEK_API_KEY)
+3. Deploy v1.2.0 to production, then QA: Trigger Run form should show platform checkboxes; Traffic page should show stacked monthly bar chart
 
 ---
+
+## Post-Sprint Work This Session (v1.1.0 – v1.2.0)
+
+- v1.1.0: Fixed critical pipeline bug — prompt-run was not enqueuing parse-response; added Re-parse button on RunDetail
+- v1.1.1: Reordered ClientDetail nav; added system-documentation.md; added New Export button on Reports page
+- v1.2.0: Multi-LLM adapters (OpenAI/ChatGPT, Anthropic/Claude, Gemini, Groq/Llama, Mistral, DeepSeek); platform seeding fixed (INSERT OR IGNORE per slug); platform multi-select on Trigger Run / Run Now; GA4 referrer list expanded to 30+ domains; monthly stacked bar chart on Traffic page
 
 ## Current Sprint — AI Visibility Sprint 7 — GA4 + Calibration + v1.0.0
 
 **Goal:** AI referral traffic stitched into reports; calibration harness against a manual audit set; v1.0.0 cut.
-**Status: COMPLETE — pending PR merge**
-**Version: v1.0.0**
+**Status: COMPLETE**
+**Version: v1.2.0 (includes post-sprint fixes and multi-LLM feature)**
 
 ### Milestones
 
