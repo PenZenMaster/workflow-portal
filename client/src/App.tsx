@@ -68,7 +68,6 @@ function AppRouter() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/oauth/popup" component={OAuthPopup} />
       <Route path="/share/:token" component={SharePage} />
       <Route path="/admin/users" component={Users} />
       <Route path="/ai/clients/:id/traffic" component={Traffic} />
@@ -99,6 +98,7 @@ function Gate() {
   const pathname = window.location.pathname;
   if (pathname === "/forgot-password") return <ForgotPasswordPage />;
   if (pathname === "/reset-password") return <ResetPasswordPage />;
+  if (window.location.hash.startsWith("#/oauth/popup")) return <OAuthPopup />;
 
   if (isLoading || !status) {
     return (

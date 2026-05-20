@@ -1,11 +1,10 @@
 import { useEffect } from "react";
-import { useSearch } from "wouter";
 
 export default function OAuthPopup() {
-  const search = useSearch();
-
   useEffect(() => {
-    const params = new URLSearchParams(search);
+    const hash = window.location.hash.slice(1); // "/oauth/popup?type=success&clientId=4"
+    const qi = hash.indexOf("?");
+    const params = new URLSearchParams(qi >= 0 ? hash.slice(qi) : "");
     const type = params.get("type");
     const clientId = params.get("clientId");
     const error = params.get("error");
