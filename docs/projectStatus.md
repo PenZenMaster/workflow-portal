@@ -49,7 +49,7 @@ Pick up from:
 
 ## AI Visibility Module — Sprint Roadmap
 
-Full spec: `docs/ai-visibility-reporting-spec.md`
+Full spec: `docs/aeo_geo_google_data_architecture.md`
 Plan file: `C:\Users\georg\.claude\plans\glistening-riding-pixel.md`
 
 Confirmed decisions:
