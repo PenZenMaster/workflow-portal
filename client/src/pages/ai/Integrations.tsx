@@ -27,26 +27,30 @@ function openOAuthPopup(
     return;
   }
 
-  function handleMessage(event: MessageEvent) {
-    if (event.origin !== window.location.origin) return;
-    const data = event.data as { type?: string; error?: string };
-    if (data.type === "ga4_oauth_success") {
-      window.removeEventListener("message", handleMessage);
-      onSuccess();
-    } else if (data.type === "ga4_oauth_error") {
-      window.removeEventListener("message", handleMessage);
-      onError(data.error ?? "Connection failed");
-    }
+  // BroadcastChannel is used instead of window.opener.postMessage because
+  // Google's COOP header severs window.opener when the popup passes through
+  // accounts.google.com. BroadcastChannel works across same-origin windows
+  // regardless of opener status.
+  const channel = new BroadcastChannel("ga4_oauth");
+
+  function cleanup() {
+    channel.close();
+    clearInterval(timer);
   }
 
-  window.addEventListener("message", handleMessage);
-
-  // Clean up listener if user closes the popup without completing OAuth
-  const timer = setInterval(() => {
-    if (popup.closed) {
-      clearInterval(timer);
-      window.removeEventListener("message", handleMessage);
+  channel.addEventListener("message", (event: MessageEvent) => {
+    const data = event.data as { type?: string; error?: string };
+    cleanup();
+    if (data.type === "ga4_oauth_success") {
+      onSuccess();
+    } else if (data.type === "ga4_oauth_error") {
+      onError(data.error ?? "Connection failed");
     }
+  });
+
+  // Clean up if user closes popup without completing OAuth
+  const timer = setInterval(() => {
+    if (popup.closed) cleanup();
   }, 500);
 }
 

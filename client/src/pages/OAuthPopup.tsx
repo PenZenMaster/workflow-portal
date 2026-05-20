@@ -9,20 +9,16 @@ export default function OAuthPopup() {
     const clientId = params.get("clientId");
     const error = params.get("error");
 
-    if (window.opener) {
-      if (type === "success") {
-        window.opener.postMessage(
-          { type: "ga4_oauth_success", clientId: Number(clientId) },
-          window.location.origin
-        );
-      } else {
-        window.opener.postMessage(
-          { type: "ga4_oauth_error", error: error ?? "Connection failed" },
-          window.location.origin
-        );
-      }
+    // BroadcastChannel is used instead of window.opener.postMessage because
+    // Google's consent page sets Cross-Origin-Opener-Policy: same-origin,
+    // which severs window.opener by the time the popup returns to this origin.
+    const channel = new BroadcastChannel("ga4_oauth");
+    if (type === "success") {
+      channel.postMessage({ type: "ga4_oauth_success", clientId: Number(clientId) });
+    } else {
+      channel.postMessage({ type: "ga4_oauth_error", error: error ?? "Connection failed" });
     }
-
+    channel.close();
     window.close();
   }, []);
 
