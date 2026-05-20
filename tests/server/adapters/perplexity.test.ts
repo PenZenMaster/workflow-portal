@@ -1,0 +1,108 @@
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { PerplexityAdapter } from "../../../server/adapters/perplexity";
+
+const MOCK_SUCCESS_RESPONSE = {
+  id: "test-id",
+  model: "sonar",
+  choices: [
+    {
+      message: {
+        content: "Acme Corp is the leading SEO agency in Seattle. [1] They offer comprehensive services.",
+      },
+    },
+  ],
+  citations: ["https://example.com/acme", "https://review-site.com/acme"],
+};
+
+function mockFetch(responses: Array<{ status: number; body: unknown }>) {
+  let call = 0;
+  return vi.fn().mockImplementation(async () => {
+    const { status, body } = responses[Math.min(call++, responses.length - 1)];
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    };
+  });
+}
+
+describe("PerplexityAdapter", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns a RawResponse on success", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: MOCK_SUCCESS_RESPONSE }]));
+    const adapter = new PerplexityAdapter("test-key");
+    const result = await adapter.run("Best SEO agency in Seattle");
+    expect(result.text).toContain("Acme Corp");
+    expect(result.citations).toHaveLength(2);
+    expect(result.citations[0].url).toBe("https://example.com/acme");
+    expect(result.citations[0].position).toBe(1);
+    expect(result.modelVariant).toBe("sonar");
+    expect(result.latencyMs).toBeTypeOf("number");
+  });
+
+  it("extracts citations in order", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: MOCK_SUCCESS_RESPONSE }]));
+    const adapter = new PerplexityAdapter("test-key");
+    const result = await adapter.run("test prompt");
+    expect(result.citations[0].position).toBe(1);
+    expect(result.citations[1].position).toBe(2);
+  });
+
+  it("retries on 429 and succeeds on the third attempt", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch([
+        { status: 429, body: { error: "rate limited" } },
+        { status: 429, body: { error: "rate limited" } },
+        { status: 200, body: MOCK_SUCCESS_RESPONSE },
+      ])
+    );
+    const adapter = new PerplexityAdapter("test-key", { retryDelayMs: 0 });
+    const result = await adapter.run("test prompt");
+    expect(result.text).toContain("Acme Corp");
+  });
+
+  it("throws after exhausting retries on persistent 429", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch([
+        { status: 429, body: {} },
+        { status: 429, body: {} },
+        { status: 429, body: {} },
+        { status: 429, body: {} },
+      ])
+    );
+    const adapter = new PerplexityAdapter("test-key", { retryDelayMs: 0 });
+    await expect(adapter.run("test prompt")).rejects.toThrow();
+  });
+
+  it("retries on 5xx server errors", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch([
+        { status: 500, body: {} },
+        { status: 200, body: MOCK_SUCCESS_RESPONSE },
+      ])
+    );
+    const adapter = new PerplexityAdapter("test-key", { retryDelayMs: 0 });
+    const result = await adapter.run("test prompt");
+    expect(result.text).toBeTruthy();
+  });
+
+  it("throws immediately on 400 bad request (no retry)", async () => {
+    const fetchMock = mockFetch([{ status: 400, body: { error: "bad request" } }]);
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new PerplexityAdapter("test-key", { retryDelayMs: 0 });
+    await expect(adapter.run("test prompt")).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledOnce(); // no retries
+  });
+
+  it("throws when no API key provided", async () => {
+    const adapter = new PerplexityAdapter("");
+    await expect(adapter.run("test prompt")).rejects.toThrow(/API key/i);
+  });
+});

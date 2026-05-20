@@ -15,6 +15,62 @@
       "when": 1778273906430,
       "tag": "0001_clever_talisman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1778354970953,
+      "tag": "0002_funny_shadowcat",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1778369980045,
+      "tag": "0003_numerous_black_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1778373961181,
+      "tag": "0004_fantastic_kree",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1778377850832,
+      "tag": "0005_majestic_anita_blake",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1778381374971,
+      "tag": "0006_previous_paladin",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1778382595048,
+      "tag": "0007_sad_moondragon",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1778386005455,
+      "tag": "0008_big_korath",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1778422424615,
+      "tag": "0009_chubby_celestials",
+      "breakpoints": true
     }
   ]
 }

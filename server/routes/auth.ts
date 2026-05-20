@@ -1,20 +1,33 @@
+/*
+ * Module/Script Name: auth.ts
+ * Path: server/routes/auth.ts
+ *
+ * Description:
+ * Auth-related API routes: status, first-run setup, login, logout,
+ * forgot/reset password, and profile update.
+ *
+ * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
+ * Created Date: 2026-05-09
+ * Last Modified Date: 2026-05-09
+ * Comments:
+ * - v1.00 Carved out of server/routes.ts for Sprint 0 route/storage split
+ */
+
 import type { Express } from "express";
-import type { Server } from "node:http";
 import rateLimit from "express-rate-limit";
 import crypto from "node:crypto";
-import { storage } from "./storage";
-import { seedIfEmpty } from "./seed";
-import { logger } from "./logger";
+import { storage } from "../storage";
 import {
-  insertWorkflowSchema,
   loginSchema,
   createUserSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
   updateProfileSchema,
 } from "@shared/schema";
-import { requireAuth, invalidateUserSessions } from "./auth";
-import { sendPasswordResetEmail } from "./email";
+import { requireAuth, invalidateUserSessions } from "../auth";
+import { sendPasswordResetEmail } from "../email";
+import { logger } from "../logger";
+import { getConfiguredSlugs } from "../adapters/registry";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -26,21 +39,25 @@ const authLimiter = rateLimit({
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 60 minutes
 
-export async function registerRoutes(
-  httpServer: Server,
-  app: Express
-): Promise<Server> {
-  // Seed the catalog with the user's known workflows on first run.
-  seedIfEmpty();
-
-  // --- Auth status / setup / login / logout --------------------------------
-
+export function registerAuthRoutes(app: Express): void {
   app.get("/api/auth/status", async (req, res) => {
     const userCount = await storage.countUsers();
     res.json({
       needsSetup: userCount === 0,
       authenticated: !!req.session?.user,
       user: req.session?.user ?? null,
+      // Only expose config status to authenticated users.
+      ...(req.session?.user && {
+        config: {
+          perplexityConfigured: !!process.env.PERPLEXITY_API_KEY,
+          googleOAuthConfigured: !!(
+            process.env.GOOGLE_CLIENT_ID &&
+            process.env.GOOGLE_CLIENT_SECRET &&
+            process.env.GOOGLE_REDIRECT_URI
+          ),
+          configuredPlatforms: getConfiguredSlugs(),
+        },
+      }),
     });
   });
 
@@ -120,13 +137,19 @@ export async function registerRoutes(
   app.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
     const parsed = forgotPasswordSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: "A valid email address is required" });
+      return res
+        .status(400)
+        .json({ error: "A valid email address is required" });
     }
     const email = parsed.data.email.trim().toLowerCase();
 
     // Always respond generically — never confirm whether the email exists.
     const genericOk = () =>
-      res.json({ ok: true, message: "If an account exists for this email, a reset link has been sent." });
+      res.json({
+        ok: true,
+        message:
+          "If an account exists for this email, a reset link has been sent.",
+      });
 
     const user = await storage.getUserByEmail(email);
     if (!user) return genericOk();
@@ -137,16 +160,20 @@ export async function registerRoutes(
 
     await storage.setResetToken(user.id, tokenHash, expiry);
 
-    const baseUrl = (process.env.BASE_URL ?? "http://localhost:5000").replace(/\/$/, "");
+    const baseUrl = (process.env.BASE_URL ?? "http://localhost:5000").replace(
+      /\/$/,
+      ""
+    );
     const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
     try {
       await sendPasswordResetEmail(user.email, resetUrl);
     } catch (err) {
       logger.error("forgot-password email send failed", { error: String(err) });
-      // Clear the token so a stale hash does not linger.
       await storage.clearResetToken(user.id);
-      return res.status(500).json({ error: "Failed to send reset email. Check SMTP configuration." });
+      return res
+        .status(500)
+        .json({ error: "Failed to send reset email. Check SMTP configuration." });
     }
 
     return genericOk();
@@ -181,7 +208,7 @@ export async function registerRoutes(
     res.json({ ok: true, message: "Password updated. Please sign in." });
   });
 
-  // --- Profile (auth required) --------------------------------------------
+  // --- Profile (auth required) ---------------------------------------------
 
   app.patch("/api/auth/profile", requireAuth, async (req, res) => {
     const parsed = updateProfileSchema.safeParse(req.body);
@@ -203,54 +230,4 @@ export async function registerRoutes(
       throw err;
     }
   });
-
-  // --- Workflow CRUD (auth required) --------------------------------------
-
-  app.get("/api/workflows", requireAuth, async (_req, res) => {
-    const items = await storage.listWorkflows();
-    res.json(items);
-  });
-
-  app.get("/api/workflows/:id", requireAuth, async (req, res) => {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid id" });
-    const item = await storage.getWorkflow(id);
-    if (!item) return res.status(404).json({ error: "Not found" });
-    res.json(item);
-  });
-
-  app.post("/api/workflows", requireAuth, async (req, res) => {
-    const parsed = insertWorkflowSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res
-        .status(400)
-        .json({ error: "Validation failed", details: parsed.error.flatten() });
-    }
-    const created = await storage.createWorkflow(parsed.data);
-    res.status(201).json(created);
-  });
-
-  app.put("/api/workflows/:id", requireAuth, async (req, res) => {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid id" });
-    const parsed = insertWorkflowSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res
-        .status(400)
-        .json({ error: "Validation failed", details: parsed.error.flatten() });
-    }
-    const updated = await storage.updateWorkflow(id, parsed.data);
-    if (!updated) return res.status(404).json({ error: "Not found" });
-    res.json(updated);
-  });
-
-  app.delete("/api/workflows/:id", requireAuth, async (req, res) => {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid id" });
-    const ok = await storage.deleteWorkflow(id);
-    if (!ok) return res.status(404).json({ error: "Not found" });
-    res.json({ ok: true });
-  });
-
-  return httpServer;
 }

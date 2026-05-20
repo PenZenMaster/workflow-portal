@@ -1,96 +1,140 @@
 ## Resume From
 
-Last session: 2026-05-09
-Last commit: 17606f5 docs(status): Sprint 2 complete — v0.2.7
-Version: v0.2.7 | Live: https://portal.fullmetaljacketseo.com (UP on v0.2.4 — pending deploy of v0.2.5–v0.2.7)
+Last session: 2026-05-10
+Last commit: 9e62dac feat(multi-llm): 6 new AI adapters, GA4 stacked chart, platform selection on runs — v1.2.0
+Branch: feature/ai-visibility-module | Version: v1.2.0 | 437 tests passing
+Production: v1.1.1 deployed (needs v1.2.0 upgrade)
+PR open: https://github.com/PenZenMaster/workflow-portal/pull/1 (feature → main)
 
 Pick up from:
-1. Confirm CI passes on GitHub Actions (check Actions tab for commit b98b1e5)
-2. Deploy v0.2.7 to production (npm run package, upload, NPM Install, Restart)
-3. Begin AI Visibility Module — Sprint 0 (foundation refactor): split routes/storage, add roles + jobs scaffold
+1. Delete local data.db + sessions.db before npm run dev (platforms table now has 7 rows via upsert seed)
+2. Add API keys for desired LLMs in cPanel env vars (OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_AI_API_KEY, GROQ_API_KEY, MISTRAL_API_KEY, DEEPSEEK_API_KEY)
+3. Deploy v1.2.0 to production, then QA: Trigger Run form should show platform checkboxes; Traffic page should show stacked monthly bar chart
 
 ---
 
-## Current Sprint — AI Visibility Sprint 0 — Foundation Refactor
+## Post-Sprint Work This Session (v1.1.0 – v1.2.0)
 
-**Goal:** Restructure server boundaries and add role + jobs scaffolding without changing any user-facing behavior. Unblocks all AI Visibility feature sprints.
-**Status: PLANNED**
-**Version target: v0.3.0**
+- v1.1.0: Fixed critical pipeline bug — prompt-run was not enqueuing parse-response; added Re-parse button on RunDetail
+- v1.1.1: Reordered ClientDetail nav; added system-documentation.md; added New Export button on Reports page
+- v1.2.0: Multi-LLM adapters (OpenAI/ChatGPT, Anthropic/Claude, Gemini, Groq/Llama, Mistral, DeepSeek); platform seeding fixed (INSERT OR IGNORE per slug); platform multi-select on Trigger Run / Run Now; GA4 referrer list expanded to 30+ domains; monthly stacked bar chart on Traffic page
+
+## Current Sprint — AI Visibility Sprint 7 — GA4 + Calibration + v1.0.0
+
+**Goal:** AI referral traffic stitched into reports; calibration harness against a manual audit set; v1.0.0 cut.
+**Status: COMPLETE**
+**Version: v1.2.0 (includes post-sprint fixes and multi-LLM feature)**
 
 ### Milestones
 
-- [ ] Split `server/routes.ts` → `server/routes/index.ts`, `auth.ts`, `workflows.ts` (verbatim carve-out, no behavior change)
-- [ ] Split `server/storage.ts` → `server/storage/index.ts`, `workflowStore.ts`, `userStore.ts` (deprecation shims keep existing tests green)
-- [ ] Add `users.role` enum column (default `super_admin`) + `jobs` table to schema
-- [ ] Generate migration `0002_*.sql` and commit alongside schema changes
-- [ ] Add `requireRole(...)` and `requireClientAccess(...)` middleware to `server/auth.ts`
-- [ ] `server/jobs/runner.ts` — `JobRunner` class with 30s tick; no job kinds yet
-- [ ] `tests/server/_helpers/buildAuthApp.ts` — reusable role + client-access test harness
-- [ ] New tests: `auth.role.test.ts`, `jobs/runner.test.ts`, `storage/composition.test.ts`
-- [ ] All 111 existing tests stay green
-- [ ] Coverage whitelist updated for new files
+- [x] Schema: integrations table; Migration 0009_chubby_celestials.sql (22 tables total)
+- [x] Service: server/services/ga4.ts — native fetch + JWT auth; filterAiSearchRows() covers 6 AI platforms
+- [x] Store: integrationStore (CRUD + updateStatus)
+- [x] Job kind: refresh-ga4 (daily connectivity sync)
+- [x] Routes: server/routes/integrations.ts — CRUD + test + traffic view (graceful noIntegration fallback)
+- [x] UI: Traffic + Integrations pages; ClientDetail nav gains Traffic button
+- [x] Calibration harness: tests/calibration/ — 20 synthetic fixtures; precision ≥0.85 on mentions, ≥0.90 on citations, ≥0.70 on sentiment — all PASS
+- [ ] PR feature/ai-visibility-module → main
+
+---
+
+## Previous Sprints (AI Visibility Module)
+- [ ] Services: server/services/parser.ts, server/services/scoring.ts
+- [ ] Job kinds: parse-response (auto on insert), aggregate-snapshot-daily
+- [ ] Routes: server/routes/metrics.ts (6 endpoints)
+- [ ] UI: Overview dashboard (KPI cards + recharts trend lines), MentionsList, SoV chart
+- [ ] Tests: parser precision/recall fixtures, scoring formula correctness, metric routes
 
 ---
 
 ## AI Visibility Module — Sprint Roadmap
 
-Full spec: `docs/ai-visibility-reporting-spec.md`
+Full spec: `docs/aeo_geo_google_data_architecture.md`
 Plan file: `C:\Users\georg\.claude\plans\glistening-riding-pixel.md`
 
 Confirmed decisions:
 - PDF: CSV-only through MVP (Phase 2 revisit)
 - Sentiment: Rule-based lexicon only for MVP; Anthropic-assisted deferred to Phase 2
-- Perplexity API key + monthly USD ceiling: to be provided before Sprint 3
+- Perplexity API key + monthly USD ceiling: to be provided before Sprint 3 (set PERPLEXITY_API_KEY in .env)
 
-| Sprint | Goal | Version |
-|--------|------|---------|
-| Sprint 0 | Foundation refactor — split routes/storage, add roles + jobs scaffold | v0.3.0 |
-| Sprint 1 | Client / brand / competitor setup + AI module shell UI | v0.4.0 |
-| Sprint 2 | Versioned prompt library | v0.5.0 |
-| Sprint 3 | Run engine + Perplexity adapter | v0.6.0 |
-| Sprint 4 | Mention/citation analysis + core metrics dashboard | v0.7.0 |
-| Sprint 5 | Sentiment, annotations, CSV exports | v0.8.0 |
-| Sprint 6 | Sources, recommendations, share links | v0.9.0 |
-| Sprint 7 | GA4 integration, calibration harness | v1.0.0 |
-
----
-
-## Previous Sprint — Sprint 2
-
-**Goal:** Code quality gates, observability, and CI/CD
-**Status: COMPLETE**
-
-### Milestones
-
-- [x] S2-01 ESLint setup — zero-warning enforcement in package pipeline
-- [x] S2-02 AppError class — structured server errors (server/errors.ts)
-- [x] S2-03 Response envelope helpers — ok(), created(), noContent() (server/response.ts)
-- [x] S2-04 Structured logging — JSON lines with requestId, userId, method, path, status, durationMs
-- [x] S2-05 CI/CD pipeline — lint + check + test on every push/PR to main (.github/workflows/ci.yml)
-- [x] S2-06 .env validation — validateEnv() fails fast on missing SESSION_SECRET or partial SMTP config
+| Sprint | Goal | Version | Status |
+|--------|------|---------|--------|
+| Sprint 0 | Foundation refactor — split routes/storage, add roles + jobs scaffold | v0.3.0 | DONE |
+| Sprint 1 | Client / brand / competitor setup + AI module shell UI | v0.4.0 | DONE |
+| Sprint 2 | Versioned prompt library | v0.5.0 | DONE |
+| Sprint 3 | Run engine + Perplexity adapter | v0.6.0 | DONE |
+| Sprint 4 | Mention/citation analysis + core metrics dashboard | v0.7.0 | DONE |
+| Sprint 5 | Sentiment, annotations, CSV exports | v0.8.0 | DONE |
+| Sprint 6 | Sources, recommendations, share links | v0.9.0 | DONE |
+| Sprint 7 | GA4 integration, calibration harness | v1.0.0 | NEXT |
 
 ---
 
-## In Progress
+## Previous Sprints (AI Visibility Module)
 
-- Nothing actively in progress
+### Sprint 6 — Sources, Recommendations, Share Links (COMPLETE — v0.9.0)
+
+- Schema: share_tokens table; Migration 0008_big_korath.sql (21 tables)
+- Services: sources.ts (domain analysis, owned split), recommendations.ts (4 gap rules), shareLink.ts (SHA-256 token lifecycle)
+- Store: shareTokenStore; citationStore gained listByClient()
+- Routes: sources.ts — sources, recommendations, share link create/revoke, public /api/share/:token/data
+- UI: Sources, Recommendations, SharePage pages; ClientDetail nav gains Sources + Recommendations
+- Tests: 38 new; 395 total passing
+
+### Sprint 3 — Run Engine + Perplexity Adapter (COMPLETE — v0.6.0)
+
+- Schema: prompt_runs, responses_raw, run_schedules + zod schemas + types
+- Migration: 0005_majestic_anita_blake.sql (14 tables total)
+- Adapter: server/adapters/perplexity.ts — native fetch, 3-retry w/ exponential backoff, 30s timeout, ordered citation extraction. Registry wires slug to adapter.
+- Stores: runStore (lifecycle + atomic SQL counters), responseStore (full result capture), scheduleStore (listDue + markFired)
+- Job handlers: prompt-run (executes one prompt, finalises run status) + schedule-tick (promotes due schedules into runs + jobs). Both registered via registerJobHandlers() on startup.
+- jobRunner.enqueue() — clean public API so routes/handlers queue jobs without importing db directly
+- Routes: server/routes/runs.ts — 8 endpoints (trigger 202, list, detail, retry-failed, schedule CRUD)
+- Config: PERPLEXITY_API_KEY + PERPLEXITY_DAILY_USD_LIMIT in AppConfig (optional, graceful)
+- UI: RunsList (polled at 5s while active) + RunDetail pages; ClientDetail gains Runs button
+- Tests: 41 new (17 storage, 7 adapter, 17 routes); 262 total passing
+
+### Sprint 2 — Versioned Prompt Library (COMPLETE — v0.5.0)
+
+- Schema: platforms, prompt_collections, prompts + PROMPT_CATEGORIES/FUNNEL_STAGES constants
+- Migration: 0004_fantastic_kree.sql
+- Stores: platformStore (seedDefaults, idempotent), promptCollectionStore (CRUD, clone, activate — one-active-per-client invariant), promptStore (CRUD, bulkCreate up to 200)
+- Routes: server/routes/prompts.ts — 11 endpoints (platforms, collections, prompts, bulk import)
+- Seeding: Perplexity platform auto-seeded on startup
+- UI: PromptCollections + PromptCollectionDetail pages; ClientDetail gains Prompt Collections button
+- Tests: 40 new (18 storage, 22 routes); 221 total passing
+
+### Sprint 1 — Client / Brand / Competitor Setup (COMPLETE — v0.4.0)
+
+- Schema: clients, brands, brand_aliases, competitors, client_users tables
+- Migration: 0003_numerous_black_tarantula.sql
+- Stores: clientStore (soft-delete), brandStore, aliasStore, competitorStore, clientUserStore (canAccess)
+- Routes: server/routes/clients.ts — 14 endpoints, { data } envelope, role-gated
+- UI: ClientsList + ClientDetail pages; AI Visibility nav link in Home header
+- Tests: 47 new (22 storage, 25 routes); 181 total passing
+- QA: verified at localhost:5000
+
+### Sprint 0 — Foundation Refactor (COMPLETE — v0.3.0)
+
+- Routes split: server/routes.ts → routes/index.ts + auth.ts + workflows.ts
+- Storage split: storage.ts barrel + storage/workflowStore.ts + userStore.ts
+- users.role enum column; requireRole() + requireClientAccess() in auth.ts
+- server/jobs/runner.ts — JobRunner with 30s tick, atomic locking, orphan rescue on boot
+- JobRunner.enqueue() — public API for queuing jobs from routes and handlers
+- tests/server/_helpers/buildAuthApp.ts — reusable role-aware test harness
+- Migration: 0002_funny_shadowcat.sql (users.role + jobs table)
+- Tests: 23 new; 134 total passing
 
 ---
 
-## Backlog
+## Previous Sprints (Core Portal — main branch at v0.2.7)
 
-Priority order within each tier. Move items to a sprint milestone when scheduled.
+### Session 2026-05-09 (Sprint 2 completion — main branch)
 
-### Medium Priority
-
-- B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
-- B-06 Session store: add session expiry cleanup configuration review
-
-### Low Priority
-
-- B-08 skipLibCheck: false in tsconfig (stricter dependency type checking)
-- B-09 Local dev server fix for Windows (remaining socket/network issues)
-- B-10 Evaluate replacing better-sqlite3-session-store (deprecated dependencies)
+- S2-06 .env validation: validateEnv() calls before migrate(), fails fast on bad SESSION_SECRET or partial SMTP
+- S2-04 Structured logging: JSON logger with requestId, userId, method, path, statusCode, durationMs
+- S2-05 CI/CD: .github/workflows/ci.yml — lint + check + test on push/PR to main
+- 111 tests passing at v0.2.7
 
 ---
 
@@ -98,101 +142,19 @@ Priority order within each tier. Move items to a sprint milestone when scheduled
 
 | ID  | Severity | Status | Description | File |
 |-----|----------|--------|-------------|------|
-| TD-01 | High | Done | Dead scaffold deps in build allowlist (16 unused packages) | script/build.ts |
-| TD-02 | High | Done | No rate limiting on auth endpoints | server/routes.ts |
-| TD-03 | High | Done | No database migrations infrastructure | drizzle.config.ts |
-| TD-04 | Medium | Done | @supabase/supabase-js in deps, never imported | package.json |
-| TD-05 | Medium | Done | countUsers() full table scan instead of COUNT(*) | server/storage.ts |
-| TD-06 | Medium | Done | No security headers (helmet, CSP, X-Frame-Options) | server/index.ts |
-| TD-07 | Medium | Done | package.json name is "rest-express" (scaffold remnant) | package.json |
-| TD-08 | Medium | Done | staleTime: Infinity — queries never refetch | client/src/lib/queryClient.ts |
-| TD-09 | Medium | Done | No React error boundary — render error = blank screen | client/src/App.tsx |
-| TD-10 | Medium | Done | Session error callbacks lack request context in logs | server/routes.ts |
-| TD-11 | Low | Done | Test files excluded from tsc type checking | tsconfig.json |
+| TD-10 | Medium | Done | Session error callbacks lack request context in logs | server/routes/auth.ts |
 | TD-12 | Low | Open | Hardcoded seed data — no versioning or rollback | server/seed.ts |
 | TD-13 | Low | Open | skipLibCheck: true masks dep type errors | tsconfig.json |
-| TD-14 | Low | Done | No .nvmrc / engines field to pin Node version | package.json |
-| TD-15 | Medium | Done | No ESLint — any types and console.log not enforced | multiple files |
-| TD-16 | Medium | Done | Global error handler used any type and wrong response format | server/index.ts |
-| TD-17 | Low | Done | better-sqlite3 bundled by esbuild — native addon path broken on Linux | script/build.ts |
-| TD-18 | Low | Done | Missing migration for email/reset columns — caused 500 on first login | migrations/ |
 
 ---
 
-## Completed
+## Backlog (post-AI-module)
 
-### Session 2026-05-09 (Sprint 2 completion)
+### Medium Priority
+- B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
+- B-06 Session store: session expiry cleanup configuration review
 
-**S2-06 .env validation (v0.2.5):**
-- server/config.ts: validateEnv() called at startup before migrate()
-- Throws with clear message if SESSION_SECRET < 32 chars in production
-- Throws with missing var list if SMTP group is partially configured (all-or-nothing)
-- Returns typed AppConfig (PORT, DATA_DB_PATH, SESSION_DB_PATH, SMTP)
-- 14 new tests — 104 total passing
-
-**S2-04 Structured logging (v0.2.6):**
-- server/logger.ts: zero-dep JSON logger — {ts, level, msg, ...ctx} per line
-- Request middleware: logs requestId, userId, method, path, statusCode, durationMs
-- Removed response-body capture from request logs (security risk)
-- server/routes.ts: 4 console.error calls -> logger.error with structured context (TD-10 resolved)
-- server/auth.ts: console.warn -> logger.warn
-- 7 new tests — 111 total passing
-
-**S2-05 CI/CD pipeline (v0.2.7):**
-- .github/workflows/ci.yml: triggers on push and PR to main
-- Runs on ubuntu-latest, Node 22, npm cache enabled
-- Gates: npm ci -> lint -> check -> test
-- Note: pure config — no unit test applicable (no implementation code)
-
-**Also this session:**
-- v0.2.4 deployed to production successfully
-- Seed data rewrite complete (user-supplied)
-- Password reset email flow verified end-to-end on production
-
-### Session 2026-05-08 (production fix + Sprint 2 foundation)
-
-**Production 503 root cause and fix:**
-- SSH diagnosed: ~/persistent/ directory missing — created via SSH
-- cPanel env vars had trailing spaces and a space in SESSION_DB_PATH name — corrected
-- better-sqlite3 was in esbuild bundle allowlist — native addons cannot be bundled; removed
-- Missing migration for email, reset_token_hash, reset_token_expiry columns — generated 0001_clever_talisman.sql
-- Portal now live at https://portal.fullmetaljacketseo.com on v0.2.2
-
-**Deploy discipline (all enforced in package pipeline):**
-- script/preflight.js: blocks packaging if git tag v{version} already exists
-- npm run db:check: blocks packaging if schema has unmigrated changes
-- CLAUDE.md: pre-deploy checklist, versioning rules table, TDD cycle, strict mode rules
-
-**Sprint 2 foundation (v0.2.3):**
-- ESLint 9 flat config with typescript-eslint — zero warnings enforced
-- npm run lint wired as first gate in package pipeline
-- server/errors.ts: AppError class (TDD — test written first)
-- server/response.ts: ok(), created(), noContent() envelope helpers (TDD)
-- Global error handler updated to use AppError, { error, code } format
-- All no-explicit-any violations resolved across 6 files (server + client)
-- 90 tests passing
-
-### Session 2026-05-07 (Sprint 1 completion + post-sprint)
-- Password reset: forgot-password page, reset-password page, nodemailer SMTP transport
-- Hashed single-use tokens (SHA-256), 60-min expiry, session invalidation on reset
-- Account settings dialog in portal header for setting recovery email
-- Email field added to first-run setup and users schema
-- CSP fixed in dev: helmet contentSecurityPolicy disabled when NODE_ENV != production
-- npm run package: single command that runs check + test + build + creates versioned .tar.gz
-- First-deploy checklist added to CLAUDE.md
-- Deploy archive fixed: inclusion list only
-- .htaccess content confirmed and whitespace errors corrected
-
-### Session 2026-05-04 to 2026-05-06
-- Local dev environment configured and git remote initialized
-- Windows compatibility: cross-env, reusePort guard, .gitattributes LF enforcement
-- Testing infrastructure: vitest 3.x workspace projects, 94% coverage (81 tests)
-- CLAUDE.md with session procedures
-- LaunchInputsDialog: collects required inputs, fills prompt, copies + launches Perplexity
-- Perplexity ?q= URL auto-submit (v0.2.1 from GitHub)
-- DB persistence fix: DATA_DB_PATH + SESSION_DB_PATH env vars (survive deploys)
-- Semantic versioning: v0.2.1 badge on all screens
-- server/storage.ts: dependency injection pattern for testability
-- client/src/lib/launchUtils.ts: pure functions extracted and unit tested
-- Deploy pipeline confirmed working on cPanel
-- Admin account persistence confirmed working after env var setup
+### Low Priority
+- B-08 skipLibCheck: false in tsconfig
+- B-09 Local dev server fix for Windows (remaining socket/network issues)
+- B-10 Evaluate replacing better-sqlite3-session-store (deprecated)

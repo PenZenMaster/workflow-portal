@@ -19,7 +19,11 @@ const mockStorage = {
   deleteWorkflow: vi.fn(),
 };
 
-vi.mock("../../server/storage", () => ({ storage: mockStorage }));
+vi.mock("../../server/storage", () => ({
+  storage: mockStorage,
+  // Sprint 2: platformStore.seedDefaults() is called in the route aggregator.
+  platformStore: { seedDefaults: vi.fn().mockResolvedValue(undefined) },
+}));
 vi.mock("../../server/seed", () => ({ seedIfEmpty: vi.fn() }));
 
 // Import AFTER mocks are registered
@@ -41,7 +45,7 @@ function buildApp(authenticated = false) {
   );
   if (authenticated) {
     app.use((req: Request, _res: Response, next: NextFunction) => {
-      req.session.user = { id: 1, username: "testuser" };
+      req.session.user = { id: 1, username: "testuser", role: "agency_admin" };
       next();
     });
   }

@@ -1,0 +1,104 @@
+import { useParams, Link } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import type { PromptRun, ResponseRaw } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
+
+const TERMINAL = new Set(["complete", "partial", "failed"]);
+
+export default function RunDetail() {
+  const { runId } = useParams<{ runId: string }>();
+  const { toast } = useToast();
+
+  const { data, isLoading } = useQuery<{
+    data: { run: PromptRun; responses: ResponseRaw[] };
+  }>({
+    queryKey: [`/api/runs/${runId}`],
+    enabled: !!runId,
+    refetchInterval: (query) => {
+      const run = query.state.data?.data?.run;
+      return run && !TERMINAL.has(run.status) ? 5_000 : false;
+    },
+  });
+
+  const reparseMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/runs/${runId}/reparse`);
+      return res.json() as Promise<{ data: { reparsedCount: number } }>;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/runs/${runId}`] });
+      toast({
+        title: `Re-parsing ${result.data.reparsedCount} responses`,
+        description: "Mentions and metrics will update in 1–2 minutes.",
+      });
+    },
+    onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
+  });
+
+  if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
+  if (!data) return <div className="p-8 text-destructive">Run not found.</div>;
+
+  const { run, responses } = data.data;
+  const completedCount = responses.filter((r) => r.status === "complete").length;
+
+  return (
+    <div className="p-8 max-w-4xl mx-auto">
+      <div className="mb-6">
+        <Link href={`/ai/clients/${run.clientId}/runs`} className="text-sm text-muted-foreground hover:text-foreground">
+          Back to Runs
+        </Link>
+      </div>
+
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold mb-1">Run #{run.id}</h1>
+          <div className="flex gap-4 text-sm text-muted-foreground">
+            <span>Status: <strong className="text-foreground">{run.status}</strong></span>
+            <span>{run.completedPrompts}/{run.totalPrompts} complete</span>
+            {run.failedPrompts > 0 && <span className="text-red-600">{run.failedPrompts} failed</span>}
+          </div>
+        </div>
+        {TERMINAL.has(run.status) && completedCount > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => reparseMutation.mutate()}
+            disabled={reparseMutation.isPending}
+            title="Re-run the mention/citation/metric extraction — useful if you added brands after the run completed"
+          >
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${reparseMutation.isPending ? "animate-spin" : ""}`} />
+            {reparseMutation.isPending ? "Re-parsing…" : "Re-parse responses"}
+          </Button>
+        )}
+      </div>
+
+      <h2 className="text-lg font-semibold mb-3">Responses</h2>
+      {responses.length === 0 ? (
+        <p className="text-muted-foreground text-sm">No responses captured yet.</p>
+      ) : (
+        <ul className="space-y-3">
+          {responses.map((r) => (
+            <li key={r.id} className="border rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-xs bg-muted px-2 py-0.5 rounded">{r.status}</span>
+                <span className="text-sm font-medium truncate">{r.queryText}</span>
+              </div>
+              {r.responseText && (
+                <p className="text-sm text-muted-foreground line-clamp-3">{r.responseText}</p>
+              )}
+              {r.errorMessage && (
+                <p className="text-sm text-red-600">{r.errorMessage}</p>
+              )}
+              {r.latencyMs && (
+                <p className="text-xs text-muted-foreground mt-1">{r.latencyMs}ms</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

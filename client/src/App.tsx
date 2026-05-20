@@ -12,6 +12,24 @@ import NotFound from "@/pages/not-found";
 import { AuthScreen } from "@/pages/AuthScreen";
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
+import ClientsList from "@/pages/ai/ClientsList";
+import ClientDetail from "@/pages/ai/ClientDetail";
+import PromptCollections from "@/pages/ai/PromptCollections";
+import PromptCollectionDetail from "@/pages/ai/PromptCollectionDetail";
+import RunsList from "@/pages/ai/RunsList";
+import RunDetail from "@/pages/ai/RunDetail";
+import Overview from "@/pages/ai/Overview";
+import MentionsList from "@/pages/ai/MentionsList";
+import SoV from "@/pages/ai/SoV";
+import Sentiment from "@/pages/ai/Sentiment";
+import ReviewQueue from "@/pages/ai/ReviewQueue";
+import Reports from "@/pages/ai/Reports";
+import Sources from "@/pages/ai/Sources";
+import Recommendations from "@/pages/ai/Recommendations";
+import SharePage from "@/pages/ai/SharePage";
+import Traffic from "@/pages/ai/Traffic";
+import Integrations from "@/pages/ai/Integrations";
+import Users from "@/pages/admin/Users";
 import { Skeleton } from "@/components/ui/skeleton";
 
 class ErrorBoundary extends Component<
@@ -49,6 +67,24 @@ function AppRouter() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/share/:token" component={SharePage} />
+      <Route path="/admin/users" component={Users} />
+      <Route path="/ai/clients/:id/traffic" component={Traffic} />
+      <Route path="/ai/clients/:id/settings/integrations" component={Integrations} />
+      <Route path="/ai/clients/:id/sources" component={Sources} />
+      <Route path="/ai/clients/:id/recommendations" component={Recommendations} />
+      <Route path="/ai/clients/:id/sentiment/review" component={ReviewQueue} />
+      <Route path="/ai/clients/:id/sentiment" component={Sentiment} />
+      <Route path="/ai/clients/:id/reports" component={Reports} />
+      <Route path="/ai/clients/:id/overview" component={Overview} />
+      <Route path="/ai/clients/:id/mentions" component={MentionsList} />
+      <Route path="/ai/clients/:id/sov" component={SoV} />
+      <Route path="/ai/runs/:runId" component={RunDetail} />
+      <Route path="/ai/clients/:id/runs" component={RunsList} />
+      <Route path="/ai/clients/:id/prompts/:collectionId" component={PromptCollectionDetail} />
+      <Route path="/ai/clients/:id/prompts" component={PromptCollections} />
+      <Route path="/ai/clients/:id" component={ClientDetail} />
+      <Route path="/ai/clients" component={ClientsList} />
       <Route component={NotFound} />
     </Switch>
   );

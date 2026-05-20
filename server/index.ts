@@ -8,6 +8,8 @@ import helmet from "helmet";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { db } from "./storage";
 import { registerRoutes } from "./routes";
+import { jobRunner } from "./jobs/runner";
+import { registerJobHandlers } from "./jobs/handlers";
 import { serveStatic } from "./static";
 import { createServer } from "node:http";
 import { configureSession } from "./auth";
@@ -71,6 +73,10 @@ app.use((req, res, next) => {
 
 (async () => {
   await registerRoutes(httpServer, app);
+
+  // Register job kinds then start the background runner.
+  registerJobHandlers(jobRunner);
+  jobRunner.start(db);
 
   app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) {

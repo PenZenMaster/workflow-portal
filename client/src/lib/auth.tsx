@@ -7,6 +7,11 @@ type AuthStatus = {
   needsSetup: boolean;
   authenticated: boolean;
   user: PublicUser | null;
+  config?: {
+    perplexityConfigured: boolean;
+    googleOAuthConfigured: boolean;
+    configuredPlatforms: string[];
+  };
 };
 
 type AuthContextValue = {

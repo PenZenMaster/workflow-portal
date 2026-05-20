@@ -1,0 +1,150 @@
+import { describe, it, expect, beforeEach } from "vitest";
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { SCHEMA_SQL } from "../../../server/storage";
+import { MentionStore } from "../../../server/storage/mentionStore";
+import { CitationStore } from "../../../server/storage/citationStore";
+import { MetricStore } from "../../../server/storage/metricStore";
+
+function makeDb() {
+  const sqlite = new Database(":memory:");
+  sqlite.exec(SCHEMA_SQL);
+  return drizzle(sqlite);
+}
+
+// ---------------------------------------------------------------------------
+describe("MentionStore", () => {
+  let store: MentionStore;
+
+  beforeEach(() => { store = new MentionStore(makeDb()); });
+
+  it("creates a mention and retrieves it by response", async () => {
+    const m = await store.create({
+      responseId: 1,
+      brandId: 10,
+      matchedText: "Acme Corp",
+      matchType: "exact",
+      section: "summary",
+      recommendationRank: 1,
+      confidence: 1.0,
+      evidenceExcerpt: "Acme Corp is the best...",
+    });
+    expect(m.id).toBeTypeOf("number");
+    expect(m.brandId).toBe(10);
+    expect(m.section).toBe("summary");
+
+    const list = await store.listByResponse(1);
+    expect(list).toHaveLength(1);
+    expect(list[0].matchedText).toBe("Acme Corp");
+  });
+
+  it("returns empty for unknown responseId", async () => {
+    expect(await store.listByResponse(9999)).toHaveLength(0);
+  });
+
+  it("bulk-creates multiple mentions", async () => {
+    await store.bulkCreate([
+      { responseId: 1, brandId: 1, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 },
+      { responseId: 1, brandId: 2, matchedText: "Rival", matchType: "exact", section: "list", confidence: 0.9 },
+    ]);
+    expect(await store.listByResponse(1)).toHaveLength(2);
+  });
+
+  it("deletes mentions by responseId", async () => {
+    await store.create({ responseId: 5, brandId: 1, matchedText: "A", matchType: "exact", section: "body", confidence: 1 });
+    await store.deleteByResponse(5);
+    expect(await store.listByResponse(5)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("CitationStore", () => {
+  let store: CitationStore;
+
+  beforeEach(() => { store = new CitationStore(makeDb()); });
+
+  it("creates a citation and retrieves it", async () => {
+    const c = await store.create({
+      responseId: 1,
+      url: "https://acme.com/page",
+      rootDomain: "acme.com",
+      ownedByBrandId: 10,
+      position: 1,
+      isTrustedThirdParty: false,
+    });
+    expect(c.rootDomain).toBe("acme.com");
+    expect(c.ownedByBrandId).toBe(10);
+    expect(c.isTrustedThirdParty).toBe(false);
+
+    const list = await store.listByResponse(1);
+    expect(list).toHaveLength(1);
+  });
+
+  it("bulk-creates multiple citations", async () => {
+    await store.bulkCreate([
+      { responseId: 1, url: "https://a.com", rootDomain: "a.com", position: 1, isTrustedThirdParty: false },
+      { responseId: 1, url: "https://b.com", rootDomain: "b.com", position: 2, isTrustedThirdParty: true },
+    ]);
+    const list = await store.listByResponse(1);
+    expect(list).toHaveLength(2);
+    expect(list[1].isTrustedThirdParty).toBe(true);
+  });
+
+  it("deletes citations by responseId", async () => {
+    await store.create({ responseId: 3, url: "https://x.com", rootDomain: "x.com", position: 1, isTrustedThirdParty: false });
+    await store.deleteByResponse(3);
+    expect(await store.listByResponse(3)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("MetricStore", () => {
+  let store: MetricStore;
+
+  beforeEach(() => { store = new MetricStore(makeDb()); });
+
+  const SAMPLE_SNAPSHOT = {
+    clientId: 1,
+    dateIso: "2026-05-10",
+    scopeKind: "overall" as const,
+    scopeValue: null,
+    citationCount: 5,
+    mentionCount: 8,
+    allBrandMentions: 20,
+    visibilityScoreSum: 42.5,
+    promptResponseCount: 10,
+  };
+
+  it("creates a snapshot", async () => {
+    const s = await store.upsert(SAMPLE_SNAPSHOT);
+    expect(s.citationCount).toBe(5);
+    expect(s.mentionCount).toBe(8);
+    expect(s.dateIso).toBe("2026-05-10");
+  });
+
+  it("upsert is idempotent — updates existing row for same clientId+dateIso+scope", async () => {
+    await store.upsert(SAMPLE_SNAPSHOT);
+    await store.upsert({ ...SAMPLE_SNAPSHOT, citationCount: 10 });
+    const list = await store.listByClient(1, "2026-01-01", "2026-12-31");
+    expect(list).toHaveLength(1);
+    expect(list[0].citationCount).toBe(10);
+  });
+
+  it("listByClient filters by date range", async () => {
+    await store.upsert({ ...SAMPLE_SNAPSHOT, dateIso: "2026-04-01" });
+    await store.upsert({ ...SAMPLE_SNAPSHOT, dateIso: "2026-05-10" });
+    await store.upsert({ ...SAMPLE_SNAPSHOT, dateIso: "2026-06-01" });
+
+    const list = await store.listByClient(1, "2026-04-15", "2026-05-31");
+    expect(list).toHaveLength(1);
+    expect(list[0].dateIso).toBe("2026-05-10");
+  });
+
+  it("aggregates totals for overview metrics", async () => {
+    await store.upsert({ ...SAMPLE_SNAPSHOT, dateIso: "2026-05-08", mentionCount: 3, promptResponseCount: 5 });
+    await store.upsert({ ...SAMPLE_SNAPSHOT, dateIso: "2026-05-09", mentionCount: 5, promptResponseCount: 5 });
+    const agg = await store.aggregateForPeriod(1, "2026-05-01", "2026-05-31");
+    expect(agg.totalMentions).toBe(8);
+    expect(agg.totalResponses).toBe(10);
+  });
+});

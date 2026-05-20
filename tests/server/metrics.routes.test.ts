@@ -1,0 +1,150 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import request from "supertest";
+import { buildAuthApp } from "./_helpers/buildAuthApp";
+
+// --- mocks ------------------------------------------------------------------
+
+const mockMentionStore = { listByResponse: vi.fn(), listByClient: vi.fn(), bulkCreate: vi.fn(), deleteByResponse: vi.fn(), create: vi.fn() };
+const mockCitationStore = { listByResponse: vi.fn(), bulkCreate: vi.fn(), deleteByResponse: vi.fn(), create: vi.fn() };
+const mockMetricStore = { upsert: vi.fn(), listByClient: vi.fn(), aggregateForPeriod: vi.fn() };
+const mockResponseStore = { get: vi.fn() };
+const mockBrandStore = { listByClient: vi.fn() };
+const mockAliasStore = { listByBrand: vi.fn() };
+
+vi.mock("../../server/storage", () => ({
+  storage: { countUsers: vi.fn() },
+  platformStore: { seedDefaults: vi.fn().mockResolvedValue(undefined) },
+  mentionStore: mockMentionStore,
+  citationStore: mockCitationStore,
+  metricStore: mockMetricStore,
+  responseStore: mockResponseStore,
+  brandStore: mockBrandStore,
+  aliasStore: mockAliasStore,
+  clientStore: {},
+  competitorStore: {},
+  clientUserStore: {},
+  promptStore: {},
+  promptCollectionStore: {},
+  runStore: {},
+  scheduleStore: {},
+}));
+
+vi.mock("../../server/jobs/runner", () => ({
+  jobRunner: { enqueue: vi.fn(), register: vi.fn() },
+}));
+
+const { registerMetricRoutes } = await import("../../server/routes/metrics");
+
+// ---------------------------------------------------------------------------
+
+function buildApp(role?: "super_admin" | "agency_admin" | "analyst" | "account_manager" | "client_viewer") {
+  return buildAuthApp(
+    (app) => registerMetricRoutes(app),
+    role ? { role } : {}
+  );
+}
+
+// ---------------------------------------------------------------------------
+describe("GET /api/clients/:id/metrics/overview", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/clients/1/metrics/overview");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 200 with aggregate metrics", async () => {
+    mockMetricStore.aggregateForPeriod.mockResolvedValue({
+      totalCitations: 5, totalMentions: 8, totalAllBrandMentions: 20,
+      totalVisibilityScore: 42.5, totalResponses: 10,
+    });
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/overview?period=30d");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty("citationFrequency");
+    expect(res.body.data).toHaveProperty("mentionRate");
+    expect(res.body.data).toHaveProperty("aiSoV");
+    expect(res.body.data).toHaveProperty("avgVisibilityScore");
+  });
+});
+
+describe("GET /api/clients/:id/metrics/trend", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 200 with trend data", async () => {
+    mockMetricStore.listByClient.mockResolvedValue([
+      { dateIso: "2026-05-10", mentionCount: 5, citationCount: 3, allBrandMentions: 15, promptResponseCount: 10, visibilityScoreSum: 20 },
+    ]);
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/trend?metric=mentionRate&period=30d");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toBeInstanceOf(Array);
+  });
+});
+
+describe("GET /api/clients/:id/metrics/sov", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 200 with SoV data", async () => {
+    mockMetricStore.aggregateForPeriod.mockResolvedValue({
+      totalCitations: 0, totalMentions: 5, totalAllBrandMentions: 20,
+      totalVisibilityScore: 0, totalResponses: 10,
+    });
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/sov");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty("aiSoV");
+  });
+});
+
+describe("GET /api/clients/:id/mentions", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/clients/1/mentions");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 200 with mention list", async () => {
+    mockMentionStore.listByClient.mockResolvedValue([]);
+    const res = await request(buildApp("analyst")).get("/api/clients/1/mentions");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([]);
+  });
+});
+
+describe("POST /api/responses/:id/parse", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 403 for account_manager", async () => {
+    const res = await request(buildApp("account_manager"))
+      .post("/api/responses/1/parse");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when response not found", async () => {
+    mockResponseStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("analyst")).post("/api/responses/999/parse");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 202 and enqueues parse job", async () => {
+    mockResponseStore.get.mockResolvedValue({ id: 1, runId: 1, queryText: "test" });
+    const res = await request(buildApp("analyst")).post("/api/responses/1/parse");
+    expect(res.status).toBe(202);
+  });
+});
+
+describe("GET /api/clients/:id/scoring-config", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 200 with default weights", async () => {
+    const res = await request(buildApp("super_admin")).get("/api/clients/1/scoring-config");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty("mentionPresent");
+    expect(res.body.data).toHaveProperty("summaryBlock");
+    expect(res.body.data).toHaveProperty("firstRecommended");
+  });
+
+  it("returns 403 for non-super_admin", async () => {
+    const res = await request(buildApp("agency_admin")).get("/api/clients/1/scoring-config");
+    expect(res.status).toBe(403);
+  });
+});
