@@ -19,26 +19,33 @@ import { integrationStore } from "../storage";
 import { exchangeCode, parseOAuthState } from "../services/ga4";
 import { logger } from "../logger";
 
+function popupPage(data: Record<string, unknown>): string {
+  const payload = JSON.stringify(data);
+  return `<!DOCTYPE html><html><head><title>Connecting…</title></head><body><script>
+if(window.opener){window.opener.postMessage(${payload},window.location.origin);}
+window.close();
+</script></body></html>`;
+}
+
 export function registerOAuthRoutes(app: Express): void {
   /**
    * GET /api/oauth/google/callback
    * Google redirects here after the user grants (or denies) consent.
-   * This is a server-side route — NOT a SPA route.
+   * Returns a self-closing HTML page that sends postMessage to the opener
+   * popup and closes itself — the main window never navigates.
    */
   app.get("/api/oauth/google/callback", async (req, res) => {
     const { code, state, error } = req.query as Record<string, string>;
 
-    const baseRedirect = "/#/ai/clients";
-
     if (error || !code || !state) {
       logger.warn("google-oauth: denied or missing params", { error });
-      return res.redirect(`${baseRedirect}?oauthError=denied`);
+      return res.send(popupPage({ type: "ga4_oauth_error", error: "denied" }));
     }
 
     const parsed = parseOAuthState(state);
     if (!parsed) {
       logger.warn("google-oauth: invalid state parameter");
-      return res.redirect(`${baseRedirect}?oauthError=invalid_state`);
+      return res.send(popupPage({ type: "ga4_oauth_error", error: "invalid_state" }));
     }
 
     const { clientId } = parsed;
@@ -46,28 +53,23 @@ export function registerOAuthRoutes(app: Express): void {
     try {
       const tokens = await exchangeCode(code);
 
-      // Find existing GA4 integration for this client, or create one.
       const existing = (await integrationStore.listByClient(clientId)).find(
         (i) => i.kind === "ga4"
       );
 
       if (existing) {
-        // Update existing integration with new tokens (preserve propertyId).
         await integrationStore.updateStatus(existing.id, "active", {
           lastSyncedAt: Date.now(),
           lastError: null,
         });
-        // Persist token fields into config via a direct update.
-        const updatedConfig = {
+        await integrationStore.updateConfig(existing.id, {
           ...(existing.config as Record<string, unknown>),
           refreshToken: tokens.refreshToken,
           accessToken: tokens.accessToken,
           tokenExpiry: tokens.tokenExpiry,
           connectedEmail: tokens.connectedEmail,
-        };
-        await integrationStore.updateConfig(existing.id, updatedConfig);
+        });
       } else {
-        // Create a new integration with tokens; propertyId set later by the user.
         await integrationStore.create(clientId, {
           kind: "ga4",
           config: {
@@ -80,20 +82,12 @@ export function registerOAuthRoutes(app: Express): void {
         });
       }
 
-      logger.info("google-oauth: connected", {
-        clientId,
-        email: tokens.connectedEmail,
-      });
-
-      return res.redirect(
-        `/#/ai/clients/${clientId}/settings/integrations?connected=1`
-      );
+      logger.info("google-oauth: connected", { clientId, email: tokens.connectedEmail });
+      return res.send(popupPage({ type: "ga4_oauth_success", clientId }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error("google-oauth: token exchange failed", { clientId, error: msg });
-      return res.redirect(
-        `/#/ai/clients/${clientId}/settings/integrations?oauthError=${encodeURIComponent(msg)}`
-      );
+      return res.send(popupPage({ type: "ga4_oauth_error", error: msg }));
     }
   });
 }

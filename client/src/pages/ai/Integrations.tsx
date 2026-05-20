@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useParams, Link, useSearch } from "wouter";
+import { useState } from "react";
+import { useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Integration } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, CheckCircle2, Trash2, TestTube, ExternalLink } from "lucide-react";
+import { AlertCircle, CheckCircle2, Trash2, TestTube } from "lucide-react";
 
 const STATUS_STYLE: Record<string, string> = {
   active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
@@ -16,12 +16,42 @@ const STATUS_STYLE: Record<string, string> = {
   disabled: "bg-muted text-muted-foreground",
 };
 
+function openOAuthPopup(
+  url: string,
+  onSuccess: () => void,
+  onError: (msg: string) => void
+): void {
+  const popup = window.open(url, "ga4_oauth", "width=600,height=700,scrollbars=yes,resizable=yes");
+  if (!popup) {
+    onError("Popup was blocked. Allow popups for this site and try again.");
+    return;
+  }
+
+  function handleMessage(event: MessageEvent) {
+    if (event.origin !== window.location.origin) return;
+    const data = event.data as { type?: string; error?: string };
+    if (data.type === "ga4_oauth_success") {
+      window.removeEventListener("message", handleMessage);
+      onSuccess();
+    } else if (data.type === "ga4_oauth_error") {
+      window.removeEventListener("message", handleMessage);
+      onError(data.error ?? "Connection failed");
+    }
+  }
+
+  window.addEventListener("message", handleMessage);
+
+  // Clean up listener if user closes the popup without completing OAuth
+  const timer = setInterval(() => {
+    if (popup.closed) {
+      clearInterval(timer);
+      window.removeEventListener("message", handleMessage);
+    }
+  }, 500);
+}
+
 export default function Integrations() {
   const { id } = useParams<{ id: string }>();
-  const search = useSearch();
-  const params = new URLSearchParams(search);
-  const justConnected = params.get("connected") === "1";
-  const oauthError = params.get("oauthError");
 
   const { status: authStatus } = useAuth();
   const { toast } = useToast();
@@ -33,16 +63,6 @@ export default function Integrations() {
     queryKey: [`/api/clients/${id}/integrations`],
     enabled: !!id,
   });
-
-  useEffect(() => {
-    if (justConnected) toast({ title: "Google Analytics connected successfully" });
-    if (oauthError)
-      toast({
-        title: "Google connection failed",
-        description: decodeURIComponent(oauthError),
-        variant: "destructive",
-      });
-  }, []); // fire once on mount — params are read from URL, no re-fetch needed
 
   const deleteMutation = useMutation({
     mutationFn: async (integrationId: number) => {
@@ -88,6 +108,18 @@ export default function Integrations() {
   const perplexityOk = authStatus?.config?.perplexityConfigured ?? false;
   const googleOAuthOk = authStatus?.config?.googleOAuthConfigured ?? false;
   const ga4Config = ga4Integration?.config as { propertyId?: string; connectedEmail?: string } | undefined;
+
+  function handleOAuthClick(e: React.MouseEvent) {
+    e.preventDefault();
+    openOAuthPopup(
+      `/api/clients/${id}/integrations/ga4/auth`,
+      () => {
+        queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}/integrations`] });
+        toast({ title: "Google Analytics connected successfully" });
+      },
+      (msg) => toast({ title: "Connection failed", description: msg, variant: "destructive" })
+    );
+  }
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
 
@@ -208,9 +240,9 @@ export default function Integrations() {
             {googleOAuthOk && (
               <div className="border-t pt-3">
                 <p className="text-xs text-muted-foreground mb-1">Need to switch to a different Google account?</p>
-                <a href={`/api/clients/${id}/integrations/ga4/auth`} className="text-xs text-primary hover:underline inline-flex items-center gap-1">
-                  Re-connect Google account <ExternalLink className="h-3 w-3" />
-                </a>
+                <button onClick={handleOAuthClick} className="text-xs text-primary hover:underline">
+                  Re-connect Google account
+                </button>
               </div>
             )}
           </div>
@@ -221,12 +253,9 @@ export default function Integrations() {
               Sign in with the Google account that has Viewer access to this client's GA4 property.
             </p>
             {googleOAuthOk ? (
-              <a href={`/api/clients/${id}/integrations/ga4/auth`}>
-                <Button className="mt-2">
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Connect Google Analytics
-                </Button>
-              </a>
+              <Button className="mt-2" onClick={handleOAuthClick}>
+                Connect Google Analytics
+              </Button>
             ) : (
               <Button disabled className="mt-2">Connect Google Analytics</Button>
             )}
