@@ -4,14 +4,16 @@
  *
  * Description:
  * Integration tests for the Google OAuth callback route.
- * Verifies the popup postMessage flow: callback returns self-closing HTML
- * that sends ga4_oauth_success or ga4_oauth_error to window.opener.
+ * Verifies the popup SPA redirect flow: callback redirects to
+ * /#/oauth/popup?type=success|error so the SPA page handles
+ * postMessage + window.close() without CSP-blocked inline scripts.
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-20
  * Last Modified Date: 2026-05-20
  * Comments:
- * - v1.00 Popup OAuth flow tests
+ * - v1.00 Initial popup postMessage flow tests
+ * - v1.01 Updated to SPA redirect flow (fixes CSP inline-script block)
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -80,10 +82,10 @@ const SAMPLE_TOKENS = {
   connectedEmail: "user@example.com",
 };
 
-describe("GET /api/oauth/google/callback — popup postMessage flow", () => {
+describe("GET /api/oauth/google/callback — popup SPA redirect flow", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns 200 HTML with ga4_oauth_success on successful new connection", async () => {
+  it("redirects to /#/oauth/popup?type=success on successful new connection", async () => {
     mockParseOAuthState.mockReturnValue({ clientId: 42, userId: 1 });
     mockExchangeCode.mockResolvedValue(SAMPLE_TOKENS);
     mockIntegrationStore.listByClient.mockResolvedValue([]);
@@ -93,37 +95,32 @@ describe("GET /api/oauth/google/callback — popup postMessage flow", () => {
       .get("/api/oauth/google/callback")
       .query({ code: "auth_code", state: "valid_state" });
 
-    expect(res.status).toBe(200);
-    expect(res.headers["content-type"]).toMatch(/text\/html/);
-    expect(res.text).toContain("ga4_oauth_success");
-    expect(res.text).toContain("postMessage");
-    expect(res.text).toContain("window.close()");
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/\/#\/oauth\/popup\?type=success/);
+    expect(res.headers.location).toContain("clientId=42");
   });
 
-  it("returns 200 HTML with ga4_oauth_error when OAuth is denied by user", async () => {
+  it("redirects to /#/oauth/popup?type=error when OAuth is denied by user", async () => {
     const res = await request(buildApp())
       .get("/api/oauth/google/callback")
       .query({ error: "access_denied", state: "valid_state" });
 
-    expect(res.status).toBe(200);
-    expect(res.headers["content-type"]).toMatch(/text\/html/);
-    expect(res.text).toContain("ga4_oauth_error");
-    expect(res.text).toContain("window.close()");
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/\/#\/oauth\/popup\?type=error/);
   });
 
-  it("returns 200 HTML with ga4_oauth_error when state parameter is invalid", async () => {
+  it("redirects to /#/oauth/popup?type=error when state parameter is invalid", async () => {
     mockParseOAuthState.mockReturnValue(null);
 
     const res = await request(buildApp())
       .get("/api/oauth/google/callback")
       .query({ code: "auth_code", state: "tampered_state" });
 
-    expect(res.status).toBe(200);
-    expect(res.text).toContain("ga4_oauth_error");
-    expect(res.text).toContain("window.close()");
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/\/#\/oauth\/popup\?type=error/);
   });
 
-  it("returns 200 HTML with ga4_oauth_error when token exchange throws", async () => {
+  it("redirects to /#/oauth/popup?type=error when token exchange throws", async () => {
     mockParseOAuthState.mockReturnValue({ clientId: 42, userId: 1 });
     mockExchangeCode.mockRejectedValue(new Error("network error"));
 
@@ -131,9 +128,8 @@ describe("GET /api/oauth/google/callback — popup postMessage flow", () => {
       .get("/api/oauth/google/callback")
       .query({ code: "auth_code", state: "valid_state" });
 
-    expect(res.status).toBe(200);
-    expect(res.text).toContain("ga4_oauth_error");
-    expect(res.text).toContain("window.close()");
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/\/#\/oauth\/popup\?type=error/);
   });
 
   it("updates existing integration tokens on reconnect, preserving propertyId", async () => {
@@ -152,8 +148,8 @@ describe("GET /api/oauth/google/callback — popup postMessage flow", () => {
       .get("/api/oauth/google/callback")
       .query({ code: "auth_code", state: "valid_state" });
 
-    expect(res.status).toBe(200);
-    expect(res.text).toContain("ga4_oauth_success");
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/\/#\/oauth\/popup\?type=success/);
     expect(mockIntegrationStore.updateConfig).toHaveBeenCalledWith(
       7,
       expect.objectContaining({

@@ -19,33 +19,27 @@ import { integrationStore } from "../storage";
 import { exchangeCode, parseOAuthState } from "../services/ga4";
 import { logger } from "../logger";
 
-function popupPage(data: Record<string, unknown>): string {
-  const payload = JSON.stringify(data);
-  return `<!DOCTYPE html><html><head><title>Connecting…</title></head><body><script>
-if(window.opener){window.opener.postMessage(${payload},window.location.origin);}
-window.close();
-</script></body></html>`;
-}
+const POPUP_BASE = "/#/oauth/popup";
 
 export function registerOAuthRoutes(app: Express): void {
   /**
    * GET /api/oauth/google/callback
    * Google redirects here after the user grants (or denies) consent.
-   * Returns a self-closing HTML page that sends postMessage to the opener
-   * popup and closes itself — the main window never navigates.
+   * Redirects to the SPA popup route so postMessage + window.close()
+   * run inside the compiled bundle — avoids CSP inline-script blocks.
    */
   app.get("/api/oauth/google/callback", async (req, res) => {
     const { code, state, error } = req.query as Record<string, string>;
 
     if (error || !code || !state) {
       logger.warn("google-oauth: denied or missing params", { error });
-      return res.send(popupPage({ type: "ga4_oauth_error", error: "denied" }));
+      return res.redirect(`${POPUP_BASE}?type=error&error=${encodeURIComponent("denied")}`);
     }
 
     const parsed = parseOAuthState(state);
     if (!parsed) {
       logger.warn("google-oauth: invalid state parameter");
-      return res.send(popupPage({ type: "ga4_oauth_error", error: "invalid_state" }));
+      return res.redirect(`${POPUP_BASE}?type=error&error=${encodeURIComponent("invalid_state")}`);
     }
 
     const { clientId } = parsed;
@@ -83,11 +77,11 @@ export function registerOAuthRoutes(app: Express): void {
       }
 
       logger.info("google-oauth: connected", { clientId, email: tokens.connectedEmail });
-      return res.send(popupPage({ type: "ga4_oauth_success", clientId }));
+      return res.redirect(`${POPUP_BASE}?type=success&clientId=${clientId}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error("google-oauth: token exchange failed", { clientId, error: msg });
-      return res.send(popupPage({ type: "ga4_oauth_error", error: msg }));
+      return res.redirect(`${POPUP_BASE}?type=error&error=${encodeURIComponent(msg)}`);
     }
   });
 }
