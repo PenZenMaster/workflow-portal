@@ -232,7 +232,7 @@ describe("POST /api/prompt-collections/:id/prompts/bulk", () => {
       .send({
         prompts: [
           { text: "Prompt 1", category: "category" },
-          { text: "Prompt 2", category: "problem" },
+          { text: "Prompt 2", category: "brand" },
         ],
       });
     expect(res.status).toBe(201);

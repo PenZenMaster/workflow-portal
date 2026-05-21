@@ -3,6 +3,14 @@ import { useParams, Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Prompt, PromptCollection, Platform } from "@shared/schema";
 import { PROMPT_CATEGORIES } from "@shared/schema";
+
+const CATEGORY_LABELS: Record<typeof PROMPT_CATEGORIES[number], string> = {
+  brand:      "Brand / Entity",
+  category:   "Category / Commercial Intent",
+  local:      "Local / Regional",
+  comparison: "Comparison / Evaluation",
+  reputation: "Reputation",
+};
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -218,7 +226,7 @@ export default function PromptCollectionDetail() {
                 className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 {PROMPT_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
                 ))}
               </select>
             </div>
@@ -248,7 +256,7 @@ export default function PromptCollectionDetail() {
               <div className="flex-1">
                 <p className="text-sm">{p.text}</p>
                 <div className="flex gap-2 mt-1.5">
-                  <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{p.category}</span>
+                  <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{CATEGORY_LABELS[p.category as typeof PROMPT_CATEGORIES[number]] ?? p.category}</span>
                   <span className="text-xs text-muted-foreground">{p.funnelStage}</span>
                   {p.geo && <span className="text-xs text-muted-foreground">{p.geo}</span>}
                 </div>

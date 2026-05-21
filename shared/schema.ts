@@ -257,13 +257,11 @@ export type ClientUser = {
 // --- AI Visibility: Platforms, Prompt Collections, Prompts ----------------
 
 export const PROMPT_CATEGORIES = [
-  "category",
-  "problem",
-  "comparison",
-  "alternative",
   "brand",
-  "reputation",
+  "category",
   "local",
+  "comparison",
+  "reputation",
 ] as const;
 export type PromptCategory = (typeof PROMPT_CATEGORIES)[number];
 
