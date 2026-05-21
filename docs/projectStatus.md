@@ -1,19 +1,24 @@
 ## Resume From
 
-Last session: 2026-05-10
-Last commit: 9e62dac feat(multi-llm): 6 new AI adapters, GA4 stacked chart, platform selection on runs — v1.2.0
-Branch: feature/ai-visibility-module | Version: v1.2.0 | 437 tests passing
-Production: v1.1.1 deployed (needs v1.2.0 upgrade)
-PR open: https://github.com/PenZenMaster/workflow-portal/pull/1 (feature → main)
+Last session: 2026-05-20
+Last commit: f937203 feat(prompts): rework category taxonomy to 5 focused groups — v1.2.7
+Branch: main | Version: v1.2.7 | 442 tests passing
+Production: v1.2.7 live in pre-production
 
 Pick up from:
-1. Delete local data.db + sessions.db before npm run dev (platforms table now has 7 rows via upsert seed)
-2. Add API keys for desired LLMs in cPanel env vars (OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_AI_API_KEY, GROQ_API_KEY, MISTRAL_API_KEY, DEEPSEEK_API_KEY)
-3. Deploy v1.2.0 to production, then QA: Trigger Run form should show platform checkboxes; Traffic page should show stacked monthly bar chart
+1. Enter the 10 Salvo Metal Works prompts into a new prompt collection (prompts drafted in session — see chat history)
+2. Add PERPLEXITY_API_KEY to cPanel env vars and trigger first run against the Salvo Metal Works collection
+3. Review run output: Mentions, SoV, Sources pages should begin populating after first completed run
 
 ---
 
-## Post-Sprint Work This Session (v1.1.0 – v1.2.0)
+## Post-Sprint Work This Session (v1.2.1 – v1.2.7)
+
+- v1.2.1: Replaced ai-visibility-reporting-spec.md with aeo_geo_google_data_architecture.md as guiding architecture doc; merged PR #1 (feature/ai-visibility-module → main)
+- v1.2.2–v1.2.6: GA4 OAuth popup flow — fixed CSP inline-script block, hash routing, COOP header severing window.opener; final solution uses server-side polling from main window (no cross-window messaging)
+- v1.2.7: Prompt category taxonomy reworked to 5 groups: Brand/Entity, Category/Commercial Intent, Local/Regional, Comparison/Evaluation, Reputation; GA4 connected and verified (4 AI sessions showing on Traffic page)
+
+## Post-Sprint Work Previous Session (v1.1.0 – v1.2.0)
 
 - v1.1.0: Fixed critical pipeline bug — prompt-run was not enqueuing parse-response; added Re-parse button on RunDetail
 - v1.1.1: Reordered ClientDetail nav; added system-documentation.md; added New Export button on Reports page
