@@ -16,8 +16,14 @@ const STATUS_STYLE: Record<string, string> = {
   disabled: "bg-muted text-muted-foreground",
 };
 
+// Poll the integrations endpoint until the GA4 integration appears as active
+// with an updatedAt newer than the snapshot taken before OAuth started.
+// This avoids all popup-to-opener messaging (postMessage, BroadcastChannel)
+// which are unreliable after cross-origin OAuth redirects via Google's COOP.
 function openOAuthPopup(
   url: string,
+  clientId: string,
+  snapshotUpdatedAt: number,
   onSuccess: () => void,
   onError: (msg: string) => void
 ): void {
@@ -27,31 +33,35 @@ function openOAuthPopup(
     return;
   }
 
-  // BroadcastChannel is used instead of window.opener.postMessage because
-  // Google's COOP header severs window.opener when the popup passes through
-  // accounts.google.com. BroadcastChannel works across same-origin windows
-  // regardless of opener status.
-  const channel = new BroadcastChannel("ga4_oauth");
+  let settled = false;
+  let msAfterClose = 0;
+  const INTERVAL = 500;
+  const MAX_AFTER_CLOSE = 8000;
 
-  function cleanup() {
-    channel.close();
-    clearInterval(timer);
-  }
+  const timer = setInterval(async () => {
+    if (settled) { clearInterval(timer); return; }
 
-  channel.addEventListener("message", (event: MessageEvent) => {
-    const data = event.data as { type?: string; error?: string };
-    cleanup();
-    if (data.type === "ga4_oauth_success") {
-      onSuccess();
-    } else if (data.type === "ga4_oauth_error") {
-      onError(data.error ?? "Connection failed");
+    if (popup.closed) {
+      msAfterClose += INTERVAL;
+      if (msAfterClose > MAX_AFTER_CLOSE) { clearInterval(timer); return; }
     }
-  });
 
-  // Clean up if user closes popup without completing OAuth
-  const timer = setInterval(() => {
-    if (popup.closed) cleanup();
-  }, 500);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/integrations`, { credentials: "include" });
+      if (!res.ok) return;
+      const json = await res.json() as { data: Array<{ kind: string; status: string; updatedAt: number }> };
+      const ga4 = json.data.find(
+        (i) => i.kind === "ga4" && i.status === "active" && (i.updatedAt ?? 0) > snapshotUpdatedAt
+      );
+      if (ga4) {
+        settled = true;
+        clearInterval(timer);
+        onSuccess();
+      }
+    } catch {
+      // transient fetch error — will retry
+    }
+  }, INTERVAL);
 }
 
 export default function Integrations() {
@@ -115,8 +125,11 @@ export default function Integrations() {
 
   function handleOAuthClick(e: React.MouseEvent) {
     e.preventDefault();
+    const snapshotUpdatedAt = ga4Integration?.updatedAt ?? 0;
     openOAuthPopup(
       `/api/clients/${id}/integrations/ga4/auth`,
+      id!,
+      snapshotUpdatedAt,
       () => {
         queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}/integrations`] });
         toast({ title: "Google Analytics connected successfully" });
