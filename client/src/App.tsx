@@ -18,16 +18,9 @@ import PromptCollections from "@/pages/ai/PromptCollections";
 import PromptCollectionDetail from "@/pages/ai/PromptCollectionDetail";
 import RunsList from "@/pages/ai/RunsList";
 import RunDetail from "@/pages/ai/RunDetail";
-import Overview from "@/pages/ai/Overview";
-import MentionsList from "@/pages/ai/MentionsList";
-import SoV from "@/pages/ai/SoV";
-import Sentiment from "@/pages/ai/Sentiment";
 import ReviewQueue from "@/pages/ai/ReviewQueue";
 import Reports from "@/pages/ai/Reports";
-import Sources from "@/pages/ai/Sources";
-import Recommendations from "@/pages/ai/Recommendations";
 import SharePage from "@/pages/ai/SharePage";
-import Traffic from "@/pages/ai/Traffic";
 import Integrations from "@/pages/ai/Integrations";
 import OAuthPopup from "@/pages/OAuthPopup";
 import Users from "@/pages/admin/Users";
@@ -72,16 +65,9 @@ function AppRouter() {
       <Route path="/share/:token" component={SharePage} />
       <Route path="/admin/users" component={Users} />
       <Route path="/admin/jobs" component={Jobs} />
-      <Route path="/ai/clients/:id/traffic" component={Traffic} />
       <Route path="/ai/clients/:id/settings/integrations" component={Integrations} />
-      <Route path="/ai/clients/:id/sources" component={Sources} />
-      <Route path="/ai/clients/:id/recommendations" component={Recommendations} />
       <Route path="/ai/clients/:id/sentiment/review" component={ReviewQueue} />
-      <Route path="/ai/clients/:id/sentiment" component={Sentiment} />
       <Route path="/ai/clients/:id/reports" component={Reports} />
-      <Route path="/ai/clients/:id/overview" component={Overview} />
-      <Route path="/ai/clients/:id/mentions" component={MentionsList} />
-      <Route path="/ai/clients/:id/sov" component={SoV} />
       <Route path="/ai/runs/:runId" component={RunDetail} />
       <Route path="/ai/clients/:id/runs" component={RunsList} />
       <Route path="/ai/clients/:id/prompts/:collectionId" component={PromptCollectionDetail} />

@@ -8,6 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Trash2, ChevronDown, ChevronRight, X } from "lucide-react";
+import { OverviewSection } from "./sections/OverviewSection";
+import { MentionsSection } from "./sections/MentionsSection";
+import { SoVSection } from "./sections/SoVSection";
+import { SentimentSection } from "./sections/SentimentSection";
+import { SourcesSection } from "./sections/SourcesSection";
+import { RecommendationsSection } from "./sections/RecommendationsSection";
+import { TrafficSection } from "./sections/TrafficSection";
 
 // ---------------------------------------------------------------------------
 // Brand row — handles its own aliases and expand/collapse state
@@ -196,7 +203,7 @@ export default function ClientDetail() {
   const brands = brandsData?.data ?? [];
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-8 max-w-5xl mx-auto">
       <div className="mb-6">
         <Link href="/ai/clients" className="text-sm text-muted-foreground hover:text-foreground">
           Back to Clients
@@ -216,13 +223,6 @@ export default function ClientDetail() {
       {/* Navigation */}
       <div className="flex flex-wrap gap-3 mb-8">
         {[
-          ["Overview", `/ai/clients/${id}/overview`],
-          ["Mentions", `/ai/clients/${id}/mentions`],
-          ["Share of Voice", `/ai/clients/${id}/sov`],
-          ["Sentiment", `/ai/clients/${id}/sentiment`],
-          ["Sources", `/ai/clients/${id}/sources`],
-          ["Recommendations", `/ai/clients/${id}/recommendations`],
-          ["Traffic", `/ai/clients/${id}/traffic`],
           ["Reports", `/ai/clients/${id}/reports`],
           ["Prompt Collections", `/ai/clients/${id}/prompts`],
           ["Runs", `/ai/clients/${id}/runs`],
@@ -345,6 +345,17 @@ export default function ClientDetail() {
           </ul>
         )}
       </section>
+
+      {/* AI Visibility reports — all on one page */}
+      <div className="mt-12 space-y-12">
+        <OverviewSection clientId={id!} />
+        <MentionsSection clientId={id!} />
+        <SoVSection clientId={id!} />
+        <SentimentSection clientId={id!} />
+        <SourcesSection clientId={id!} />
+        <RecommendationsSection clientId={id!} />
+        <TrafficSection clientId={id!} />
+      </div>
     </div>
   );
 }

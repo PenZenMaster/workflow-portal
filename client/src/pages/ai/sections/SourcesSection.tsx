@@ -1,4 +1,3 @@
-import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 
 interface DomainCount {
@@ -15,31 +14,22 @@ interface SourceAnalysis {
   topDomains: DomainCount[];
 }
 
-export default function Sources() {
-  const { id } = useParams<{ id: string }>();
-
+export function SourcesSection({ clientId }: { clientId: string }) {
   const { data, isLoading } = useQuery<{ data: SourceAnalysis }>({
-    queryKey: [`/api/clients/${id}/sources`],
-    enabled: !!id,
+    queryKey: [`/api/clients/${clientId}/sources`],
   });
 
   const analysis = data?.data;
 
-  if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
-
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <div className="mb-6">
-        <Link href={`/ai/clients/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Client
-        </Link>
-      </div>
+    <section>
+      <h2 className="text-xl font-bold mb-4">Citation Sources</h2>
 
-      <h1 className="text-2xl font-bold mb-6">Citation Sources</h1>
-
-      {analysis ? (
+      {isLoading ? (
+        <p className="text-muted-foreground">Loading...</p>
+      ) : analysis ? (
         <>
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="border rounded-lg p-4">
               <p className="text-sm text-muted-foreground">Client-Owned</p>
               <p className="text-2xl font-bold">{analysis.ownedCount}</p>
@@ -54,7 +44,7 @@ export default function Sources() {
             </div>
           </div>
 
-          <h2 className="text-lg font-semibold mb-3">Top Cited Domains</h2>
+          <h3 className="text-lg font-semibold mb-3">Top Cited Domains</h3>
           {analysis.topDomains.length === 0 ? (
             <p className="text-muted-foreground text-sm">No citations yet.</p>
           ) : (
@@ -78,6 +68,6 @@ export default function Sources() {
       ) : (
         <p className="text-muted-foreground">No citation data yet.</p>
       )}
-    </div>
+    </section>
   );
 }

@@ -1,4 +1,3 @@
-import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 
 interface SoVData {
@@ -9,29 +8,20 @@ interface SoVData {
   toDate: string;
 }
 
-export default function SoV() {
-  const { id } = useParams<{ id: string }>();
-
+export function SoVSection({ clientId }: { clientId: string }) {
   const { data, isLoading } = useQuery<{ data: SoVData }>({
-    queryKey: [`/api/clients/${id}/metrics/sov`],
-    enabled: !!id,
+    queryKey: [`/api/clients/${clientId}/metrics/sov`],
   });
 
   const sov = data?.data;
 
-  if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
-
   return (
-    <div className="p-8 max-w-3xl mx-auto">
-      <div className="mb-6">
-        <Link href={`/ai/clients/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Client
-        </Link>
-      </div>
+    <section>
+      <h2 className="text-xl font-bold mb-4">Share of Voice</h2>
 
-      <h1 className="text-2xl font-bold mb-6">AI Share of Voice</h1>
-
-      {sov ? (
+      {isLoading ? (
+        <p className="text-muted-foreground">Loading...</p>
+      ) : sov ? (
         <div className="space-y-6">
           <div className="border rounded-lg p-6">
             <p className="text-sm text-muted-foreground mb-1">Client AI SoV</p>
@@ -47,6 +37,6 @@ export default function SoV() {
       ) : (
         <p className="text-muted-foreground">No data yet.</p>
       )}
-    </div>
+    </section>
   );
 }

@@ -1,4 +1,3 @@
-import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import type { ResponseMention } from "@shared/schema";
 
@@ -8,29 +7,20 @@ const SECTION_BADGE: Record<string, string> = {
   body: "bg-muted text-muted-foreground",
 };
 
-export default function MentionsList() {
-  const { id } = useParams<{ id: string }>();
-
+export function MentionsSection({ clientId }: { clientId: string }) {
   const { data, isLoading } = useQuery<{ data: ResponseMention[] }>({
-    queryKey: [`/api/clients/${id}/mentions`],
-    enabled: !!id,
+    queryKey: [`/api/clients/${clientId}/mentions`],
   });
 
   const mentions = data?.data ?? [];
 
-  if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
-
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <div className="mb-6">
-        <Link href={`/ai/clients/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Client
-        </Link>
-      </div>
+    <section>
+      <h2 className="text-xl font-bold mb-4">Mentions</h2>
 
-      <h1 className="text-2xl font-bold mb-6">Mentions</h1>
-
-      {mentions.length === 0 ? (
+      {isLoading ? (
+        <p className="text-muted-foreground">Loading...</p>
+      ) : mentions.length === 0 ? (
         <p className="text-muted-foreground">No mentions detected yet.</p>
       ) : (
         <ul className="space-y-3">
@@ -52,6 +42,6 @@ export default function MentionsList() {
           ))}
         </ul>
       )}
-    </div>
+    </section>
   );
 }

@@ -1,4 +1,4 @@
-import { useParams, Link } from "wouter";
+import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 
 interface SentimentSummary {
@@ -15,37 +15,28 @@ const LABEL_STYLE: Record<string, string> = {
   mixed: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
 };
 
-export default function Sentiment() {
-  const { id } = useParams<{ id: string }>();
-
+export function SentimentSection({ clientId }: { clientId: string }) {
   const { data, isLoading } = useQuery<{ data: SentimentSummary }>({
-    queryKey: [`/api/clients/${id}/sentiment/summary`],
-    enabled: !!id,
+    queryKey: [`/api/clients/${clientId}/sentiment/summary`],
   });
 
   const summary = data?.data;
 
-  if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
-
   return (
-    <div className="p-8 max-w-3xl mx-auto">
-      <div className="mb-6">
-        <Link href={`/ai/clients/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Client
-        </Link>
-      </div>
-
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Sentiment</h1>
+    <section>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold">Sentiment</h2>
         <Link
-          href={`/ai/clients/${id}/sentiment/review`}
+          href={`/ai/clients/${clientId}/sentiment/review`}
           className="text-sm text-primary hover:underline"
         >
           Review Queue
         </Link>
       </div>
 
-      {summary ? (
+      {isLoading ? (
+        <p className="text-muted-foreground">Loading...</p>
+      ) : summary ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {(["positive", "neutral", "negative", "mixed"] as const).map((label) => (
             <div key={label} className="border rounded-lg p-4">
@@ -57,6 +48,6 @@ export default function Sentiment() {
       ) : (
         <p className="text-muted-foreground">No sentiment data yet.</p>
       )}
-    </div>
+    </section>
   );
 }

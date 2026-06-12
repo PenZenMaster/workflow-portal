@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link } from "wouter";
+import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
@@ -63,38 +63,39 @@ function KpiCard({ label, value, format = String }: { label: string; value: numb
 
 type Period = "3m" | "6m" | "12m";
 
-export default function Traffic() {
-  const { id } = useParams<{ id: string }>();
+export function TrafficSection({ clientId }: { clientId: string }) {
   const [period, setPeriod] = useState<Period>("6m");
 
   const { data: kpiResult, isLoading: kpiLoading } = useQuery<{ data: TrafficData }>({
-    queryKey: [`/api/clients/${id}/traffic?period=30d`],
-    enabled: !!id,
+    queryKey: [`/api/clients/${clientId}/traffic?period=30d`],
   });
 
   const { data: monthlyResult, isLoading: monthlyLoading } = useQuery<{ data: MonthlyData }>({
-    queryKey: [`/api/clients/${id}/traffic/monthly?period=${period}`],
-    enabled: !!id,
+    queryKey: [`/api/clients/${clientId}/traffic/monthly?period=${period}`],
   });
 
   const traffic = kpiResult?.data;
   const monthly = monthlyResult?.data;
 
-  if (kpiLoading || monthlyLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
+  if (kpiLoading || monthlyLoading) {
+    return (
+      <section>
+        <h2 className="text-xl font-bold mb-4">AI Traffic Impact</h2>
+        <p className="text-muted-foreground">Loading...</p>
+      </section>
+    );
+  }
 
   if (!traffic || traffic.noIntegration) {
     return (
-      <div className="p-8 max-w-5xl mx-auto">
-        <div className="mb-6">
-          <Link href={`/ai/clients/${id}`} className="text-sm text-muted-foreground hover:text-foreground">Back to Client</Link>
-        </div>
-        <h1 className="text-2xl font-bold mb-6">AI Traffic Impact</h1>
+      <section>
+        <h2 className="text-xl font-bold mb-4">AI Traffic Impact</h2>
         <div className="border rounded-lg p-6 text-center">
           <p className="font-medium mb-2">No GA4 Integration Configured</p>
           <p className="text-sm text-muted-foreground mb-4">Connect a Google Analytics 4 property to track AI-sourced traffic.</p>
-          <Link href={`/ai/clients/${id}/settings/integrations`} className="text-sm text-primary hover:underline">Set up integration</Link>
+          <Link href={`/ai/clients/${clientId}/settings/integrations`} className="text-sm text-primary hover:underline">Set up integration</Link>
         </div>
-      </div>
+      </section>
     );
   }
 
@@ -102,17 +103,13 @@ export default function Traffic() {
   const allSources = monthly?.allSources ?? [];
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <div className="mb-6">
-        <Link href={`/ai/clients/${id}`} className="text-sm text-muted-foreground hover:text-foreground">Back to Client</Link>
-      </div>
-
-      <h1 className="text-2xl font-bold mb-6">AI Traffic Impact</h1>
+    <section>
+      <h2 className="text-xl font-bold mb-4">AI Traffic Impact</h2>
 
       {traffic.error && <p className="text-sm text-red-600 mb-4">GA4 error: {traffic.error}</p>}
 
       {/* KPI cards — last 30 days */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <KpiCard label="AI Sessions (30d)" value={traffic.sessions} />
         <KpiCard label="Engagement Rate" value={traffic.engagementRate} format={(v) => `${(v * 100).toFixed(1)}%`} />
         <KpiCard label="Pages / Session" value={traffic.pagesPerSession} format={(v) => v.toFixed(2)} />
@@ -122,7 +119,7 @@ export default function Traffic() {
       {/* Monthly stacked bar chart */}
       <div className="border rounded-lg p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Sessions by AI Source — Monthly</h2>
+          <h3 className="text-lg font-semibold">Sessions by AI Source — Monthly</h3>
           <div className="flex gap-1">
             {(["3m","6m","12m"] as Period[]).map((p) => (
               <button
@@ -161,6 +158,6 @@ export default function Traffic() {
           </ResponsiveContainer>
         )}
       </div>
-    </div>
+    </section>
   );
 }
