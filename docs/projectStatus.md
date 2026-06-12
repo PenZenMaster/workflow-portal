@@ -1,26 +1,21 @@
 ## Resume From
 
 Last session: 2026-06-12
-Last commit: (pending) fix(ai-visibility): AI SoV numerator now uses raw client-brand
+Last commit: b308e20 fix(ai-visibility): AI SoV numerator now uses raw client-brand
 mention-row counts, capping the ratio at 100% — v1.6.0
 Branch: main | Version: v1.6.0 | 488 tests passing
-Production: v1.4.0 deployed to pre-production and passed internal QA (not yet exposed to clients);
-v1.4.1, v1.4.2, v1.5.0, v1.6.0 not yet deployed.
+Production: v1.4.0 - v1.6.0 deployed to pre-production. v1.6.0 verified live: Salvo
+Metal Works AI Share of Voice now reads 88.5% (previously 153%) after re-parsing
+runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix confirmed live.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Package and deploy v1.4.1 + v1.4.2 + v1.5.0 + v1.6.0 to pre-production.
-2. TD-14 alias fix + re-parse of Salvo runs 6-8 appears to have been completed live
-   (user reported a new AI SoV reading afterward) — re-verify response_mentions
-   populate for run 6 and that the 20-vs-60 response count discrepancy noted in the
-   v1.4.2 TD-14 notes below has resolved now that run 8 is included.
-3. After deploying v1.6.0, re-check Salvo's AI SoV on Overview/SoV — it should now be
-   <=100% (previously read 153%, see Post-Sprint v1.6.0 notes below).
-4. Continue internal review of the consolidated AI Visibility client page
+1. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
+2. See Tech Debt Register and Backlog below for next priorities.
 
 ---
 
@@ -309,7 +304,7 @@ Confirmed decisions:
 | TD-10 | Medium | Done | Session error callbacks lack request context in logs | server/routes/auth.ts |
 | TD-12 | Low | Open | Hardcoded seed data — no versioning or rollback | server/seed.ts |
 | TD-13 | Low | Open | skipLibCheck: true masks dep type errors | tsconfig.json |
-| TD-14 | Medium | Root cause confirmed, fix pending | Salvo (clientId=4) run 6: 8/10 responses have a client-owned citation but zero client-brand mentions detected (all_brand_mentions=0). Root cause: brand_aliases for brand_id=4 is empty in production (v1.2.8 backfill never reached live data.db). Fix: add alias via portal UI + re-parse runs 6-8 (data-only, no code change). | server/services/parser.ts |
+| TD-14 | Medium | Done | Salvo (clientId=4) run 6: 8/10 responses had a client-owned citation but zero client-brand mentions detected (all_brand_mentions=0). Root cause: brand_aliases for brand_id=4 was empty in production (v1.2.8 backfill never reached live data.db). Fixed (data-only) by adding the "Salvo Metal Works" alias via portal UI and re-parsing runs 6-8; verified live in v1.6.0 (AI SoV now 88.5%, down from an impossible 153%). | server/services/parser.ts |
 | TD-15 | Medium | Open | citationStore.listByClient(_clientId) ignores its parameter and returns the full response_citations table across all clients (same pattern fixed for mentionStore in v1.4.2) | server/storage/citationStore.ts |
 
 ---
