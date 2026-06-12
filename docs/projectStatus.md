@@ -1,20 +1,42 @@
 ## Resume From
 
 Last session: 2026-06-12
-Last commit: c82c559 feat(ai-visibility): consolidate client report sections onto one page — v1.4.0
-Branch: main | Version: v1.4.0 | 474 tests passing
-Production: v1.4.0 deployed to pre-production and passed internal QA (not yet exposed to clients)
+Last commit: (pending) fix(ai-visibility): compute period-scoped metric deltas instead of summing cumulative snapshots — v1.4.1
+Branch: main | Version: v1.4.1 | 476 tests passing
+Production: v1.4.0 deployed to pre-production and passed internal QA (not yet exposed to clients);
+v1.4.1 not yet deployed.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. No outstanding deploy actions. Pre-production is on v1.4.0, internal QA passed.
+1. Package and deploy v1.4.1 (metric aggregation fix) to pre-production.
 2. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
+3. Investigate the Salvo run-6 anomaly noted below (TD-14).
 
 ---
+
+## Post-Sprint Work This Session (v1.4.1)
+
+- Fixed metric_snapshots_daily overview aggregation bug found during AI Visibility
+  QA on Salvo Metal Works (clientId=4): Overview showed Citation Frequency and
+  Mention Rate both as 78.3%, inflated by double-counting. `aggregate-snapshot-daily`
+  (server/jobs/handlers.ts) recomputes lifetime cumulative totals on every run and
+  stores them in the snapshot row for "today" — so each row holds an all-time total
+  as of its date, not a daily delta. `metricStore.aggregateForPeriod` was SUM()-ing
+  every snapshot row in the requested date range, re-adding totals already subsumed
+  by later rows.
+  - server/storage/metricStore.ts: aggregateForPeriod now returns the delta between
+    the latest snapshot at/before toDate and the latest snapshot strictly before
+    fromDate (0 if no baseline exists), instead of summing all rows in range.
+  - server/jobs/handlers.ts: corrected misleading "Aggregate today's completed
+    responses" comment to describe the actual cumulative-recompute behavior.
+  - tests/server/storage/metrics.test.ts: updated existing aggregation test to the
+    new delta semantics; added 2 new tests covering the cumulative double-count
+    scenario and baseline subtraction. 476 tests passing (2 new).
+  - Not yet deployed.
 
 ## Post-Sprint Work This Session (v1.4.0)
 
@@ -189,6 +211,7 @@ Confirmed decisions:
 | TD-10 | Medium | Done | Session error callbacks lack request context in logs | server/routes/auth.ts |
 | TD-12 | Low | Open | Hardcoded seed data — no versioning or rollback | server/seed.ts |
 | TD-13 | Low | Open | skipLibCheck: true masks dep type errors | tsconfig.json |
+| TD-14 | Medium | Open | Salvo (clientId=4) run 6: 8/10 responses have a client-owned citation but zero client-brand mentions detected (all_brand_mentions=0). Possible brand_aliases/parser gap — investigate. | server/services/parser.ts |
 
 ---
 

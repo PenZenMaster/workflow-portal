@@ -140,11 +140,67 @@ describe("MetricStore", () => {
     expect(list[0].dateIso).toBe("2026-05-10");
   });
 
-  it("aggregates totals for overview metrics", async () => {
+  it("aggregates totals for overview metrics using the latest snapshot in range", async () => {
     await store.upsert({ ...SAMPLE_SNAPSHOT, dateIso: "2026-05-08", mentionCount: 3, promptResponseCount: 5 });
     await store.upsert({ ...SAMPLE_SNAPSHOT, dateIso: "2026-05-09", mentionCount: 5, promptResponseCount: 5 });
     const agg = await store.aggregateForPeriod(1, "2026-05-01", "2026-05-31");
-    expect(agg.totalMentions).toBe(8);
-    expect(agg.totalResponses).toBe(10);
+    expect(agg.totalMentions).toBe(5);
+    expect(agg.totalResponses).toBe(5);
+  });
+
+  it("returns the delta between cumulative snapshots, not a sum across rows", async () => {
+    await store.upsert({
+      ...SAMPLE_SNAPSHOT,
+      dateIso: "2026-05-21",
+      citationCount: 8,
+      mentionCount: 8,
+      allBrandMentions: 0,
+      visibilityScoreSum: 16,
+      promptResponseCount: 10,
+    });
+    await store.upsert({
+      ...SAMPLE_SNAPSHOT,
+      dateIso: "2026-06-12",
+      citationCount: 16,
+      mentionCount: 16,
+      allBrandMentions: 8,
+      visibilityScoreSum: 43,
+      promptResponseCount: 20,
+    });
+
+    const agg = await store.aggregateForPeriod(1, "2026-05-13", "2026-06-12");
+    expect(agg.totalCitations).toBe(16);
+    expect(agg.totalMentions).toBe(16);
+    expect(agg.totalAllBrandMentions).toBe(8);
+    expect(agg.totalVisibilityScore).toBe(43);
+    expect(agg.totalResponses).toBe(20);
+  });
+
+  it("subtracts a baseline snapshot from before the period start", async () => {
+    await store.upsert({
+      ...SAMPLE_SNAPSHOT,
+      dateIso: "2026-04-01",
+      citationCount: 4,
+      mentionCount: 4,
+      allBrandMentions: 2,
+      visibilityScoreSum: 8,
+      promptResponseCount: 5,
+    });
+    await store.upsert({
+      ...SAMPLE_SNAPSHOT,
+      dateIso: "2026-05-10",
+      citationCount: 16,
+      mentionCount: 16,
+      allBrandMentions: 8,
+      visibilityScoreSum: 43,
+      promptResponseCount: 20,
+    });
+
+    const agg = await store.aggregateForPeriod(1, "2026-05-01", "2026-05-31");
+    expect(agg.totalCitations).toBe(12);
+    expect(agg.totalMentions).toBe(12);
+    expect(agg.totalAllBrandMentions).toBe(6);
+    expect(agg.totalVisibilityScore).toBe(35);
+    expect(agg.totalResponses).toBe(15);
   });
 });

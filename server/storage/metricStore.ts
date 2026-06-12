@@ -16,7 +16,7 @@
 
 import { metricSnapshotsDaily } from "@shared/schema";
 import type { MetricSnapshotDaily } from "@shared/schema";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lt, lte, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -125,36 +125,49 @@ export class MetricStore implements IMetricStore {
     return rows.map(hydrate);
   }
 
+  // Each snapshot row holds cumulative lifetime totals as of its dateIso (see
+  // aggregate-snapshot-daily handler), so a period's totals are the delta
+  // between the latest snapshot at/before toDate and the latest snapshot
+  // strictly before fromDate — not a sum across the rows in range.
   async aggregateForPeriod(
     clientId: number,
     fromDate: string,
     toDate: string
   ): Promise<AggregateResult> {
-    const result = this._db
-      .select({
-        totalCitations: sql<number>`sum(${metricSnapshotsDaily.citationCount})`,
-        totalMentions: sql<number>`sum(${metricSnapshotsDaily.mentionCount})`,
-        totalAllBrandMentions: sql<number>`sum(${metricSnapshotsDaily.allBrandMentions})`,
-        totalVisibilityScore: sql<number>`sum(${metricSnapshotsDaily.visibilityScoreSum})`,
-        totalResponses: sql<number>`sum(${metricSnapshotsDaily.promptResponseCount})`,
-      })
+    const end = this._db
+      .select()
       .from(metricSnapshotsDaily)
       .where(
         and(
           eq(metricSnapshotsDaily.clientId, clientId),
           eq(metricSnapshotsDaily.scopeKind, "overall"),
-          gte(metricSnapshotsDaily.dateIso, fromDate),
           lte(metricSnapshotsDaily.dateIso, toDate)
         )
       )
+      .orderBy(desc(metricSnapshotsDaily.dateIso))
+      .limit(1)
+      .get();
+
+    const baseline = this._db
+      .select()
+      .from(metricSnapshotsDaily)
+      .where(
+        and(
+          eq(metricSnapshotsDaily.clientId, clientId),
+          eq(metricSnapshotsDaily.scopeKind, "overall"),
+          lt(metricSnapshotsDaily.dateIso, fromDate)
+        )
+      )
+      .orderBy(desc(metricSnapshotsDaily.dateIso))
+      .limit(1)
       .get();
 
     return {
-      totalCitations: result?.totalCitations ?? 0,
-      totalMentions: result?.totalMentions ?? 0,
-      totalAllBrandMentions: result?.totalAllBrandMentions ?? 0,
-      totalVisibilityScore: result?.totalVisibilityScore ?? 0,
-      totalResponses: result?.totalResponses ?? 0,
+      totalCitations: (end?.citationCount ?? 0) - (baseline?.citationCount ?? 0),
+      totalMentions: (end?.mentionCount ?? 0) - (baseline?.mentionCount ?? 0),
+      totalAllBrandMentions: (end?.allBrandMentions ?? 0) - (baseline?.allBrandMentions ?? 0),
+      totalVisibilityScore: (end?.visibilityScoreSum ?? 0) - (baseline?.visibilityScoreSum ?? 0),
+      totalResponses: (end?.promptResponseCount ?? 0) - (baseline?.promptResponseCount ?? 0),
     };
   }
 }

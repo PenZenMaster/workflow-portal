@@ -316,12 +316,14 @@ export function registerJobHandlers(runner: JobRunner): void {
       let visibilityScoreSum = 0;
       let promptResponseCount = 0;
 
-      // Aggregate today's completed responses.
+      // Recompute lifetime cumulative totals across all completed responses
+      // and store them as today's snapshot row. metricStore.aggregateForPeriod
+      // derives period totals as a delta between two cumulative snapshots.
       for (const run of runs) {
         const responses = await responseStore.listByRun(run.id);
-        const todayComplete = responses.filter((r) => r.status === "complete");
+        const completeResponses = responses.filter((r) => r.status === "complete");
 
-        for (const resp of todayComplete) {
+        for (const resp of completeResponses) {
           promptResponseCount++;
           const mentions = await mentionStore.listByResponse(resp.id);
           const citations = await citationStore.listByResponse(resp.id);
