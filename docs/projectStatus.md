@@ -217,6 +217,25 @@ Confirmed decisions:
 
 ## Backlog (post-AI-module)
 
+### High Priority
+- B-11 Feature: LLM integrations CRUD — add a mechanism to create/read/update/delete
+  LLM platform integrations. Target LLMs: ChatGPT, Grok, Perplexity, Claude, and Google
+  AI (Gemini).
+- B-12 Feature: AI-assisted prompt generation for Prompt Collections — when a Prompt
+  Collection is created, offer the user an option to have AI research and generate
+  prompts using the client's Brand, website URL, and configured competitors. Generated
+  prompts should be grouped by type:
+  | Prompt type | Example |
+  |---|---|
+  | Informational | "What is the best way to solve X?" |
+  | Comparative | "Brand A vs Brand B" |
+  | Commercial | "Best software for X" |
+  | Local | "Best emergency plumber near Seattle" |
+  | Problem-aware | "Why is my furnace making noise?" |
+  | Alternative | "Alternatives to [competitor]" |
+- B-13 Feature: Edit existing prompts — add the ability to edit a prompt's text/category
+  on an existing Prompt Collection (currently prompts can only be created/removed, not edited).
+
 ### Medium Priority
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
 - B-06 Session store: session expiry cleanup configuration review
