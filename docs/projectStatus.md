@@ -1,23 +1,50 @@
 ## Resume From
 
 Last session: 2026-06-12
-Last commit: b308e20 fix(ai-visibility): AI SoV numerator now uses raw client-brand
-mention-row counts, capping the ratio at 100% — v1.6.0
-Branch: main | Version: v1.6.0 | 488 tests passing
+Last commit: (pending) fix(ai-visibility): scope citation and sentiment data to client
+via run join — v1.6.1
+Branch: main | Version: v1.6.1 | 490 tests passing
 Production: v1.4.0 - v1.6.0 deployed to pre-production. v1.6.0 verified live: Salvo
 Metal Works AI Share of Voice now reads 88.5% (previously 153%) after re-parsing
 runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix confirmed live.
+v1.6.1 not yet deployed.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Continue internal review of the consolidated AI Visibility client page
+1. Package and deploy v1.6.1 to pre-production (fixes TD-15 + the same cross-client
+   leak in sentimentStore — see Post-Sprint v1.6.1 notes below).
+2. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
-2. See Tech Debt Register and Backlog below for next priorities.
+3. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.6.1)
+
+- Fix (TD-15 + related): `citationStore.listByClient()` and
+  `sentimentStore.listByClient()` / `sentimentStore.getReviewQueue()` all returned
+  their entire underlying table (`response_citations` / `response_sentiment`)
+  regardless of the `clientId` argument — identical cross-client data leak pattern to
+  the `mentionStore.listByClient()` bug fixed in v1.4.2. This affected the Citation
+  Sources, Sentiment, and Recommendations sections on ClientDetail (every client saw
+  every other client's citations and sentiment rows).
+  - server/storage/citationStore.ts: listByClient now joins
+    response_citations -> responses_raw -> prompt_runs and filters by
+    prompt_runs.client_id (same pattern as mentionStore).
+  - server/storage/sentimentStore.ts: listByClient and getReviewQueue both gain the
+    same join + client_id filter; getReviewQueue also still filters by confidence
+    threshold and no override.
+  - tests/server/storage/metrics.test.ts: new CitationStore "listByClient returns
+    only citations belonging to that client's runs" test.
+  - tests/server/storage/sentiments.test.ts: rewrote fixtures to seed real
+    run/response rows (required for the new join); added "listByClient returns only
+    sentiment belonging to that client's runs" and updated "getReviewQueue" test for
+    multi-client isolation.
+  - 490 tests passing (2 new).
+  - Not yet deployed.
 
 ## Post-Sprint Work This Session (v1.6.0)
 
@@ -305,7 +332,7 @@ Confirmed decisions:
 | TD-12 | Low | Open | Hardcoded seed data — no versioning or rollback | server/seed.ts |
 | TD-13 | Low | Open | skipLibCheck: true masks dep type errors | tsconfig.json |
 | TD-14 | Medium | Done | Salvo (clientId=4) run 6: 8/10 responses had a client-owned citation but zero client-brand mentions detected (all_brand_mentions=0). Root cause: brand_aliases for brand_id=4 was empty in production (v1.2.8 backfill never reached live data.db). Fixed (data-only) by adding the "Salvo Metal Works" alias via portal UI and re-parsing runs 6-8; verified live in v1.6.0 (AI SoV now 88.5%, down from an impossible 153%). | server/services/parser.ts |
-| TD-15 | Medium | Open | citationStore.listByClient(_clientId) ignores its parameter and returns the full response_citations table across all clients (same pattern fixed for mentionStore in v1.4.2) | server/storage/citationStore.ts |
+| TD-15 | Medium | Done | citationStore.listByClient, sentimentStore.listByClient, and sentimentStore.getReviewQueue all ignored their clientId parameter and returned the full response_citations / response_sentiment tables across all clients (same pattern fixed for mentionStore in v1.4.2). Fixed in v1.6.1 by joining responses_raw -> prompt_runs and filtering by client_id; feeds Citation Sources, Sentiment, and Recommendations sections on ClientDetail. | server/storage/citationStore.ts, server/storage/sentimentStore.ts |
 
 ---
 

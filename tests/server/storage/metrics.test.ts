@@ -120,6 +120,29 @@ describe("CitationStore", () => {
     await store.deleteByResponse(3);
     expect(await store.listByResponse(3)).toHaveLength(0);
   });
+
+  it("listByClient returns only citations belonging to that client's runs", async () => {
+    const db = makeDb();
+    const citations = new CitationStore(db);
+    const runStore = new RunStore(db);
+    const responseStore = new ResponseStore(db);
+
+    const runA = await runStore.create({
+      clientId: 1, collectionId: 10, batchId: "batch-a", totalPrompts: 1, triggeredBy: "manual",
+    });
+    const respA = await responseStore.create({ runId: runA.id, promptId: 100, platformId: 1, queryText: "q" });
+    await citations.create({ responseId: respA.id, url: "https://acme.com", rootDomain: "acme.com", position: 1, isTrustedThirdParty: false });
+
+    const runB = await runStore.create({
+      clientId: 2, collectionId: 20, batchId: "batch-b", totalPrompts: 1, triggeredBy: "manual",
+    });
+    const respB = await responseStore.create({ runId: runB.id, promptId: 200, platformId: 1, queryText: "q" });
+    await citations.create({ responseId: respB.id, url: "https://rival.com", rootDomain: "rival.com", position: 1, isTrustedThirdParty: false });
+
+    const list = await citations.listByClient(1);
+    expect(list).toHaveLength(1);
+    expect(list[0].rootDomain).toBe("acme.com");
+  });
 });
 
 // ---------------------------------------------------------------------------

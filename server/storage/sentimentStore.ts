@@ -14,7 +14,7 @@
  * - v1.00 Sprint 5 initial implementation
  */
 
-import { responseSentiment } from "@shared/schema";
+import { responseSentiment, responsesRaw, promptRuns } from "@shared/schema";
 import type { ResponseSentiment, SentimentLabel } from "@shared/schema";
 import { eq, and, lt, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -23,6 +23,21 @@ type DrizzleDb = ReturnType<typeof drizzle>;
 type Row = typeof responseSentiment.$inferSelect;
 
 const REVIEW_THRESHOLD = 0.6;
+
+const SENTIMENT_COLUMNS = {
+  id: responseSentiment.id,
+  responseId: responseSentiment.responseId,
+  brandId: responseSentiment.brandId,
+  label: responseSentiment.label,
+  score: responseSentiment.score,
+  confidence: responseSentiment.confidence,
+  evidenceExcerpt: responseSentiment.evidenceExcerpt,
+  facetLabels: responseSentiment.facetLabels,
+  reviewedByUserId: responseSentiment.reviewedByUserId,
+  reviewedAt: responseSentiment.reviewedAt,
+  overrideLabel: responseSentiment.overrideLabel,
+  createdAt: responseSentiment.createdAt,
+};
 
 function hydrate(row: Row): ResponseSentiment {
   return {
@@ -64,17 +79,26 @@ export class SentimentStore implements ISentimentStore {
     return rows.map(hydrate);
   }
 
-  async listByClient(_clientId: number): Promise<ResponseSentiment[]> {
-    const rows = this._db.select().from(responseSentiment).all();
+  async listByClient(clientId: number): Promise<ResponseSentiment[]> {
+    const rows = this._db
+      .select(SENTIMENT_COLUMNS)
+      .from(responseSentiment)
+      .innerJoin(responsesRaw, eq(responseSentiment.responseId, responsesRaw.id))
+      .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+      .where(eq(promptRuns.clientId, clientId))
+      .all();
     return rows.map(hydrate);
   }
 
-  async getReviewQueue(_clientId: number): Promise<ResponseSentiment[]> {
+  async getReviewQueue(clientId: number): Promise<ResponseSentiment[]> {
     const rows = this._db
-      .select()
+      .select(SENTIMENT_COLUMNS)
       .from(responseSentiment)
+      .innerJoin(responsesRaw, eq(responseSentiment.responseId, responsesRaw.id))
+      .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
       .where(
         and(
+          eq(promptRuns.clientId, clientId),
           lt(responseSentiment.confidence, REVIEW_THRESHOLD),
           isNull(responseSentiment.overrideLabel)
         )

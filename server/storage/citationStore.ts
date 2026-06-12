@@ -13,7 +13,7 @@
  * - v1.00 Sprint 4 initial implementation
  */
 
-import { responseCitations } from "@shared/schema";
+import { responseCitations, responsesRaw, promptRuns } from "@shared/schema";
 import type { ResponseCitation } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -55,10 +55,22 @@ export class CitationStore implements ICitationStore {
     return rows.map(hydrate).sort((a, b) => a.position - b.position);
   }
 
-  async listByClient(_clientId: number): Promise<ResponseCitation[]> {
-    // Sprint 7+ will add a proper run→response join for multi-client isolation.
-    // MVP: single-agency portal; returns all citations.
-    const rows = this._db.select().from(responseCitations).all();
+  async listByClient(clientId: number): Promise<ResponseCitation[]> {
+    const rows = this._db
+      .select({
+        id: responseCitations.id,
+        responseId: responseCitations.responseId,
+        url: responseCitations.url,
+        rootDomain: responseCitations.rootDomain,
+        ownedByBrandId: responseCitations.ownedByBrandId,
+        position: responseCitations.position,
+        isTrustedThirdParty: responseCitations.isTrustedThirdParty,
+      })
+      .from(responseCitations)
+      .innerJoin(responsesRaw, eq(responseCitations.responseId, responsesRaw.id))
+      .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+      .where(eq(promptRuns.clientId, clientId))
+      .all();
     return rows.map(hydrate).sort((a, b) => a.position - b.position);
   }
 
