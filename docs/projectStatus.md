@@ -1,18 +1,49 @@
 ## Resume From
 
-Last session: 2026-05-20
-Last commit: f937203 feat(prompts): rework category taxonomy to 5 focused groups — v1.2.7
-Branch: main | Version: v1.2.7 | 442 tests passing
-Production: v1.2.7 live in pre-production
+Last session: 2026-06-11
+Last commit: (pending) chore(checkpoint): 2026-06-11 — job runner monitoring v1.3.0
+Branch: main | Version: v1.3.0 | 471 tests passing
+Production: v1.2.7 live in pre-production (v1.2.8/v1.3.0 not yet deployed)
 
 Pick up from:
-1. Enter the 10 Salvo Metal Works prompts into a new prompt collection (prompts drafted in session — see chat history)
-2. Add PERPLEXITY_API_KEY to cPanel env vars and trigger first run against the Salvo Metal Works collection
-3. Review run output: Mentions, SoV, Sources pages should begin populating after first completed run
+1. Deploy v1.3.0 (bundles v1.2.8 brand_aliases auto-seed fix + job runner monitoring)
+2. After deploy, run the brand_aliases backfill SQL against production ~/persistent/data.db
+   (4 INSERTs — Rank Rocket Co., Linkon Logs Portables, Camphouse, Salvo Metal Works —
+   see chat history 2026-06-11 for exact statements)
+3. Restart the Node app on cPanel — new self-healing job runner will auto-drain any
+   stuck jobs (verified locally: it cleared 15 jobs stuck 9+ days from Salvo run 7)
+4. Use the Re-parse button on RunDetail for Salvo's runs 6 & 7 to regenerate
+   mentions/citations/sentiment for responses that predate the alias fix
+5. Visit /admin/jobs (super_admin) to confirm health banner + queue counts look correct
+   in production
 
 ---
 
-## Post-Sprint Work This Session (v1.2.1 – v1.2.7)
+## Post-Sprint Work This Session (v1.2.8 – v1.3.0)
+
+- v1.2.8: Root-caused Salvo "no AI Visibility data" report to brand_aliases table being
+  empty for all brands (parser only matches against brand.aliases). Fixed by
+  auto-seeding an exact-match alias from canonicalName on brand/competitor creation
+  (server/routes/clients.ts). Backfilled aliases for the 4 existing brands in a local
+  prod.data.db copy.
+- v1.3.0 (Job Runner Monitoring, Instrumentation & Manual Recovery): found 15 jobs from
+  Salvo run 7 stuck 9+ days because rescueOrphans() only ran on process start, not per
+  tick, with zero visibility into queue health.
+  - server/jobs/runner.ts: rescueOrphans() now runs every tick (self-healing);
+    added getHealth() heartbeat (lastTickAt, intervalMs, running) + log instrumentation
+  - shared/schema.ts: JOB_STATUSES/JobStatus/Job types (adds "cancelled")
+  - server/storage/jobStore.ts (new): list/filter, countByStatus, listHung, requeue, cancel
+  - server/routes/jobs.ts (new): GET /api/jobs, GET /api/jobs/health,
+    POST /api/jobs/:id/requeue, POST /api/jobs/:id/cancel, POST /api/jobs/rescue —
+    all super_admin only
+  - client/src/pages/admin/Jobs.tsx (new): health banner, status chips, jobs table
+    with Requeue/Cancel actions, "Rescue hung jobs" button, polls every 5s; wired at
+    /admin/jobs with nav link in Home
+  - Verified live against local prod.data.db copy: starting the server auto-drained
+    all 15 stuck run-7 jobs and produced 8 new response_mentions rows
+  - 471 tests passing (29 new: 2 runner, 9 jobStore, 16 jobs routes, 2 clients alias)
+
+## Post-Sprint Work Previous Session (v1.2.1 – v1.2.7)
 
 - v1.2.1: Replaced ai-visibility-reporting-spec.md with aeo_geo_google_data_architecture.md as guiding architecture doc; merged PR #1 (feature/ai-visibility-module → main)
 - v1.2.2–v1.2.6: GA4 OAuth popup flow — fixed CSP inline-script block, hash routing, COOP header severing window.opener; final solution uses server-side polling from main window (no cross-window messaging)

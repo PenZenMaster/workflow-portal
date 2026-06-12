@@ -11,6 +11,10 @@ sessions.db
 sessions.db-shm
 sessions.db-wal
 sessions.db-journal
+prod.data.db
+prod.data.db-shm
+prod.data.db-wal
+prod.data.db-journal
 
 .env
 .env.*

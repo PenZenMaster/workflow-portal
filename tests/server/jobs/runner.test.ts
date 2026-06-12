@@ -157,6 +157,29 @@ describe("JobRunner", () => {
     expect(getJob(sqlite, jobId).status).toBe("done");
   });
 
+  it("rescues an orphaned running job mid-tick and updates the heartbeat", async () => {
+    const jobId = insertJob(sqlite, {
+      status: "running",
+      lockedUntil: Date.now() - 1000,
+      nextRunAt: Date.now() - 1000,
+    });
+    const handler = vi.fn().mockResolvedValue(undefined);
+    runner.register({ kind: "test-job", handle: handler });
+
+    const before = Date.now();
+    await runner.tick();
+
+    expect(getJob(sqlite, jobId).status).toBe("done");
+    expect(handler).toHaveBeenCalledOnce();
+    expect(runner.getHealth().lastTickAt).toBeGreaterThanOrEqual(before);
+  });
+
+  it("reports the configured interval and running state via getHealth", () => {
+    const health = runner.getHealth();
+    expect(health.intervalMs).toBe(999_999);
+    expect(health.running).toBe(true);
+  });
+
   it("resets running jobs with expired locks to queued on startup", () => {
     // Insert a 'running' job with an expired lock — simulates a process crash.
     // nextRunAt is in the future so tick() won't pick it up immediately,

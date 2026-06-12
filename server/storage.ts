@@ -23,6 +23,7 @@ import { AnnotationStore } from "./storage/annotationStore";
 import { ExportStore } from "./storage/exportStore";
 import { ShareTokenStore } from "./storage/shareTokenStore";
 import { IntegrationStore } from "./storage/integrationStore";
+import { JobStore } from "./storage/jobStore";
 
 export type { IWorkflowStore } from "./storage/workflowStore";
 export type { IUserStore } from "./storage/userStore";
@@ -45,6 +46,7 @@ export type { IAnnotationStore } from "./storage/annotationStore";
 export type { IExportStore } from "./storage/exportStore";
 export type { IShareTokenStore } from "./storage/shareTokenStore";
 export type { IIntegrationStore } from "./storage/integrationStore";
+export type { IJobStore, JobListFilter, JobStatusCounts } from "./storage/jobStore";
 export { WorkflowStore } from "./storage/workflowStore";
 export { UserStore } from "./storage/userStore";
 export { ClientStore } from "./storage/clientStore";
@@ -66,6 +68,7 @@ export { AnnotationStore } from "./storage/annotationStore";
 export { ExportStore } from "./storage/exportStore";
 export { ShareTokenStore } from "./storage/shareTokenStore";
 export { IntegrationStore } from "./storage/integrationStore";
+export { JobStore } from "./storage/jobStore";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
 
@@ -417,3 +420,4 @@ export const annotationStore = new AnnotationStore(db);
 export const exportStore = new ExportStore(db);
 export const shareTokenStore = new ShareTokenStore(db);
 export const integrationStore = new IntegrationStore(db);
+export const jobStore = new JobStore(db);

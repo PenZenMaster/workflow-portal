@@ -255,6 +255,25 @@ describe("POST /api/clients/:id/brands", () => {
     expect(res.status).toBe(201);
     expect(res.body.data.canonicalName).toBe("Acme Corp");
   });
+
+  it("creates a default exact-match alias from canonicalName", async () => {
+    mockBrandStore.create.mockResolvedValue(SAMPLE_BRAND);
+    mockAliasStore.create.mockResolvedValue({
+      id: 1,
+      brandId: SAMPLE_BRAND.id,
+      aliasText: SAMPLE_BRAND.canonicalName,
+      matchType: "exact",
+      language: null,
+    });
+    const res = await request(buildApp("agency_admin"))
+      .post("/api/clients/1/brands")
+      .send({ canonicalName: "Acme Corp", kind: "client" });
+    expect(res.status).toBe(201);
+    expect(mockAliasStore.create).toHaveBeenCalledWith(SAMPLE_BRAND.id, {
+      aliasText: "Acme Corp",
+      matchType: "exact",
+    });
+  });
 });
 
 describe("POST /api/clients/:id/competitors", () => {
@@ -269,6 +288,26 @@ describe("POST /api/clients/:id/competitors", () => {
       .post("/api/clients/1/competitors")
       .send({ canonicalName: "Rival Co", priority: 0 });
     expect(res.status).toBe(201);
+  });
+
+  it("creates a default exact-match alias for the competitor brand", async () => {
+    mockBrandStore.create.mockResolvedValue({
+      ...SAMPLE_BRAND, kind: "competitor", canonicalName: "Rival Co",
+    });
+    mockCompetitorStore.create.mockResolvedValue({
+      id: 1, clientId: 1, brandId: 10, priority: 0,
+    });
+    mockAliasStore.create.mockResolvedValue({
+      id: 2, brandId: 10, aliasText: "Rival Co", matchType: "exact", language: null,
+    });
+    const res = await request(buildApp("agency_admin"))
+      .post("/api/clients/1/competitors")
+      .send({ canonicalName: "Rival Co", priority: 0 });
+    expect(res.status).toBe(201);
+    expect(mockAliasStore.create).toHaveBeenCalledWith(10, {
+      aliasText: "Rival Co",
+      matchType: "exact",
+    });
   });
 });
 

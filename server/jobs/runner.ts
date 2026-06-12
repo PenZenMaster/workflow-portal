@@ -29,10 +29,18 @@ export interface JobHandler {
   handle(payload: unknown, jobId: number): Promise<void>;
 }
 
+export interface RunnerHealth {
+  lastTickAt: number | null;
+  intervalMs: number | null;
+  running: boolean;
+}
+
 export class JobRunner {
   private readonly handlers = new Map<string, JobHandler>();
   private db: DrizzleDb | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private intervalMs: number | null = null;
+  private lastTickAt: number | null = null;
 
   register(handler: JobHandler): this {
     this.handlers.set(handler.kind, handler);
@@ -41,6 +49,7 @@ export class JobRunner {
 
   start(db: DrizzleDb, intervalMs = 30_000): void {
     this.db = db;
+    this.intervalMs = intervalMs;
     // Rescue any jobs left in 'running' state from a previous process crash.
     this.rescueOrphans();
     void this.tick();
@@ -52,6 +61,14 @@ export class JobRunner {
   stop(): void {
     if (this.timer !== null) clearInterval(this.timer);
     this.timer = null;
+  }
+
+  getHealth(): RunnerHealth {
+    return {
+      lastTickAt: this.lastTickAt,
+      intervalMs: this.intervalMs,
+      running: this.timer !== null,
+    };
   }
 
   enqueue(kind: string, payload: unknown, nextRunAt = Date.now()): void {
@@ -70,16 +87,18 @@ export class JobRunner {
   }
 
   // Resets running jobs whose locks have expired back to queued so they will
-  // be retried. Called on startup to recover from process crashes.
-  rescueOrphans(): void {
-    if (!this.db) return;
-    this.db
+  // be retried. Called on startup and at the top of every tick to recover
+  // from process crashes or a stalled previous tick.
+  rescueOrphans(): number {
+    if (!this.db) return 0;
+    const result = this.db
       .update(jobs)
       .set({ status: "queued", lockedUntil: null, updatedAt: Date.now() })
       .where(
         and(eq(jobs.status, "running"), lte(jobs.lockedUntil, Date.now()))
       )
       .run();
+    return result.changes;
   }
 
   async tick(): Promise<void> {
@@ -87,6 +106,11 @@ export class JobRunner {
     const db = this.db;
     const now = Date.now();
     const lockUntil = now + LOCK_TTL_MS;
+
+    const rescued = this.rescueOrphans();
+    if (rescued > 0) {
+      logger.warn("job runner: rescued orphaned jobs", { count: rescued });
+    }
 
     const eligible = db
       .select()
@@ -161,6 +185,11 @@ export class JobRunner {
           error: String(err),
         });
       }
+    }
+
+    this.lastTickAt = Date.now();
+    if (eligible.length > 0) {
+      logger.info("job runner: tick processed jobs", { processed: eligible.length });
     }
   }
 }

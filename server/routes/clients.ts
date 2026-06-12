@@ -122,6 +122,10 @@ export function registerClientRoutes(app: Express): void {
         throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
       }
       const brand = await brandStore.create(clientId, parsed.data);
+      await aliasStore.create(brand.id, {
+        aliasText: brand.canonicalName,
+        matchType: "exact",
+      });
       created(res, brand);
     }
   );
@@ -210,6 +214,10 @@ export function registerClientRoutes(app: Express): void {
         canonicalName: parsed.data.canonicalName,
         kind: "competitor",
         primaryDomain: parsed.data.primaryDomain,
+      });
+      await aliasStore.create(brand.id, {
+        aliasText: brand.canonicalName,
+        matchType: "exact",
       });
       const competitor = await competitorStore.create(
         clientId,

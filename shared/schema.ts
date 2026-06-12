@@ -749,6 +749,29 @@ export const jobs = sqliteTable("jobs", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+export const JOB_STATUSES = [
+  "queued",
+  "running",
+  "done",
+  "failed",
+  "cancelled",
+] as const;
+export type JobStatus = (typeof JOB_STATUSES)[number];
+
+export type Job = {
+  id: number;
+  kind: string;
+  payload: string;
+  status: JobStatus;
+  attempts: number;
+  maxAttempts: number;
+  nextRunAt: number;
+  lockedUntil: number | null;
+  lastError: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
 // --- Constants -------------------------------------------------------------
 
 export const CATEGORIES = [
