@@ -21,7 +21,9 @@ import {
   responseStore,
   scheduleStore,
   promptStore,
+  jobStore,
 } from "../storage";
+import { JOB_STATUSES } from "@shared/schema";
 import { triggerRunSchema, insertScheduleSchema } from "@shared/schema";
 import { requireAuth, requireRole } from "../auth";
 import { ok, created, noContent } from "../response";
@@ -129,6 +131,40 @@ export function registerRunRoutes(app: Express): void {
       }
 
       res.status(202).json({ data: { reparsedCount: completed.length } });
+    }
+  );
+
+  // --- Re-parse progress ----------------------------------------------------
+  // Polled by the UI after triggering /reparse to show live progress.
+
+  app.get(
+    "/api/runs/:id/reparse-status",
+    requireRole(...EDITOR_ROLES),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+      const run = await runStore.get(id);
+      if (!run) throw new AppError(404, "Run not found", "RUN_NOT_FOUND");
+
+      const since = Number(req.query.since);
+      if (Number.isNaN(since))
+        throw new AppError(400, "Invalid or missing since", "INVALID_SINCE");
+
+      const responses = await responseStore.listByRun(id);
+      const responseIds = responses.map((r) => r.id);
+
+      const jobs = await jobStore.listByKindAndResponseIds(
+        "parse-response",
+        responseIds,
+        since
+      );
+
+      const counts = { total: jobs.length, queued: 0, running: 0, done: 0, failed: 0, cancelled: 0 };
+      for (const status of JOB_STATUSES) {
+        counts[status] = jobs.filter((j) => j.status === status).length;
+      }
+
+      ok(res, counts);
     }
   );
 

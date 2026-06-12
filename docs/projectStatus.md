@@ -1,24 +1,74 @@
 ## Resume From
 
 Last session: 2026-06-12
-Last commit: (pending) fix(ai-visibility): scope mentions list to client via run join — v1.4.2
-Branch: main | Version: v1.4.2 | 477 tests passing
+Last commit: (pending) feat(ai-visibility): show re-parse progress and completion on RunDetail — v1.5.0
+Branch: main | Version: v1.5.0 | 485 tests passing
 Production: v1.4.0 deployed to pre-production and passed internal QA (not yet exposed to clients);
-v1.4.1 and v1.4.2 not yet deployed.
+v1.4.1, v1.4.2, v1.5.0 not yet deployed.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Package and deploy v1.4.1 + v1.4.2 (metric aggregation + mentions scoping fixes) to
-   pre-production.
-2. Investigate TD-14 (Salvo brand-mention parser gap) using a read-only check of the
-   live production response_mentions table for brand_id=4 across all of Salvo's runs.
+1. Package and deploy v1.4.1 + v1.4.2 + v1.5.0 to pre-production.
+2. TD-14 root cause confirmed (see Post-Sprint v1.4.2/TD-14 notes below): brand_aliases
+   for Salvo's own brand (brand_id=4) is empty in production. User is adding the
+   "Salvo Metal Works" alias via the portal UI (Brands section) and re-parsing runs
+   6, 7, and 8 — verify response_mentions populate for run 6 afterward.
 3. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
 
 ---
+
+## Post-Sprint Work This Session (v1.5.0)
+
+- Feature: Re-parse progress/completion feedback on RunDetail
+  (client/src/pages/ai/RunDetail.tsx). Previously, clicking "Re-parse responses"
+  only showed a toast — there was no way to tell whether the async parse-response
+  jobs were still running or had finished.
+  - server/storage/jobStore.ts: new `listByKindAndResponseIds(kind, responseIds,
+    sinceTs)` — finds jobs of a given kind whose JSON payload.responseId is in the
+    given set, created at/after sinceTs.
+  - server/routes/runs.ts: new `GET /api/runs/:id/reparse-status?since=<ts>`
+    (EDITOR_ROLES) — returns `{ total, queued, running, done, failed, cancelled }`
+    counts of parse-response jobs for the run's responses since `since`.
+  - client/src/pages/ai/reparseStatus.ts (new): pure helpers
+    `isReparseComplete()` / `reparseProgressLabel()`.
+  - RunDetail.tsx: on re-parse trigger, records `since = Date.now()` and polls
+    reparse-status every 3s; shows a "Re-parsing responses: X/N done" banner,
+    then "Re-parse complete" and auto-invalidates this client's AI Visibility
+    queries (Overview/Mentions/SoV/Sentiment) so sections refresh without a
+    manual reload.
+  - tests/server/storage/jobStore.test.ts, tests/server/runs.routes.test.ts,
+    client/src/pages/ai/reparseStatus.test.ts: 8 new tests (TDD — confirmed
+    failing before implementation). 485 tests passing.
+  - docs/system-documentation.md Section 1B Step 7 updated to describe the new
+    progress banner.
+  - Not yet deployed.
+
+### TD-14 root cause (confirmed via read-only prod.data.db copy)
+
+`brand_aliases` for Salvo Metal Works' own brand (brand_id=4, client_id=4) is
+**empty** in production — not even the canonical name "Salvo Metal Works" is
+registered as a searchable alias. This is why run 6 has 8/10 responses with a
+client-owned citation but 0/10 with a brand mention (all_brand_mentions=0):
+the parser had nothing to match against.
+
+Run 7 currently shows 8 mention rows for brand_id=4 despite the alias table
+being empty *now* — meaning an alias existed at the time run 7 was
+parsed/re-parsed and was later removed. The v1.2.8 alias auto-seed + backfill
+was applied to a local copy of prod.data.db during that session but appears to
+never have reached live production (or was subsequently lost).
+
+Fix in progress (data-only, via portal UI per system-documentation.md Section
+1B Step 3): add alias "Salvo Metal Works" (exact) to brand_id=4, then use
+Re-parse responses on runs 6, 7, and 8.
+
+Separately noted: live Overview reports 3 runs (6-8) / ~60 responses for
+Salvo, but the downloaded prod.data.db snapshot only contained runs 6-7 (20
+responses) — likely the download predates run 8's completion. Re-verify
+counts after the alias fix + re-parse.
 
 ## Post-Sprint Work This Session (v1.4.2)
 
@@ -229,7 +279,7 @@ Confirmed decisions:
 | TD-10 | Medium | Done | Session error callbacks lack request context in logs | server/routes/auth.ts |
 | TD-12 | Low | Open | Hardcoded seed data — no versioning or rollback | server/seed.ts |
 | TD-13 | Low | Open | skipLibCheck: true masks dep type errors | tsconfig.json |
-| TD-14 | Medium | Open | Salvo (clientId=4) run 6: 8/10 responses have a client-owned citation but zero client-brand mentions detected (all_brand_mentions=0). Possible brand_aliases/parser gap — investigate. | server/services/parser.ts |
+| TD-14 | Medium | Root cause confirmed, fix pending | Salvo (clientId=4) run 6: 8/10 responses have a client-owned citation but zero client-brand mentions detected (all_brand_mentions=0). Root cause: brand_aliases for brand_id=4 is empty in production (v1.2.8 backfill never reached live data.db). Fix: add alias via portal UI + re-parse runs 6-8 (data-only, no code change). | server/services/parser.ts |
 | TD-15 | Medium | Open | citationStore.listByClient(_clientId) ignores its parameter and returns the full response_citations table across all clients (same pattern fixed for mentionStore in v1.4.2) | server/storage/citationStore.ts |
 
 ---

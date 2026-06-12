@@ -1,16 +1,19 @@
+import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { PromptRun, ResponseRaw } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, CheckCircle2 } from "lucide-react";
+import { isReparseComplete, reparseProgressLabel, type ReparseStatus } from "./reparseStatus";
 
 const TERMINAL = new Set(["complete", "partial", "failed"]);
 
 export default function RunDetail() {
   const { runId } = useParams<{ runId: string }>();
   const { toast } = useToast();
+  const [reparseSince, setReparseSince] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery<{
     data: { run: PromptRun; responses: ResponseRaw[] };
@@ -23,6 +26,35 @@ export default function RunDetail() {
     },
   });
 
+  const reparseStatusQuery = useQuery<{ data: ReparseStatus }>({
+    queryKey: [`/api/runs/${runId}/reparse-status?since=${reparseSince}`],
+    enabled: !!runId && reparseSince !== null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.data;
+      return status && isReparseComplete(status) ? false : 3_000;
+    },
+  });
+
+  const reparseStatus = reparseStatusQuery.data?.data;
+  const reparseDone = !!reparseStatus && isReparseComplete(reparseStatus);
+  const reparseRefreshedRef = useRef<number | null>(null);
+  const clientId = data?.data.run.clientId;
+
+  useEffect(() => {
+    if (!reparseDone || reparseSince === null) return;
+    if (reparseRefreshedRef.current === reparseSince) return;
+    reparseRefreshedRef.current = reparseSince;
+
+    queryClient.invalidateQueries({ queryKey: [`/api/runs/${runId}`] });
+    if (clientId !== undefined) {
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          typeof query.queryKey[0] === "string" &&
+          query.queryKey[0].startsWith(`/api/clients/${clientId}`),
+      });
+    }
+  }, [reparseDone, reparseSince, runId, clientId]);
+
   const reparseMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/runs/${runId}/reparse`);
@@ -30,6 +62,7 @@ export default function RunDetail() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: [`/api/runs/${runId}`] });
+      setReparseSince(Date.now());
       toast({
         title: `Re-parsing ${result.data.reparsedCount} responses`,
         description: "Mentions and metrics will update in 1–2 minutes.",
@@ -74,6 +107,26 @@ export default function RunDetail() {
           </Button>
         )}
       </div>
+
+      {reparseStatus && reparseStatus.total > 0 && (
+        <div
+          className={`mb-6 flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+            reparseDone
+              ? "border-green-200 bg-green-50 text-green-800"
+              : "border-muted bg-muted/50 text-muted-foreground"
+          }`}
+        >
+          {reparseDone ? (
+            <CheckCircle2 className="h-4 w-4" />
+          ) : (
+            <RefreshCw className="h-4 w-4 animate-spin" />
+          )}
+          {reparseDone ? "Re-parse complete" : reparseProgressLabel(reparseStatus)}
+          {reparseStatus.failed > 0 && (
+            <span className="text-red-600">({reparseStatus.failed} failed)</span>
+          )}
+        </div>
+      )}
 
       <h2 className="text-lg font-semibold mb-3">Responses</h2>
       {responses.length === 0 ? (

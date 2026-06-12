@@ -107,7 +107,7 @@ Client page → Runs → Trigger Run, or from inside a prompt collection → Run
 - Processing takes 2–5 minutes for 10 prompts
 
 **Step 7 — Review results**
-After the run completes, data appears in Overview, Mentions, Share of Voice, and Sentiment. If you added brands/aliases after a run, open the run and click **Re-parse responses** to re-scan the existing AI responses against the updated brand definitions.
+After the run completes, data appears in Overview, Mentions, Share of Voice, and Sentiment. If you added brands/aliases after a run, open the run and click **Re-parse responses** to re-scan the existing AI responses against the updated brand definitions. A progress banner shows "Re-parsing responses: X/N done" while the re-parse jobs are processing (polled every 3 seconds), then "Re-parse complete" once finished — at which point the Overview/Mentions/Share of Voice/Sentiment sections refresh automatically (added in v1.5.0).
 
 ---
 

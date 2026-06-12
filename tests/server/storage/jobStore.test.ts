@@ -16,31 +16,35 @@ function insertJob(
   sqlite: SqliteDb,
   overrides: {
     kind?: string;
+    payload?: string;
     status?: string;
     attempts?: number;
     maxAttempts?: number;
     nextRunAt?: number;
     lockedUntil?: number | null;
     lastError?: string | null;
+    createdAt?: number;
   } = {}
 ): number {
   const now = Date.now();
+  const createdAt = overrides.createdAt ?? now;
   const result = sqlite
     .prepare(
       `INSERT INTO jobs
         (kind, payload, status, attempts, max_attempts, next_run_at, locked_until, last_error, created_at, updated_at)
-       VALUES (?, '{}', ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       overrides.kind ?? "test-job",
+      overrides.payload ?? "{}",
       overrides.status ?? "queued",
       overrides.attempts ?? 0,
       overrides.maxAttempts ?? 3,
       overrides.nextRunAt ?? now,
       overrides.lockedUntil ?? null,
       overrides.lastError ?? null,
-      now,
-      now
+      createdAt,
+      createdAt
     );
   return result.lastInsertRowid as number;
 }
@@ -150,5 +154,50 @@ describe("JobStore", () => {
 
   it("returns undefined when cancelling an unknown job", async () => {
     expect(await store.cancel(99999)).toBeUndefined();
+  });
+
+  it("listByKindAndResponseIds returns matching-kind jobs for given response ids created at/after a timestamp", async () => {
+    const before = Date.now() - 10_000;
+    const since = Date.now();
+
+    // too old — excluded by sinceTs even though responseId matches
+    insertJob(sqlite, {
+      kind: "parse-response",
+      status: "done",
+      payload: JSON.stringify({ responseId: 1 }),
+      createdAt: before,
+    });
+
+    const idA = insertJob(sqlite, {
+      kind: "parse-response",
+      status: "queued",
+      payload: JSON.stringify({ responseId: 1 }),
+      createdAt: since,
+    });
+    const idB = insertJob(sqlite, {
+      kind: "parse-response",
+      status: "done",
+      payload: JSON.stringify({ responseId: 2 }),
+      createdAt: since + 1,
+    });
+
+    // not in the requested response id set — excluded
+    insertJob(sqlite, {
+      kind: "parse-response",
+      status: "queued",
+      payload: JSON.stringify({ responseId: 99 }),
+      createdAt: since + 1,
+    });
+
+    // wrong kind — excluded
+    insertJob(sqlite, {
+      kind: "sentiment-classify",
+      status: "queued",
+      payload: JSON.stringify({ responseId: 1 }),
+      createdAt: since + 1,
+    });
+
+    const result = await store.listByKindAndResponseIds("parse-response", [1, 2], since);
+    expect(result.map((j) => j.id).sort()).toEqual([idA, idB].sort());
   });
 });

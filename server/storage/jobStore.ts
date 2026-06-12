@@ -16,7 +16,7 @@
 
 import { jobs, JOB_STATUSES } from "@shared/schema";
 import type { Job, JobStatus } from "@shared/schema";
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, gte, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -50,6 +50,11 @@ export interface IJobStore {
   list(filter?: JobListFilter): Promise<Job[]>;
   countByStatus(): Promise<JobStatusCounts>;
   listHung(now: number): Promise<Job[]>;
+  listByKindAndResponseIds(
+    kind: string,
+    responseIds: number[],
+    sinceTs: number
+  ): Promise<Job[]>;
   get(id: number): Promise<Job | undefined>;
   requeue(id: number): Promise<Job | undefined>;
   cancel(id: number): Promise<Job | undefined>;
@@ -106,6 +111,30 @@ export class JobStore implements IJobStore {
       .where(and(eq(jobs.status, "running"), lt(jobs.lockedUntil, now)))
       .all();
     return rows.map(hydrate);
+  }
+
+  async listByKindAndResponseIds(
+    kind: string,
+    responseIds: number[],
+    sinceTs: number
+  ): Promise<Job[]> {
+    if (responseIds.length === 0) return [];
+    const idSet = new Set(responseIds);
+    const rows = this._db
+      .select()
+      .from(jobs)
+      .where(and(eq(jobs.kind, kind), gte(jobs.createdAt, sinceTs)))
+      .all();
+    return rows
+      .filter((row) => {
+        try {
+          const payload = JSON.parse(row.payload) as { responseId?: number };
+          return payload.responseId !== undefined && idSet.has(payload.responseId);
+        } catch {
+          return false;
+        }
+      })
+      .map(hydrate);
   }
 
   async get(id: number): Promise<Job | undefined> {

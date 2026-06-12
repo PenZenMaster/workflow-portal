@@ -27,6 +27,7 @@ const mockScheduleStore = {
   delete: vi.fn(),
 };
 const mockPromptStore = { listByCollection: vi.fn() };
+const mockJobStore = { listByKindAndResponseIds: vi.fn() };
 const mockJobRunner = { register: vi.fn(), enqueue: vi.fn() };
 
 vi.mock("../../server/storage", () => ({
@@ -37,6 +38,7 @@ vi.mock("../../server/storage", () => ({
   runStore: mockRunStore,
   responseStore: mockResponseStore,
   scheduleStore: mockScheduleStore,
+  jobStore: mockJobStore,
   clientStore: {},
   brandStore: {},
   aliasStore: {},
@@ -200,6 +202,51 @@ describe("POST /api/runs/:id/retry-failed", () => {
       .post("/api/runs/1/retry-failed");
     expect(res.status).toBe(202);
     expect(res.body.data.retriedCount).toBe(1);
+  });
+});
+
+describe("GET /api/runs/:id/reparse-status", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 404 when run not found", async () => {
+    mockRunStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("analyst")).get("/api/runs/999/reparse-status?since=0");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 when since is missing or invalid", async () => {
+    mockRunStore.get.mockResolvedValue(SAMPLE_RUN);
+    const res = await request(buildApp("analyst")).get("/api/runs/1/reparse-status");
+    expect(res.status).toBe(400);
+  });
+
+  it("returns status counts for parse-response jobs of this run's responses since the given timestamp", async () => {
+    mockRunStore.get.mockResolvedValue(SAMPLE_RUN);
+    mockResponseStore.listByRun.mockResolvedValue([
+      { ...SAMPLE_RESPONSE, id: 100 },
+      { ...SAMPLE_RESPONSE, id: 101 },
+    ]);
+    mockJobStore.listByKindAndResponseIds.mockResolvedValue([
+      { id: 1, status: "done" },
+      { id: 2, status: "queued" },
+      { id: 3, status: "running" },
+    ]);
+
+    const res = await request(buildApp("analyst")).get("/api/runs/1/reparse-status?since=123");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      total: 3,
+      queued: 1,
+      running: 1,
+      done: 1,
+      failed: 0,
+      cancelled: 0,
+    });
+    expect(mockJobStore.listByKindAndResponseIds).toHaveBeenCalledWith(
+      "parse-response",
+      [100, 101],
+      123
+    );
   });
 });
 
