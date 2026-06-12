@@ -5,6 +5,8 @@ import { SCHEMA_SQL } from "../../../server/storage";
 import { MentionStore } from "../../../server/storage/mentionStore";
 import { CitationStore } from "../../../server/storage/citationStore";
 import { MetricStore } from "../../../server/storage/metricStore";
+import { RunStore } from "../../../server/storage/runStore";
+import { ResponseStore } from "../../../server/storage/responseStore";
 
 function makeDb() {
   const sqlite = new Database(":memory:");
@@ -54,6 +56,29 @@ describe("MentionStore", () => {
     await store.create({ responseId: 5, brandId: 1, matchedText: "A", matchType: "exact", section: "body", confidence: 1 });
     await store.deleteByResponse(5);
     expect(await store.listByResponse(5)).toHaveLength(0);
+  });
+
+  it("listByClient returns only mentions belonging to that client's runs", async () => {
+    const db = makeDb();
+    const mentions = new MentionStore(db);
+    const runStore = new RunStore(db);
+    const responseStore = new ResponseStore(db);
+
+    const runA = await runStore.create({
+      clientId: 1, collectionId: 10, batchId: "batch-a", totalPrompts: 1, triggeredBy: "manual",
+    });
+    const respA = await responseStore.create({ runId: runA.id, promptId: 100, platformId: 1, queryText: "q" });
+    await mentions.create({ responseId: respA.id, brandId: 1, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+
+    const runB = await runStore.create({
+      clientId: 2, collectionId: 20, batchId: "batch-b", totalPrompts: 1, triggeredBy: "manual",
+    });
+    const respB = await responseStore.create({ runId: runB.id, promptId: 200, platformId: 1, queryText: "q" });
+    await mentions.create({ responseId: respB.id, brandId: 2, matchedText: "Rival", matchType: "exact", section: "body", confidence: 1 });
+
+    const list = await mentions.listByClient(1);
+    expect(list).toHaveLength(1);
+    expect(list[0].matchedText).toBe("Acme");
   });
 });
 

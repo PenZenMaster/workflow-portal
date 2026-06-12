@@ -13,7 +13,7 @@
  * - v1.00 Sprint 4 initial implementation
  */
 
-import { responseMentions } from "@shared/schema";
+import { responseMentions, responsesRaw, promptRuns } from "@shared/schema";
 import type { ResponseMention } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -57,9 +57,24 @@ export class MentionStore implements IMentionStore {
     return rows.map(hydrate);
   }
 
-  async listByClient(_clientId: number): Promise<ResponseMention[]> {
-    // Sprint 5+ will add run → response → mention join. For MVP: full table is small.
-    const rows = this._db.select().from(responseMentions).all();
+  async listByClient(clientId: number): Promise<ResponseMention[]> {
+    const rows = this._db
+      .select({
+        id: responseMentions.id,
+        responseId: responseMentions.responseId,
+        brandId: responseMentions.brandId,
+        matchedText: responseMentions.matchedText,
+        matchType: responseMentions.matchType,
+        section: responseMentions.section,
+        recommendationRank: responseMentions.recommendationRank,
+        confidence: responseMentions.confidence,
+        evidenceExcerpt: responseMentions.evidenceExcerpt,
+      })
+      .from(responseMentions)
+      .innerJoin(responsesRaw, eq(responseMentions.responseId, responsesRaw.id))
+      .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+      .where(eq(promptRuns.clientId, clientId))
+      .all();
     return rows.map(hydrate);
   }
 

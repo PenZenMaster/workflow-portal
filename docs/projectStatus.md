@@ -1,22 +1,40 @@
 ## Resume From
 
 Last session: 2026-06-12
-Last commit: (pending) fix(ai-visibility): compute period-scoped metric deltas instead of summing cumulative snapshots — v1.4.1
-Branch: main | Version: v1.4.1 | 476 tests passing
+Last commit: (pending) fix(ai-visibility): scope mentions list to client via run join — v1.4.2
+Branch: main | Version: v1.4.2 | 477 tests passing
 Production: v1.4.0 deployed to pre-production and passed internal QA (not yet exposed to clients);
-v1.4.1 not yet deployed.
+v1.4.1 and v1.4.2 not yet deployed.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Package and deploy v1.4.1 (metric aggregation fix) to pre-production.
-2. Continue internal review of the consolidated AI Visibility client page
+1. Package and deploy v1.4.1 + v1.4.2 (metric aggregation + mentions scoping fixes) to
+   pre-production.
+2. Investigate TD-14 (Salvo brand-mention parser gap) using a read-only check of the
+   live production response_mentions table for brand_id=4 across all of Salvo's runs.
+3. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
-3. Investigate the Salvo run-6 anomaly noted below (TD-14).
 
 ---
+
+## Post-Sprint Work This Session (v1.4.2)
+
+- Fixed `mentionStore.listByClient()` (server/storage/mentionStore.ts), found during
+  AI Visibility QA on Salvo Metal Works (clientId=4): Overview showed Mention Rate =
+  78.3% (driven by citation-only responses, hasCitation OR hasMention) while the
+  Mentions section showed "No mentions detected yet" — the route returned the ENTIRE
+  response_mentions table unfiltered (the `clientId` parameter was unused/prefixed
+  `_clientId` since Sprint 4). Now joins response_mentions -> responses_raw ->
+  prompt_runs and filters by `prompt_runs.client_id`.
+  - tests/server/storage/metrics.test.ts: new test confirms mentions from another
+    client's runs are excluded. 477 tests passing (1 new).
+  - Noted but NOT fixed in this change: `citationStore.listByClient()` has the
+    identical unfiltered-table pattern (server/storage/citationStore.ts:58-63) —
+    tracked as TD-15.
+  - Not yet deployed.
 
 ## Post-Sprint Work This Session (v1.4.1)
 
@@ -212,6 +230,7 @@ Confirmed decisions:
 | TD-12 | Low | Open | Hardcoded seed data — no versioning or rollback | server/seed.ts |
 | TD-13 | Low | Open | skipLibCheck: true masks dep type errors | tsconfig.json |
 | TD-14 | Medium | Open | Salvo (clientId=4) run 6: 8/10 responses have a client-owned citation but zero client-brand mentions detected (all_brand_mentions=0). Possible brand_aliases/parser gap — investigate. | server/services/parser.ts |
+| TD-15 | Medium | Open | citationStore.listByClient(_clientId) ignores its parameter and returns the full response_citations table across all clients (same pattern fixed for mentionStore in v1.4.2) | server/storage/citationStore.ts |
 
 ---
 

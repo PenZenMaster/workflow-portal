@@ -173,6 +173,11 @@ A response counts as "mentioned" when any alias matches in the response text, OR
 `brand_id` = the client's brand, OR a `response_citations` row with `owned_by_brand_id` =
 the client's brand, divided by total `responses_raw` rows with `status = 'complete'`.
 Period totals come from `metric_snapshots_daily.mention_count` / `.prompt_response_count`.
+The Mentions list below the Overview shows the raw `response_mentions` evidence rows for
+this client (joined via `responses_raw` -> `prompt_runs`, fixed in v1.4.2). Because the
+rate formula above also counts citation-only responses, **Mention Rate can be non-zero
+even when the Mentions list is empty** — that means the brand was cited but its name was
+never matched in the response text (see TD-14).
 
 **What it means to the client:** This is the broadest visibility signal — whether the
 client comes up at all when someone asks an AI a relevant question, by name or by link.
