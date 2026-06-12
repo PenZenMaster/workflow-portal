@@ -77,6 +77,13 @@ Add at minimum:
 - The client's own brand (kind: `client`, enter canonical name and domain)
 - Key competitors to track against (kind: `competitor`)
 
+> **Important:** AI Share of Voice is calculated as the client brand's mentions
+> divided by total mentions across ALL brands. If no competitor brands are added,
+> every detected mention belongs to the client by definition, and AI Share of Voice
+> will read as a meaningless 0% or 100% rather than a real ratio. Add at least one
+> competitor brand (with aliases, Step 3) before relying on AI Share of Voice for
+> a client.
+
 **Step 3 — Add brand aliases**
 Click the `›` arrow next to each brand to expand it, then add aliases.
 

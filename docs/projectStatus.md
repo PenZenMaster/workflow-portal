@@ -360,8 +360,15 @@ Confirmed decisions:
 ### Medium Priority
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
 - B-06 Session store: session expiry cleanup configuration review
+- B-15 Investigate mechanism to create a guided workflow to onboard new clients —
+  Section 1B of system-documentation.md lists 6 manual setup steps (brands, aliases,
+  GA4, prompt collection, run); a wizard/checklist in-app would reduce setup errors
+  such as the missing-competitors gap that caused Salvo's AI SoV to read 0%/100%
+  (see system-documentation.md Section 1B Step 2 note, added 2026-06-12).
 
 ### Low Priority
 - B-08 skipLibCheck: false in tsconfig
 - B-09 Local dev server fix for Windows (remaining socket/network issues)
 - B-10 Evaluate replacing better-sqlite3-session-store (deprecated)
+- B-14 Display the app version number (from package.json) in the footer of every page —
+  currently Home.tsx has a one-off footer but no shared layout footer exists across routes.
