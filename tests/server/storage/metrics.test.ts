@@ -136,6 +136,7 @@ describe("MetricStore", () => {
     citationCount: 5,
     mentionCount: 8,
     allBrandMentions: 20,
+    clientBrandMentions: 6,
     visibilityScoreSum: 42.5,
     promptResponseCount: 10,
   };
@@ -144,6 +145,7 @@ describe("MetricStore", () => {
     const s = await store.upsert(SAMPLE_SNAPSHOT);
     expect(s.citationCount).toBe(5);
     expect(s.mentionCount).toBe(8);
+    expect(s.clientBrandMentions).toBe(6);
     expect(s.dateIso).toBe("2026-05-10");
   });
 
@@ -180,6 +182,7 @@ describe("MetricStore", () => {
       citationCount: 8,
       mentionCount: 8,
       allBrandMentions: 0,
+      clientBrandMentions: 0,
       visibilityScoreSum: 16,
       promptResponseCount: 10,
     });
@@ -189,6 +192,7 @@ describe("MetricStore", () => {
       citationCount: 16,
       mentionCount: 16,
       allBrandMentions: 8,
+      clientBrandMentions: 5,
       visibilityScoreSum: 43,
       promptResponseCount: 20,
     });
@@ -197,6 +201,7 @@ describe("MetricStore", () => {
     expect(agg.totalCitations).toBe(16);
     expect(agg.totalMentions).toBe(16);
     expect(agg.totalAllBrandMentions).toBe(8);
+    expect(agg.totalClientBrandMentions).toBe(5);
     expect(agg.totalVisibilityScore).toBe(43);
     expect(agg.totalResponses).toBe(20);
   });
@@ -208,6 +213,7 @@ describe("MetricStore", () => {
       citationCount: 4,
       mentionCount: 4,
       allBrandMentions: 2,
+      clientBrandMentions: 1,
       visibilityScoreSum: 8,
       promptResponseCount: 5,
     });
@@ -217,6 +223,7 @@ describe("MetricStore", () => {
       citationCount: 16,
       mentionCount: 16,
       allBrandMentions: 8,
+      clientBrandMentions: 7,
       visibilityScoreSum: 43,
       promptResponseCount: 20,
     });
@@ -225,6 +232,7 @@ describe("MetricStore", () => {
     expect(agg.totalCitations).toBe(12);
     expect(agg.totalMentions).toBe(12);
     expect(agg.totalAllBrandMentions).toBe(6);
+    expect(agg.totalClientBrandMentions).toBe(6);
     expect(agg.totalVisibilityScore).toBe(35);
     expect(agg.totalResponses).toBe(15);
   });

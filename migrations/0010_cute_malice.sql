@@ -1,0 +1,1 @@
+ALTER TABLE `metric_snapshots_daily` ADD `client_brand_mentions` integer DEFAULT 0 NOT NULL;

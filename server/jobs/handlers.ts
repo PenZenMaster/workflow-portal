@@ -313,6 +313,7 @@ export function registerJobHandlers(runner: JobRunner): void {
       let citationCount = 0;
       let mentionCount = 0;
       let allBrandMentions = 0;
+      let clientBrandMentions = 0;
       let visibilityScoreSum = 0;
       let promptResponseCount = 0;
 
@@ -334,6 +335,7 @@ export function registerJobHandlers(runner: JobRunner): void {
           if (hasMention || hasCitation) mentionCount++;
           if (hasCitation) citationCount++;
           allBrandMentions += mentions.length;
+          clientBrandMentions += mentions.filter((m) => m.brandId === clientBrand.id).length;
           visibilityScoreSum += computeVisibilityScore(mentions, citations, clientBrand.id);
         }
       }
@@ -346,6 +348,7 @@ export function registerJobHandlers(runner: JobRunner): void {
         citationCount,
         mentionCount,
         allBrandMentions,
+        clientBrandMentions,
         visibilityScoreSum,
         promptResponseCount,
       });

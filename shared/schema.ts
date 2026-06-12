@@ -569,6 +569,7 @@ export const metricSnapshotsDaily = sqliteTable("metric_snapshots_daily", {
   citationCount: integer("citation_count").notNull().default(0),
   mentionCount: integer("mention_count").notNull().default(0),
   allBrandMentions: integer("all_brand_mentions").notNull().default(0),
+  clientBrandMentions: integer("client_brand_mentions").notNull().default(0),
   visibilityScoreSum: real("visibility_score_sum").notNull().default(0),
   promptResponseCount: integer("prompt_response_count").notNull().default(0),
 });
@@ -604,6 +605,7 @@ export type MetricSnapshotDaily = {
   citationCount: number;
   mentionCount: number;
   allBrandMentions: number;
+  clientBrandMentions: number;
   visibilityScoreSum: number;
   promptResponseCount: number;
 };

@@ -56,6 +56,7 @@ describe("GET /api/clients/:id/metrics/overview", () => {
   it("returns 200 with aggregate metrics", async () => {
     mockMetricStore.aggregateForPeriod.mockResolvedValue({
       totalCitations: 5, totalMentions: 8, totalAllBrandMentions: 20,
+      totalClientBrandMentions: 6,
       totalVisibilityScore: 42.5, totalResponses: 10,
     });
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/overview?period=30d");
@@ -65,6 +66,17 @@ describe("GET /api/clients/:id/metrics/overview", () => {
     expect(res.body.data).toHaveProperty("aiSoV");
     expect(res.body.data).toHaveProperty("avgVisibilityScore");
   });
+
+  it("computes aiSoV from client brand mentions, not response-count mentions, so it cannot exceed 100", async () => {
+    mockMetricStore.aggregateForPeriod.mockResolvedValue({
+      totalCitations: 5, totalMentions: 8, totalAllBrandMentions: 20,
+      totalClientBrandMentions: 6,
+      totalVisibilityScore: 42.5, totalResponses: 10,
+    });
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/overview?period=30d");
+    expect(res.status).toBe(200);
+    expect(res.body.data.aiSoV).toBe(30);
+  });
 });
 
 describe("GET /api/clients/:id/metrics/trend", () => {
@@ -72,11 +84,20 @@ describe("GET /api/clients/:id/metrics/trend", () => {
 
   it("returns 200 with trend data", async () => {
     mockMetricStore.listByClient.mockResolvedValue([
-      { dateIso: "2026-05-10", mentionCount: 5, citationCount: 3, allBrandMentions: 15, promptResponseCount: 10, visibilityScoreSum: 20 },
+      { dateIso: "2026-05-10", mentionCount: 5, citationCount: 3, allBrandMentions: 15, clientBrandMentions: 3, promptResponseCount: 10, visibilityScoreSum: 20 },
     ]);
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/trend?metric=mentionRate&period=30d");
     expect(res.status).toBe(200);
     expect(res.body.data).toBeInstanceOf(Array);
+  });
+
+  it("computes aiSoV trend values from clientBrandMentions, not mentionCount", async () => {
+    mockMetricStore.listByClient.mockResolvedValue([
+      { dateIso: "2026-05-10", mentionCount: 5, citationCount: 3, allBrandMentions: 15, clientBrandMentions: 3, promptResponseCount: 10, visibilityScoreSum: 20 },
+    ]);
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/trend?metric=aiSoV&period=30d");
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].value).toBe(20);
   });
 });
 
@@ -85,12 +106,26 @@ describe("GET /api/clients/:id/metrics/sov", () => {
 
   it("returns 200 with SoV data", async () => {
     mockMetricStore.aggregateForPeriod.mockResolvedValue({
-      totalCitations: 0, totalMentions: 5, totalAllBrandMentions: 20,
+      totalCitations: 0, totalMentions: 8, totalAllBrandMentions: 20,
+      totalClientBrandMentions: 5,
       totalVisibilityScore: 0, totalResponses: 10,
     });
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/sov");
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveProperty("aiSoV");
+  });
+
+  it("derives aiSoV and clientMentions from clientBrandMentions, capping the ratio at <=100", async () => {
+    mockMetricStore.aggregateForPeriod.mockResolvedValue({
+      totalCitations: 0, totalMentions: 8, totalAllBrandMentions: 20,
+      totalClientBrandMentions: 5,
+      totalVisibilityScore: 0, totalResponses: 10,
+    });
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/sov");
+    expect(res.status).toBe(200);
+    expect(res.body.data.aiSoV).toBe(25);
+    expect(res.body.data.clientMentions).toBe(5);
+    expect(res.body.data.allBrandMentions).toBe(20);
   });
 });
 

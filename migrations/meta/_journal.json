@@ -71,6 +71,13 @@
       "when": 1778422424615,
       "tag": "0009_chubby_celestials",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1781297666342,
+      "tag": "0010_cute_malice",
+      "breakpoints": true
     }
   ]
 }

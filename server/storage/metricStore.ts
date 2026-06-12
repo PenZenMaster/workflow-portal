@@ -32,6 +32,7 @@ function hydrate(row: Row): MetricSnapshotDaily {
     citationCount: row.citationCount,
     mentionCount: row.mentionCount,
     allBrandMentions: row.allBrandMentions,
+    clientBrandMentions: row.clientBrandMentions,
     visibilityScoreSum: row.visibilityScoreSum,
     promptResponseCount: row.promptResponseCount,
   };
@@ -43,6 +44,7 @@ export interface AggregateResult {
   totalCitations: number;
   totalMentions: number;
   totalAllBrandMentions: number;
+  totalClientBrandMentions: number;
   totalVisibilityScore: number;
   totalResponses: number;
 }
@@ -79,6 +81,7 @@ export class MetricStore implements IMetricStore {
           citationCount: data.citationCount,
           mentionCount: data.mentionCount,
           allBrandMentions: data.allBrandMentions,
+          clientBrandMentions: data.clientBrandMentions,
           visibilityScoreSum: data.visibilityScoreSum,
           promptResponseCount: data.promptResponseCount,
         })
@@ -98,6 +101,7 @@ export class MetricStore implements IMetricStore {
         citationCount: data.citationCount,
         mentionCount: data.mentionCount,
         allBrandMentions: data.allBrandMentions,
+        clientBrandMentions: data.clientBrandMentions,
         visibilityScoreSum: data.visibilityScoreSum,
         promptResponseCount: data.promptResponseCount,
       })
@@ -166,6 +170,8 @@ export class MetricStore implements IMetricStore {
       totalCitations: (end?.citationCount ?? 0) - (baseline?.citationCount ?? 0),
       totalMentions: (end?.mentionCount ?? 0) - (baseline?.mentionCount ?? 0),
       totalAllBrandMentions: (end?.allBrandMentions ?? 0) - (baseline?.allBrandMentions ?? 0),
+      totalClientBrandMentions:
+        (end?.clientBrandMentions ?? 0) - (baseline?.clientBrandMentions ?? 0),
       totalVisibilityScore: (end?.visibilityScoreSum ?? 0) - (baseline?.visibilityScoreSum ?? 0),
       totalResponses: (end?.promptResponseCount ?? 0) - (baseline?.promptResponseCount ?? 0),
     };

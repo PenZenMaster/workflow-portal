@@ -57,7 +57,7 @@ export function registerMetricRoutes(app: Express): void {
     ok(res, {
       citationFrequency: computeCitationFrequency(agg.totalCitations, agg.totalResponses),
       mentionRate: computeMentionRate(agg.totalMentions, agg.totalResponses),
-      aiSoV: computeAISoV(agg.totalMentions, agg.totalAllBrandMentions),
+      aiSoV: computeAISoV(agg.totalClientBrandMentions, agg.totalAllBrandMentions),
       avgVisibilityScore:
         agg.totalResponses > 0
           ? agg.totalVisibilityScore / agg.totalResponses
@@ -91,7 +91,7 @@ export function registerMetricRoutes(app: Express): void {
       else if (metric === "citationFrequency")
         value = computeCitationFrequency(s.citationCount, s.promptResponseCount);
       else if (metric === "aiSoV")
-        value = computeAISoV(s.mentionCount, s.allBrandMentions);
+        value = computeAISoV(s.clientBrandMentions, s.allBrandMentions);
       else if (metric === "avgVisibilityScore")
         value = s.promptResponseCount > 0 ? s.visibilityScoreSum / s.promptResponseCount : 0;
       return { date: s.dateIso, value: Math.round(value * 100) / 100 };
@@ -113,8 +113,8 @@ export function registerMetricRoutes(app: Express): void {
     const agg = await metricStore.aggregateForPeriod(clientId, fromDate, toDate);
 
     ok(res, {
-      aiSoV: computeAISoV(agg.totalMentions, agg.totalAllBrandMentions),
-      clientMentions: agg.totalMentions,
+      aiSoV: computeAISoV(agg.totalClientBrandMentions, agg.totalAllBrandMentions),
+      clientMentions: agg.totalClientBrandMentions,
       allBrandMentions: agg.totalAllBrandMentions,
       fromDate,
       toDate,

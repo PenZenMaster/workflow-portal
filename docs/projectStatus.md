@@ -1,25 +1,55 @@
 ## Resume From
 
 Last session: 2026-06-12
-Last commit: (pending) feat(ai-visibility): show re-parse progress and completion on RunDetail — v1.5.0
-Branch: main | Version: v1.5.0 | 485 tests passing
+Last commit: (pending) fix(ai-visibility): AI SoV numerator now uses raw client-brand
+mention-row counts, capping the ratio at 100% — v1.6.0
+Branch: main | Version: v1.6.0 | 488 tests passing
 Production: v1.4.0 deployed to pre-production and passed internal QA (not yet exposed to clients);
-v1.4.1, v1.4.2, v1.5.0 not yet deployed.
+v1.4.1, v1.4.2, v1.5.0, v1.6.0 not yet deployed.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Package and deploy v1.4.1 + v1.4.2 + v1.5.0 to pre-production.
-2. TD-14 root cause confirmed (see Post-Sprint v1.4.2/TD-14 notes below): brand_aliases
-   for Salvo's own brand (brand_id=4) is empty in production. User is adding the
-   "Salvo Metal Works" alias via the portal UI (Brands section) and re-parsing runs
-   6, 7, and 8 — verify response_mentions populate for run 6 afterward.
-3. Continue internal review of the consolidated AI Visibility client page
+1. Package and deploy v1.4.1 + v1.4.2 + v1.5.0 + v1.6.0 to pre-production.
+2. TD-14 alias fix + re-parse of Salvo runs 6-8 appears to have been completed live
+   (user reported a new AI SoV reading afterward) — re-verify response_mentions
+   populate for run 6 and that the 20-vs-60 response count discrepancy noted in the
+   v1.4.2 TD-14 notes below has resolved now that run 8 is included.
+3. After deploying v1.6.0, re-check Salvo's AI SoV on Overview/SoV — it should now be
+   <=100% (previously read 153%, see Post-Sprint v1.6.0 notes below).
+4. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
 
 ---
+
+## Post-Sprint Work This Session (v1.6.0)
+
+- Fix: AI Share of Voice could exceed 100% (reported as 153% for Salvo Metal Works).
+  Root cause: `computeAISoV(mentionCount, allBrandMentions)` divided two incompatible
+  units — `mentionCount` counts *responses* where the client brand was mentioned OR
+  cited (including citation-only responses with zero `response_mentions` rows), while
+  `allBrandMentions` counts raw `response_mentions` *rows* across all brands. Mixing a
+  response-count numerator with a row-count denominator allowed the ratio to exceed
+  100%.
+  - shared/schema.ts: added `clientBrandMentions` column to `metricSnapshotsDaily` +
+    `MetricSnapshotDaily` type. Migration 0010_cute_malice.sql.
+  - server/storage.ts: SCHEMA_SQL (in-memory test DB) gains `client_brand_mentions`.
+  - server/storage/metricStore.ts: hydrate(), AggregateResult, upsert(), and
+    aggregateForPeriod() all carry `clientBrandMentions` / `totalClientBrandMentions`.
+  - server/jobs/handlers.ts (aggregate-snapshot-daily): now also tallies
+    `clientBrandMentions` — the raw `response_mentions` row count where
+    `brandId === clientBrand.id` — across all completed responses.
+  - server/routes/metrics.ts: Overview, trend (`aiSoV` case), and `/sov` all derive
+    AI SoV from `totalClientBrandMentions` / `clientBrandMentions` instead of
+    `totalMentions` / `mentionCount`. Both numerator and denominator are now raw
+    mention-row counts, so AI SoV cannot exceed 100%.
+  - docs/system-documentation.md Section 2.2 AI SoV "Data sources" updated to describe
+    the corrected formula.
+  - tests/server/storage/metrics.test.ts + tests/server/metrics.routes.test.ts: 3 new
+    tests (TDD — confirmed failing before implementation). 488 tests passing.
+  - Not yet deployed.
 
 ## Post-Sprint Work This Session (v1.5.0)
 

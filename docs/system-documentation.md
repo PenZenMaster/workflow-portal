@@ -125,8 +125,9 @@ When a run is triggered:
 5. Detected citations are stored in `response_citations` with URL, root domain, and ownership
 6. The **sentiment-classify** job applies a rule-based lexicon to score each mention
 7. The **aggregate-snapshot-daily** job recomputes lifetime cumulative totals (citation count,
-   mention count, all-brand mentions, visibility score sum, response count) from every
-   completed response and stores them in `metric_snapshots_daily` as of today's date.
+   mention count, all-brand mentions, client-brand mentions, visibility score sum, response
+   count) from every completed response and stores them in `metric_snapshots_daily` as of
+   today's date.
    Overview/trend reports for a given period (30d/90d/365d) derive their totals as the
    **delta** between the latest snapshot at or before the period end and the latest
    snapshot before the period start — not a sum of every snapshot row in the period
@@ -199,8 +200,11 @@ AI SoV = (Client brand mentions / All tracked brand mentions) × 100
 
 **Data sources:** `response_mentions` rows where `brand_id` = the client's brand, divided by
 all `response_mentions` rows for any brand (`kind = 'client'` or `'competitor'`) configured
-on the client record. Period totals come from `metric_snapshots_daily.mention_count` /
-`.all_brand_mentions`.
+on the client record. Period totals come from `metric_snapshots_daily.client_brand_mentions`
+/ `.all_brand_mentions` — both are raw `response_mentions` row counts, so the ratio cannot
+exceed 100% (fixed in v1.6.0; previously the numerator used `mention_count`, a
+response-count that could include citation-only responses with zero mention rows,
+allowing AI SoV to exceed 100%).
 
 **What it means to the client:** This is a relative, competitive metric — even if the
 client's own Mention Rate is steady, AI SoV can fall if competitors are gaining ground in

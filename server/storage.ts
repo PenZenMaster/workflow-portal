@@ -304,6 +304,7 @@ export const SCHEMA_SQL = `
     citation_count INTEGER NOT NULL DEFAULT 0,
     mention_count INTEGER NOT NULL DEFAULT 0,
     all_brand_mentions INTEGER NOT NULL DEFAULT 0,
+    client_brand_mentions INTEGER NOT NULL DEFAULT 0,
     visibility_score_sum REAL NOT NULL DEFAULT 0,
     prompt_response_count INTEGER NOT NULL DEFAULT 0
   );
