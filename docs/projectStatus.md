@@ -1,7 +1,7 @@
 ## Resume From
 
 Last session: 2026-06-11
-Last commit: (pending) chore(checkpoint): 2026-06-11 — job runner monitoring v1.3.0
+Last commit: a0f196f feat(jobs): self-healing job runner + admin monitoring/recovery UI — v1.3.0
 Branch: main | Version: v1.3.0 | 471 tests passing
 Production: v1.2.7 live in pre-production (v1.2.8/v1.3.0 not yet deployed)
 
