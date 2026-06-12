@@ -124,7 +124,14 @@ When a run is triggered:
 4. Detected mentions are stored in `response_mentions` with position, section, and evidence text
 5. Detected citations are stored in `response_citations` with URL, root domain, and ownership
 6. The **sentiment-classify** job applies a rule-based lexicon to score each mention
-7. The **aggregate-snapshot-daily** job computes daily KPI totals
+7. The **aggregate-snapshot-daily** job recomputes lifetime cumulative totals (citation count,
+   mention count, all-brand mentions, visibility score sum, response count) from every
+   completed response and stores them in `metric_snapshots_daily` as of today's date.
+   Overview/trend reports for a given period (30d/90d/365d) derive their totals as the
+   **delta** between the latest snapshot at or before the period end and the latest
+   snapshot before the period start — not a sum of every snapshot row in the period
+   (fixed in v1.4.1; summing previously double-counted clients with snapshot history
+   spanning multiple dates).
 
 ---
 
@@ -139,6 +146,20 @@ Citation Frequency = (Responses where client domain is cited / Total responses) 
 
 A response counts as "cited" when a URL whose root domain matches the client's primary domain appears in the Perplexity citations list.
 
+**Data sources:** `response_citations` rows where `owned_by_brand_id` = the client's brand
+(joined from `responses_raw` for the client's `prompt_runs`), divided by total `responses_raw`
+rows with `status = 'complete'`. Period totals come from `metric_snapshots_daily.citation_count`
+/ `.prompt_response_count` (see Section 2.1, step 7).
+
+**What it means to the client:** AI engines are recommending the client's own website as a
+source — this drives direct AI-referral traffic (see Section 2.4) and signals the engine
+trusts the client's domain as authoritative for the topic.
+
+**How to improve it:** See "High mention rate, low citation frequency" and general
+citation-building guidance in Section 3.4 — pursue authoritative third-party citations,
+structured data/schema markup, and consistent NAP data so the engine has more reasons to
+link directly to the client's site.
+
 #### Mention Rate
 > What share of AI responses mention or cite the client brand at all?
 
@@ -148,6 +169,20 @@ Mention Rate = (Responses where client is mentioned or cited / Total responses) 
 
 A response counts as "mentioned" when any alias matches in the response text, OR the client domain is cited.
 
+**Data sources:** distinct `responses_raw` rows that have a `response_mentions` row with
+`brand_id` = the client's brand, OR a `response_citations` row with `owned_by_brand_id` =
+the client's brand, divided by total `responses_raw` rows with `status = 'complete'`.
+Period totals come from `metric_snapshots_daily.mention_count` / `.prompt_response_count`.
+
+**What it means to the client:** This is the broadest visibility signal — whether the
+client comes up at all when someone asks an AI a relevant question, by name or by link.
+A client can have a high Mention Rate but a much lower Citation Frequency if the AI talks
+about them without linking to their site.
+
+**How to improve it:** See "Low mention rate overall" in Section 3.4 — create
+category-definition content and comparison pages, and pursue third-party coverage on
+authoritative domains so the brand name itself becomes part of the AI's answer.
+
 #### AI Share of Voice
 > What fraction of all tracked brand mentions belong to the client?
 
@@ -156,6 +191,21 @@ AI SoV = (Client brand mentions / All tracked brand mentions) × 100
 ```
 
 "All tracked brand mentions" includes mentions of the client AND all configured competitors across the same prompt set.
+
+**Data sources:** `response_mentions` rows where `brand_id` = the client's brand, divided by
+all `response_mentions` rows for any brand (`kind = 'client'` or `'competitor'`) configured
+on the client record. Period totals come from `metric_snapshots_daily.mention_count` /
+`.all_brand_mentions`.
+
+**What it means to the client:** This is a relative, competitive metric — even if the
+client's own Mention Rate is steady, AI SoV can fall if competitors are gaining ground in
+the same answers. It answers "out of all the brands AI could have mentioned here, how
+often was it us?"
+
+**How to improve it:** See "Competitor citation advantage" in Section 3.4 — identify which
+domains are citing competitors and pursue mentions or guest content on those same domains;
+add or refresh comparison/alternative-style content that names the client alongside
+competitors.
 
 #### Avg Visibility Score
 > How prominently does the client appear when they are mentioned?
@@ -175,6 +225,21 @@ Avg Visibility Score = Sum of all visibility scores / Number of responses
 ```
 
 Maximum possible score per response: 9 points (all five components present).
+
+**Data sources:** per-response scores are computed by `computeVisibilityScore()`
+(`server/services/scoring.ts`) from that response's `response_mentions` and
+`response_citations` rows at parse time. Period totals come from
+`metric_snapshots_daily.visibility_score_sum` / `.prompt_response_count`.
+
+**What it means to the client:** Mention Rate and Citation Frequency tell you *whether*
+the client shows up; Avg Visibility Score tells you *how well* — whether they're buried in
+a list, named first, discussed in the summary, or backed by trusted sources.
+
+**How to improve it:** See "High visibility score but low conversion via GA4" in Section
+3.4 for the traffic side. To raise the score itself, target whichever M+S+R+C+T components
+are weakest — e.g. if citations (C) are missing, focus on citation-building; if the brand
+is never first-ranked (R), focus on category-definition content that positions the client
+as the leading/default choice.
 
 ---
 
