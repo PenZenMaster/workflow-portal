@@ -1,25 +1,33 @@
 ## Resume From
 
-Last session: 2026-06-11
-Last commit: a0f196f feat(jobs): self-healing job runner + admin monitoring/recovery UI — v1.3.0
-Branch: main | Version: v1.3.0 | 471 tests passing
-Production: v1.2.7 live in pre-production (v1.2.8/v1.3.0 not yet deployed)
+Last session: 2026-06-12
+Last commit: c82c559 feat(ai-visibility): consolidate client report sections onto one page — v1.4.0
+Branch: main | Version: v1.4.0 | 474 tests passing
+Production: v1.4.0 deployed to pre-production and passed internal QA (not yet exposed to clients)
+
+v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
+health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Deploy v1.3.0 (bundles v1.2.8 brand_aliases auto-seed fix + job runner monitoring)
-2. After deploy, run the brand_aliases backfill SQL against production ~/persistent/data.db
-   (4 INSERTs — Rank Rocket Co., Linkon Logs Portables, Camphouse, Salvo Metal Works —
-   see chat history 2026-06-11 for exact statements)
-3. Restart the Node app on cPanel — new self-healing job runner will auto-drain any
-   stuck jobs (verified locally: it cleared 15 jobs stuck 9+ days from Salvo run 7)
-4. Use the Re-parse button on RunDetail for Salvo's runs 6 & 7 to regenerate
-   mentions/citations/sentiment for responses that predate the alias fix
-5. Visit /admin/jobs (super_admin) to confirm health banner + queue counts look correct
-   in production
+1. No outstanding deploy actions. Pre-production is on v1.4.0, internal QA passed.
+2. Continue internal review of the consolidated AI Visibility client page
+   (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
+   on ClientDetail) before exposing pre-production to clients.
 
 ---
 
-## Post-Sprint Work This Session (v1.2.8 – v1.3.0)
+## Post-Sprint Work This Session (v1.4.0)
+
+- v1.4.0 (AI Visibility Page Consolidation): merged the 7 separate report routes
+  (Overview, Mentions, Share of Voice, Sentiment, Sources, Recommendations, Traffic)
+  into inline sections on ClientDetail (client/src/pages/ai/sections/*) for a
+  single-page view. Reports, Prompt Collections, Runs, and Integrations remain as
+  top nav buttons. Removed the now-redundant standalone page routes from App.tsx.
+  Added ClientDetail.test.tsx smoke test (TDD: written first, confirmed failing,
+  then implementation made it pass). 474 tests passing (3 new).
+  Deployed to pre-production and passed internal QA — not yet exposed to clients.
+
+## Post-Sprint Work Previous Session (v1.2.8 – v1.3.0)
 
 - v1.2.8: Root-caused Salvo "no AI Visibility data" report to brand_aliases table being
   empty for all brands (parser only matches against brand.aliases). Fixed by
