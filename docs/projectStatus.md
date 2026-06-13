@@ -1,24 +1,24 @@
 ## Resume From
 
 Last session: 2026-06-12
-Last commit: (pending) feat(prompts): add platform metadata CRUD routes — v1.7.0
+Last commit: 418d09a feat(prompts): add platform metadata CRUD routes — v1.7.0
 Branch: main | Version: v1.7.0 | 515 tests passing
-Production: v1.4.0 - v1.6.0 deployed to pre-production. v1.6.0 verified live: Salvo
-Metal Works AI Share of Voice now reads 88.5% (previously 153%) after re-parsing
-runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix confirmed live.
-v1.6.1 has been tagged/pushed; v1.6.1 and v1.7.0 not yet packaged/deployed to
-pre-production.
+Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
+live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
+re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
+confirmed live. v1.6.1 (TD-15 + sentimentStore cross-client leak fix) deployed and
+QA passed. v1.7.0 packaged this session, not yet deployed.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. B-11 Phase 2 (frontend): admin "AI Platforms" page (super_admin/agency_admin nav
+1. Deploy v1.7.0 to pre-production (B-11 Phase 1 backend platform CRUD).
+2. B-11 Phase 2 (frontend): admin "AI Platforms" page (super_admin/agency_admin nav
    link) — list platforms with displayName/slug/enabled toggle and
    Connected/Not-configured badge (from `config.configuredPlatforms`), edit dialog,
    add-custom-platform dialog, delete with 409 PLATFORM_IN_USE handling. Also extend
    Integrations.tsx to show connection status for all 5 target LLMs.
-2. Package and deploy v1.6.1 + v1.7.0 to pre-production.
 3. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
