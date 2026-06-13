@@ -6,6 +6,8 @@ import { PlatformStore } from "../../../server/storage/platformStore";
 import { PromptCollectionStore } from "../../../server/storage/promptCollectionStore";
 import { PromptStore } from "../../../server/storage/promptStore";
 import { ClientStore } from "../../../server/storage/clientStore";
+import { RunStore } from "../../../server/storage/runStore";
+import { ResponseStore } from "../../../server/storage/responseStore";
 
 function makeDb() {
   const sqlite = new Database(":memory:");
@@ -27,10 +29,12 @@ const SAMPLE_PROMPT = {
 
 // ---------------------------------------------------------------------------
 describe("PlatformStore", () => {
+  let db: ReturnType<typeof makeDb>;
   let store: PlatformStore;
 
   beforeEach(() => {
-    store = new PlatformStore(makeDb());
+    db = makeDb();
+    store = new PlatformStore(db);
   });
 
   it("seedDefaults inserts all 7 platforms when table is empty", async () => {
@@ -57,6 +61,83 @@ describe("PlatformStore", () => {
 
   it("get returns undefined for unknown id", async () => {
     expect(await store.get(9999)).toBeUndefined();
+  });
+
+  it("create adds a custom platform with enabled=true and empty config by default", async () => {
+    const p = await store.create({ slug: "custom-llm", displayName: "Custom LLM" });
+    expect(p.slug).toBe("custom-llm");
+    expect(p.displayName).toBe("Custom LLM");
+    expect(p.enabled).toBe(true);
+    expect(p.config).toEqual({});
+  });
+
+  it("create stores provided config", async () => {
+    const p = await store.create({
+      slug: "custom-llm",
+      displayName: "Custom LLM",
+      config: { baseUrl: "https://api.example.com", model: "custom-1" },
+    });
+    expect(p.config).toEqual({ baseUrl: "https://api.example.com", model: "custom-1" });
+  });
+
+  it("getBySlug returns the platform with that slug", async () => {
+    await store.seedDefaults();
+    const found = await store.getBySlug("perplexity");
+    expect(found?.displayName).toBe("Perplexity");
+  });
+
+  it("getBySlug returns undefined for unknown slug", async () => {
+    expect(await store.getBySlug("nope")).toBeUndefined();
+  });
+
+  it("update changes displayName, enabled, and config", async () => {
+    const p = await store.create({ slug: "custom-llm", displayName: "Custom LLM" });
+    const updated = await store.update(p.id, {
+      displayName: "Renamed",
+      enabled: false,
+      config: { model: "v2" },
+    });
+    expect(updated?.displayName).toBe("Renamed");
+    expect(updated?.enabled).toBe(false);
+    expect(updated?.config).toEqual({ model: "v2" });
+  });
+
+  it("update with partial data only changes provided fields", async () => {
+    const p = await store.create({ slug: "custom-llm", displayName: "Custom LLM", config: { model: "v1" } });
+    const updated = await store.update(p.id, { enabled: false });
+    expect(updated?.displayName).toBe("Custom LLM");
+    expect(updated?.config).toEqual({ model: "v1" });
+    expect(updated?.enabled).toBe(false);
+  });
+
+  it("update returns undefined for unknown id", async () => {
+    expect(await store.update(9999, { displayName: "x" })).toBeUndefined();
+  });
+
+  it("countResponses returns 0 when no responses reference the platform", async () => {
+    const p = await store.create({ slug: "custom-llm", displayName: "Custom LLM" });
+    expect(await store.countResponses(p.id)).toBe(0);
+  });
+
+  it("countResponses returns the number of responses using this platform", async () => {
+    const p = await store.create({ slug: "custom-llm", displayName: "Custom LLM" });
+    const runStore = new RunStore(db);
+    const responseStore = new ResponseStore(db);
+    const run = await runStore.create({
+      clientId: 1, collectionId: 10, batchId: "batch-1", totalPrompts: 1, triggeredBy: "manual",
+    });
+    await responseStore.create({ runId: run.id, promptId: 100, platformId: p.id, queryText: "q" });
+    expect(await store.countResponses(p.id)).toBe(1);
+  });
+
+  it("delete removes a platform and returns true", async () => {
+    const p = await store.create({ slug: "custom-llm", displayName: "Custom LLM" });
+    expect(await store.delete(p.id)).toBe(true);
+    expect(await store.get(p.id)).toBeUndefined();
+  });
+
+  it("delete returns false for unknown id", async () => {
+    expect(await store.delete(9999)).toBe(false);
   });
 });
 

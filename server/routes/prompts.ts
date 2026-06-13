@@ -24,6 +24,8 @@ import {
   insertPromptCollectionSchema,
   insertPromptSchema,
   bulkInsertPromptsSchema,
+  insertPlatformSchema,
+  updatePlatformSchema,
 } from "@shared/schema";
 import { requireAuth, requireRole } from "../auth";
 import { ok, created, noContent } from "../response";
@@ -38,6 +40,42 @@ export function registerPromptRoutes(app: Express): void {
   app.get("/api/platforms", requireAuth, async (_req, res) => {
     const data = await platformStore.list();
     ok(res, data);
+  });
+
+  app.post("/api/platforms", requireRole(...ADMIN_ROLES), async (req, res) => {
+    const parsed = insertPlatformSchema.safeParse(req.body);
+    if (!parsed.success)
+      throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
+    const existing = await platformStore.getBySlug(parsed.data.slug);
+    if (existing)
+      throw new AppError(409, "Platform slug already exists", "DUPLICATE_SLUG");
+    const platform = await platformStore.create(parsed.data);
+    created(res, platform);
+  });
+
+  app.patch("/api/platforms/:id", requireRole(...ADMIN_ROLES), async (req, res) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+    const parsed = updatePlatformSchema.safeParse(req.body);
+    if (!parsed.success)
+      throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
+    const platform = await platformStore.update(id, parsed.data);
+    if (!platform)
+      throw new AppError(404, "Platform not found", "PLATFORM_NOT_FOUND");
+    ok(res, platform);
+  });
+
+  app.delete("/api/platforms/:id", requireRole(...ADMIN_ROLES), async (req, res) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+    const platform = await platformStore.get(id);
+    if (!platform)
+      throw new AppError(404, "Platform not found", "PLATFORM_NOT_FOUND");
+    const responseCount = await platformStore.countResponses(id);
+    if (responseCount > 0)
+      throw new AppError(409, "Platform is in use by existing responses", "PLATFORM_IN_USE");
+    await platformStore.delete(id);
+    noContent(res);
   });
 
   // --- Prompt Collections --------------------------------------------------

@@ -4,7 +4,16 @@ import { buildAuthApp } from "./_helpers/buildAuthApp";
 
 // --- mocks ------------------------------------------------------------------
 
-const mockPlatformStore = { list: vi.fn(), get: vi.fn(), seedDefaults: vi.fn() };
+const mockPlatformStore = {
+  list: vi.fn(),
+  get: vi.fn(),
+  getBySlug: vi.fn(),
+  create: vi.fn(),
+  update: vi.fn(),
+  delete: vi.fn(),
+  countResponses: vi.fn(),
+  seedDefaults: vi.fn(),
+};
 const mockCollectionStore = {
   listByClient: vi.fn(),
   get: vi.fn(),
@@ -91,6 +100,126 @@ describe("GET /api/platforms", () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(1);
     expect(res.body.data[0].slug).toBe("perplexity");
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("POST /api/platforms", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp())
+      .post("/api/platforms")
+      .send({ slug: "custom-llm", displayName: "Custom LLM" });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for analyst role", async () => {
+    const res = await request(buildApp("analyst"))
+      .post("/api/platforms")
+      .send({ slug: "custom-llm", displayName: "Custom LLM" });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 400 for invalid slug", async () => {
+    const res = await request(buildApp("agency_admin"))
+      .post("/api/platforms")
+      .send({ slug: "Custom LLM!", displayName: "Custom LLM" });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 409 when slug already exists", async () => {
+    mockPlatformStore.getBySlug.mockResolvedValue(SAMPLE_PLATFORM);
+    const res = await request(buildApp("agency_admin"))
+      .post("/api/platforms")
+      .send({ slug: "perplexity", displayName: "Perplexity Again" });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("DUPLICATE_SLUG");
+  });
+
+  it("creates a custom platform", async () => {
+    mockPlatformStore.getBySlug.mockResolvedValue(undefined);
+    mockPlatformStore.create.mockResolvedValue({
+      id: 8, slug: "custom-llm", displayName: "Custom LLM", enabled: true, config: { model: "v1" },
+    });
+    const res = await request(buildApp("super_admin"))
+      .post("/api/platforms")
+      .send({ slug: "custom-llm", displayName: "Custom LLM", config: { model: "v1" } });
+    expect(res.status).toBe(201);
+    expect(res.body.data.slug).toBe("custom-llm");
+    expect(mockPlatformStore.create).toHaveBeenCalledWith({
+      slug: "custom-llm", displayName: "Custom LLM", config: { model: "v1" },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("PATCH /api/platforms/:id", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).patch("/api/platforms/1").send({ enabled: false });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for analyst role", async () => {
+    const res = await request(buildApp("analyst")).patch("/api/platforms/1").send({ enabled: false });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when platform not found", async () => {
+    mockPlatformStore.update.mockResolvedValue(undefined);
+    const res = await request(buildApp("agency_admin")).patch("/api/platforms/999").send({ enabled: false });
+    expect(res.status).toBe(404);
+  });
+
+  it("updates a platform", async () => {
+    mockPlatformStore.update.mockResolvedValue({
+      id: 1, slug: "perplexity", displayName: "Perplexity", enabled: false, config: {},
+    });
+    const res = await request(buildApp("agency_admin")).patch("/api/platforms/1").send({ enabled: false });
+    expect(res.status).toBe(200);
+    expect(res.body.data.enabled).toBe(false);
+    expect(mockPlatformStore.update).toHaveBeenCalledWith(1, { enabled: false });
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("DELETE /api/platforms/:id", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).delete("/api/platforms/1");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for analyst role", async () => {
+    const res = await request(buildApp("analyst")).delete("/api/platforms/1");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when platform not found", async () => {
+    mockPlatformStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("agency_admin")).delete("/api/platforms/999");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 409 when the platform has responses", async () => {
+    mockPlatformStore.get.mockResolvedValue(SAMPLE_PLATFORM);
+    mockPlatformStore.countResponses.mockResolvedValue(3);
+    const res = await request(buildApp("agency_admin")).delete("/api/platforms/1");
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("PLATFORM_IN_USE");
+    expect(mockPlatformStore.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes a platform with no responses", async () => {
+    mockPlatformStore.get.mockResolvedValue(SAMPLE_PLATFORM);
+    mockPlatformStore.countResponses.mockResolvedValue(0);
+    mockPlatformStore.delete.mockResolvedValue(true);
+    const res = await request(buildApp("agency_admin")).delete("/api/platforms/1");
+    expect(res.status).toBe(204);
+    expect(mockPlatformStore.delete).toHaveBeenCalledWith(1);
   });
 });
 

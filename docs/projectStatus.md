@@ -1,26 +1,51 @@
 ## Resume From
 
 Last session: 2026-06-12
-Last commit: (pending) fix(ai-visibility): scope citation and sentiment data to client
-via run join — v1.6.1
-Branch: main | Version: v1.6.1 | 490 tests passing
+Last commit: (pending) feat(prompts): add platform metadata CRUD routes — v1.7.0
+Branch: main | Version: v1.7.0 | 515 tests passing
 Production: v1.4.0 - v1.6.0 deployed to pre-production. v1.6.0 verified live: Salvo
 Metal Works AI Share of Voice now reads 88.5% (previously 153%) after re-parsing
 runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix confirmed live.
-v1.6.1 not yet deployed.
+v1.6.1 has been tagged/pushed; v1.6.1 and v1.7.0 not yet packaged/deployed to
+pre-production.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Package and deploy v1.6.1 to pre-production (fixes TD-15 + the same cross-client
-   leak in sentimentStore — see Post-Sprint v1.6.1 notes below).
-2. Continue internal review of the consolidated AI Visibility client page
+1. B-11 Phase 2 (frontend): admin "AI Platforms" page (super_admin/agency_admin nav
+   link) — list platforms with displayName/slug/enabled toggle and
+   Connected/Not-configured badge (from `config.configuredPlatforms`), edit dialog,
+   add-custom-platform dialog, delete with 409 PLATFORM_IN_USE handling. Also extend
+   Integrations.tsx to show connection status for all 5 target LLMs.
+2. Package and deploy v1.6.1 + v1.7.0 to pre-production.
+3. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
-3. See Tech Debt Register and Backlog below for next priorities.
+4. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.7.0)
+
+- Feature (B-11 Phase 1): backend CRUD for LLM platform metadata.
+  - shared/schema.ts: added `insertPlatformSchema` (slug regex
+    `^[a-z0-9-]+$`, displayName, optional config) and `updatePlatformSchema`
+    (displayName/enabled/config all optional).
+  - server/storage/platformStore.ts: added `getBySlug`, `create`, `update`,
+    `delete`, `countResponses` to `IPlatformStore`/`PlatformStore`.
+  - server/routes/prompts.ts: added `POST /api/platforms` (400 validation, 409
+    DUPLICATE_SLUG, 201), `PATCH /api/platforms/:id` (404 PLATFORM_NOT_FOUND, 200),
+    `DELETE /api/platforms/:id` (404, 409 PLATFORM_IN_USE when countResponses > 0,
+    204) — all gated to ADMIN_ROLES.
+  - tests/server/_helpers/buildAuthApp.ts: added the same AppError-aware error
+    handler used in server/index.ts so route tests can assert on `res.body.code`.
+  - tests/server/storage/prompts.test.ts: 11 new PlatformStore tests (29/29 passing).
+  - tests/server/prompts.routes.test.ts: 12 new route tests for POST/PATCH/DELETE
+    /api/platforms (36/36 passing).
+  - 515 tests passing (25 new). API keys remain in .env/cPanel env vars — this CRUD
+    only manages platform metadata (slug/displayName/enabled/config).
+  - Phase 2 (frontend) not started — see B-11 in Backlog.
 
 ## Post-Sprint Work This Session (v1.6.1)
 
@@ -341,7 +366,14 @@ Confirmed decisions:
 ### High Priority
 - B-11 Feature: LLM integrations CRUD — add a mechanism to create/read/update/delete
   LLM platform integrations. Target LLMs: ChatGPT, Grok, Perplexity, Claude, and Google
-  AI (Gemini).
+  AI (Gemini). **Phase 1 (backend CRUD, v1.7.0) COMPLETE** — API keys stay in
+  .env/cPanel env vars; CRUD applies to platform metadata only (slug, displayName,
+  enabled, config). Added `POST/PATCH/DELETE /api/platforms[/:id]` (ADMIN_ROLES),
+  `insertPlatformSchema`/`updatePlatformSchema` in shared/schema.ts, and
+  `create`/`update`/`delete`/`getBySlug`/`countResponses` on PlatformStore (delete is
+  blocked with 409 PLATFORM_IN_USE if responses reference the platform). **Phase 2
+  (frontend — admin "AI Platforms" page, enabled toggle, connection-status badges,
+  custom platform add/edit/delete UI) is NOT started.**
 - B-12 Feature: AI-assisted prompt generation for Prompt Collections — when a Prompt
   Collection is created, offer the user an option to have AI research and generate
   prompts using the client's Brand, website URL, and configured competitors. Generated

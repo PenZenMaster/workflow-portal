@@ -16,8 +16,9 @@
 
 import express from "express";
 import session from "express-session";
-import type { Express } from "express";
+import type { Express, NextFunction, Request, Response } from "express";
 import type { UserRole } from "../../../server/auth";
+import { AppError } from "../../../server/errors";
 
 export interface AuthAppOptions {
   /** Role to inject into req.session.user. Omit to leave unauthenticated. */
@@ -65,5 +66,17 @@ export function buildAuthApp(
   }
 
   configure(app);
+
+  app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+    if (res.headersSent) {
+      return next(err);
+    }
+    if (err instanceof AppError) {
+      return res.status(err.statusCode).json({ error: err.message, code: err.code ?? null });
+    }
+    console.error("[Unhandled error]", err);
+    return res.status(500).json({ error: "Internal server error" });
+  });
+
   return app;
 }

@@ -340,6 +340,25 @@ export type Platform = {
   config: Record<string, unknown>;
 };
 
+export const insertPlatformSchema = z.object({
+  slug: z
+    .string()
+    .min(1, "Slug is required")
+    .max(50)
+    .regex(/^[a-z0-9-]+$/, "Slug must contain only lowercase letters, numbers, and hyphens"),
+  displayName: z.string().min(1, "Display name is required").max(100),
+  config: z.record(z.unknown()).default({}),
+});
+
+export const updatePlatformSchema = z.object({
+  displayName: z.string().min(1, "Display name is required").max(100).optional(),
+  enabled: z.boolean().optional(),
+  config: z.record(z.unknown()).optional(),
+});
+
+export type InsertPlatform = z.infer<typeof insertPlatformSchema>;
+export type UpdatePlatform = z.infer<typeof updatePlatformSchema>;
+
 export type PromptCollection = {
   id: number;
   clientId: number;
