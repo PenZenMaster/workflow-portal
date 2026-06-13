@@ -1,30 +1,50 @@
 ## Resume From
 
 Last session: 2026-06-12
-Last commit: 418d09a feat(prompts): add platform metadata CRUD routes — v1.7.0
-Branch: main | Version: v1.7.0 | 515 tests passing
+Last commit: (pending) feat(admin): add AI Platforms management page — v1.8.0
+Branch: main | Version: v1.8.0 | 518 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
 confirmed live. v1.6.1 (TD-15 + sentimentStore cross-client leak fix) deployed and
-QA passed. v1.7.0 packaged this session, not yet deployed.
+QA passed. v1.7.0 (platform CRUD API) verified live and QA passed against
+pre-production (GET /api/platforms returns the 7 seeded platforms with
+enabled/config fields). v1.8.0 packaged this session, not yet deployed.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Deploy v1.7.0 to pre-production (B-11 Phase 1 backend platform CRUD).
-2. B-11 Phase 2 (frontend): admin "AI Platforms" page (super_admin/agency_admin nav
-   link) — list platforms with displayName/slug/enabled toggle and
-   Connected/Not-configured badge (from `config.configuredPlatforms`), edit dialog,
-   add-custom-platform dialog, delete with 409 PLATFORM_IN_USE handling. Also extend
-   Integrations.tsx to show connection status for all 5 target LLMs.
+1. Deploy v1.8.0 to pre-production and verify the new /admin/platforms page (toggle
+   enabled, delete a platform, confirm Connected/Not-configured badges match
+   configuredPlatforms).
+2. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
+   /api/platforms via UI), and extend Integrations.tsx to show connection status for
+   all 5 target LLMs (currently only Perplexity is shown there).
 3. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
 4. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.8.0)
+
+- Feature (B-11 Phase 2 core): "AI Platforms" admin page.
+  - client/src/pages/admin/Platforms.tsx (new): lists all platforms from
+    GET /api/platforms with displayName/slug, a Connected/Not-configured badge
+    derived from `useAuth().status.config.configuredPlatforms`, an enabled
+    Switch wired to `PATCH /api/platforms/:id`, and a delete button wired to
+    `DELETE /api/platforms/:id` (errors, including 409 PLATFORM_IN_USE, surface
+    via toast).
+  - client/src/App.tsx: registered route `/admin/platforms`.
+  - client/src/pages/Home.tsx: added "AI Platforms" nav link, visible to
+    super_admin and agency_admin (matches backend ADMIN_ROLES).
+  - client/src/pages/admin/Platforms.test.tsx (new): 3 tests covering list
+    rendering with connection badges, enabled-toggle PATCH, and delete DELETE.
+  - 518 tests passing (3 new).
+  - Deferred: "add custom platform" form and Integrations.tsx connection-status
+    badges for all 5 LLMs (see B-11 in Backlog).
 
 ## Post-Sprint Work This Session (v1.7.0)
 
@@ -372,8 +392,12 @@ Confirmed decisions:
   `insertPlatformSchema`/`updatePlatformSchema` in shared/schema.ts, and
   `create`/`update`/`delete`/`getBySlug`/`countResponses` on PlatformStore (delete is
   blocked with 409 PLATFORM_IN_USE if responses reference the platform). **Phase 2
-  (frontend — admin "AI Platforms" page, enabled toggle, connection-status badges,
-  custom platform add/edit/delete UI) is NOT started.**
+  core (v1.8.0) COMPLETE** — new `/admin/platforms` page (super_admin/agency_admin nav
+  link "AI Platforms") lists all platforms with Connected/Not-configured badges
+  (from `config.configuredPlatforms`), an enabled toggle (PATCH), and delete
+  (DELETE, with 409 PLATFORM_IN_USE surfaced via toast). **Remaining**: an
+  "add custom platform" form (POST /api/platforms) and extending Integrations.tsx
+  to show connection status for all 5 target LLMs are deferred follow-ups.
 - B-12 Feature: AI-assisted prompt generation for Prompt Collections — when a Prompt
   Collection is created, offer the user an option to have AI research and generate
   prompts using the client's Brand, website URL, and configured competitors. Generated

@@ -25,6 +25,7 @@ import Integrations from "@/pages/ai/Integrations";
 import OAuthPopup from "@/pages/OAuthPopup";
 import Users from "@/pages/admin/Users";
 import Jobs from "@/pages/admin/Jobs";
+import Platforms from "@/pages/admin/Platforms";
 import { Skeleton } from "@/components/ui/skeleton";
 
 class ErrorBoundary extends Component<
@@ -65,6 +66,7 @@ function AppRouter() {
       <Route path="/share/:token" component={SharePage} />
       <Route path="/admin/users" component={Users} />
       <Route path="/admin/jobs" component={Jobs} />
+      <Route path="/admin/platforms" component={Platforms} />
       <Route path="/ai/clients/:id/settings/integrations" component={Integrations} />
       <Route path="/ai/clients/:id/sentiment/review" component={ReviewQueue} />
       <Route path="/ai/clients/:id/reports" component={Reports} />

@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Plus, Moon, Sun, Lock, LogOut, User, Settings, BarChart2, Users, Activity } from "lucide-react";
+import { Search, Plus, Moon, Sun, Lock, LogOut, User, Settings, BarChart2, Users, Activity, Cpu } from "lucide-react";
 import { Link } from "wouter";
 import { Logo } from "@/components/Logo";
 import { WorkflowCard } from "@/components/WorkflowCard";
@@ -162,6 +162,17 @@ export default function Home() {
             >
               <Activity className="h-4 w-4" />
               Jobs
+            </Link>
+          )}
+
+          {(status?.user?.role === "super_admin" || status?.user?.role === "agency_admin") && (
+            <Link
+              href="/admin/platforms"
+              className="hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mr-2"
+              title="AI platforms"
+            >
+              <Cpu className="h-4 w-4" />
+              AI Platforms
             </Link>
           )}
 
