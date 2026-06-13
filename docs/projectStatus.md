@@ -1,7 +1,7 @@
 ## Resume From
 
 Last session: 2026-06-12
-Last commit: (pending) feat(admin): add AI Platforms management page — v1.8.0
+Last commit: 22f13cb feat(admin): add AI Platforms management page — v1.8.0
 Branch: main | Version: v1.8.0 | 518 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
