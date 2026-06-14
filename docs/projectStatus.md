@@ -607,6 +607,10 @@ Confirmed decisions:
   on an existing Prompt Collection (currently prompts can only be created/removed, not edited).
 
 ### Medium Priority
+- B-17 On /ai/clients/:id/settings/integrations ("Integrations & API Keys"),
+  display the client's name underneath the page heading / AI Platform keys
+  section so the analyst has confirmation of which client's integrations
+  they are viewing/editing.
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
 - B-06 Session store: session expiry cleanup configuration review
 - B-15 Investigate mechanism to create a guided workflow to onboard new clients —
