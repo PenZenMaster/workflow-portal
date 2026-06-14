@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Plus, Moon, Sun, Lock, LogOut, User, Settings, BarChart2, Users, Activity, Cpu } from "lucide-react";
+import { Search, Plus, Moon, Sun, Lock, LogOut, User, Settings, BarChart2, Users, Activity, Cpu, Building2 } from "lucide-react";
 import { Link } from "wouter";
 import { Logo } from "@/components/Logo";
 import { WorkflowCard } from "@/components/WorkflowCard";
@@ -133,6 +133,15 @@ export default function Home() {
           </div>
 
           <div className="flex-1" />
+
+          <Link
+            href="/ai/clients"
+            className="hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mr-2"
+            title="Clients"
+          >
+            <Building2 className="h-4 w-4" />
+            Clients
+          </Link>
 
           <Link
             href="/ai/clients"

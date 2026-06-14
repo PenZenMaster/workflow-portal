@@ -57,19 +57,20 @@ export default function ClientsList() {
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
+      <div className="mb-6">
+        <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
+          Back to Workflows
+        </Link>
+      </div>
+
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Clients</h1>
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-            Back to Workflows
-          </Link>
-          {!showForm && (
-            <Button size="sm" onClick={() => setShowForm(true)}>
-              <Plus className="h-4 w-4 mr-1.5" />
-              New Client
-            </Button>
-          )}
-        </div>
+        {!showForm && (
+          <Button size="sm" onClick={() => setShowForm(true)}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            New Client
+          </Button>
+        )}
       </div>
 
       {/* New Client Form */}

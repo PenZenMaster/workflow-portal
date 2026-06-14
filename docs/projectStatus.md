@@ -2,7 +2,7 @@
 
 Last session: 2026-06-14
 Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
-Branch: main | Version: v1.10.0 | 534 tests passing
+Branch: main | Version: v1.11.0 | 536 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
@@ -15,14 +15,17 @@ GA4 property picker) deployed to pre-production and verified — TD-16 recurred
 on this deploy's restart (stale lsnode worker, killed manually) but resolved
 once the fresh worker took over; "No adapter configured" errors gone. v1.10.0
 (Retry failed button on RunDetail) implemented this session — not yet deployed.
+v1.11.0 (nav/layout refactor: Clients link on Home, Back to Workflows
+positioning fix on ai/clients) implemented this session — not yet deployed.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Deploy v1.10.0 to pre-production and QA the "Retry failed" button on a run
+1. Deploy v1.11.0 to pre-production and QA: the "Retry failed" button on a run
    with a failed response (e.g. re-trigger the Gemini 429 from this session and
-   confirm Retry failed requeues it and it completes on retry).
+   confirm Retry failed requeues it and it completes on retry), and the new
+   "Clients" nav link / ai/clients "Back to Workflows" positioning.
 2. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
    /api/platforms via UI), and extend Integrations.tsx to show connection status for
    all 5 target LLMs (currently only Perplexity is shown there).
@@ -32,6 +35,21 @@ Pick up from:
 4. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.11.0)
+
+- Refactor: consistent "Back to Workflows" placement + new "Clients" nav link.
+  - client/src/pages/ai/ClientsList.tsx: moved the "Back to Workflows" link out
+    of the heading row (it was next to the "New Client" button) into its own
+    left-aligned row above the "Clients" heading, matching the pattern used on
+    admin/platforms, admin/users, and admin/jobs.
+  - client/src/pages/Home.tsx: added a "Clients" link (Building2 icon) to the
+    top-nav icon row, pointing to /ai/clients, alongside the existing AI
+    Visibility / Users / Jobs / AI Platforms links.
+  - New tests: client/src/pages/ai/ClientsList.test.tsx (Back to Workflows
+    renders above and outside the heading row) and client/src/pages/Home.test.tsx
+    (Clients link renders with href=/ai/clients).
+  - 536 tests passing (2 new).
 
 ## Post-Sprint Work This Session (v1.10.0)
 
