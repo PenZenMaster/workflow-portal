@@ -34,11 +34,10 @@ form instead of the picker. Diagnosed via pre-production stderr.log
 (analyticsadmin.googleapis.com) returns 403 SERVICE_DISABLED — it is a
 separate API from the GA4 Data API and is not yet enabled in the Google Cloud
 project (551074775331) backing the OAuth client. This is the documented
-graceful-degradation path working as designed, not a code bug. One-time fix
-(user/Cloud Console side): enable it at
-https://console.developers.google.com/apis/api/analyticsadmin.googleapis.com/overview?project=551074775331,
-wait a few minutes, then reload the Integrations page (or click "Re-connect
-Google account") to confirm the dropdown populates.
+graceful-degradation path working as designed, not a code bug. Documented in
+system-documentation.md (Section 1A Step 4, Section 1B Step 4 troubleshooting).
+User enabled the Google Analytics Admin API for project 551074775331 and
+retested — PASS, the property dropdown now populates and works as designed.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
@@ -49,9 +48,8 @@ Pick up from:
    .env and re-run a multi-platform collection to confirm the Groq/Llama
    adapter works end-to-end (it is already implemented and seeded as
    "Llama via Groq" — server/adapters/groq.ts).
-3. Enable the Google Analytics Admin API in Google Cloud project 551074775331
-   (see above) so the B-16 GA4 property dropdown can populate, then re-test
-   on the Integrations page. No code change needed.
+3. B-16 GA4 property dropdown QA complete — Admin API enabled, retested PASS.
+   No further action needed.
 4. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
    /api/platforms via UI), and extend Integrations.tsx to show connection status for
    all 5 target LLMs (currently only Perplexity is shown there).
