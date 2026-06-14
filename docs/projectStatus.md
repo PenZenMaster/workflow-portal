@@ -55,16 +55,18 @@ Pick up from:
    hints for all 7 catalog platforms.
 4a. B-12 complete (v1.13.0): AI-assisted prompt generation for Prompt
    Collections — "Generate with AI" button on PromptCollectionDetail, new
-   generate-prompts endpoint, 6-type category taxonomy. Not yet deployed —
-   manual QA on pre-production needed once deployed (generate, review/edit/
-   deselect, save, confirm clear error when no LLM key configured).
+   generate-prompts endpoint, 6-type category taxonomy.
 4b. v1.13.1: /ai/clients list now sorted alphabetically (case-insensitive).
 4c. B-13 complete (v1.14.0): Edit existing prompts — each prompt row on
    PromptCollectionDetail has an Edit (pencil) action that opens an inline
    form (text + category), Save PATCHes /api/prompts/:id with the full
    prompt payload (preserving funnelStage/geo/priorityWeight/status/
    targetPlatforms/position) to avoid the schema-defaults wiping those
-   fields. Not yet deployed.
+   fields.
+4d. v1.13.1 - v1.14.0 deployed to pre-production, QA in progress (2026-06-14).
+   Pending: confirm B-12 generate/review/save flow + clear error when no LLM
+   key configured, B-13 inline edit preserves funnelStage/geo/etc., and
+   /ai/clients alphabetical sort.
 5. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
