@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { filterAiSearchRows, AI_SEARCH_REFERRERS } from "../../../server/services/ga4";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import {
+  filterAiSearchRows,
+  AI_SEARCH_REFERRERS,
+  listAccountProperties,
+} from "../../../server/services/ga4";
 
 interface SessionRow {
   sessionSource: string;
@@ -74,5 +78,142 @@ describe("filterAiSearchRows — AI Search channel rule", () => {
     for (const domain of required) {
       expect(AI_SEARCH_REFERRERS).toContain(domain);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+function mockFetch(responses: Array<{ status: number; body: unknown }>) {
+  let call = 0;
+  return vi.fn().mockImplementation(async () => {
+    const { status, body } = responses[Math.min(call++, responses.length - 1)];
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    };
+  });
+}
+
+const VALID_CONFIG = {
+  propertyId: "",
+  accessToken: "valid-access-token",
+  refreshToken: "refresh-token",
+  tokenExpiry: Date.now() + 60 * 60 * 1000,
+  connectedEmail: "user@example.com",
+};
+
+describe("listAccountProperties — GA4 Admin API", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("parses accountSummaries into a flat property list", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch([
+        {
+          status: 200,
+          body: {
+            accountSummaries: [
+              {
+                displayName: "Acme Inc",
+                propertySummaries: [
+                  { property: "properties/111111111", displayName: "Acme - Main Site" },
+                  { property: "properties/222222222", displayName: "Acme - Blog" },
+                ],
+              },
+              {
+                displayName: "Beta LLC",
+                propertySummaries: [
+                  { property: "properties/333333333", displayName: "Beta - Web" },
+                ],
+              },
+            ],
+          },
+        },
+      ])
+    );
+
+    const onRefreshed = vi.fn().mockResolvedValue(undefined);
+    const result = await listAccountProperties(VALID_CONFIG, onRefreshed);
+
+    expect(result).toEqual([
+      { propertyId: "111111111", displayName: "Acme - Main Site", accountName: "Acme Inc" },
+      { propertyId: "222222222", displayName: "Acme - Blog", accountName: "Acme Inc" },
+      { propertyId: "333333333", displayName: "Beta - Web", accountName: "Beta LLC" },
+    ]);
+    expect(onRefreshed).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty array when the account has no GA4 properties", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: { accountSummaries: [] } }]));
+    const result = await listAccountProperties(VALID_CONFIG, vi.fn());
+    expect(result).toEqual([]);
+  });
+
+  it("follows nextPageToken and merges results across pages", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch([
+        {
+          status: 200,
+          body: {
+            accountSummaries: [
+              {
+                displayName: "Acme Inc",
+                propertySummaries: [
+                  { property: "properties/111111111", displayName: "Acme - Main Site" },
+                ],
+              },
+            ],
+            nextPageToken: "page-2",
+          },
+        },
+        {
+          status: 200,
+          body: {
+            accountSummaries: [
+              {
+                displayName: "Beta LLC",
+                propertySummaries: [
+                  { property: "properties/333333333", displayName: "Beta - Web" },
+                ],
+              },
+            ],
+          },
+        },
+      ])
+    );
+
+    const result = await listAccountProperties(VALID_CONFIG, vi.fn());
+    expect(result).toEqual([
+      { propertyId: "111111111", displayName: "Acme - Main Site", accountName: "Acme Inc" },
+      { propertyId: "333333333", displayName: "Beta - Web", accountName: "Beta LLC" },
+    ]);
+  });
+
+  it("throws on a non-OK Admin API response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch([{ status: 403, body: { error: "Admin API not enabled" } }])
+    );
+    await expect(listAccountProperties(VALID_CONFIG, vi.fn())).rejects.toThrow(/GA4 Admin API error \(403\)/);
+  });
+
+  it("refreshes the access token when expired before calling the Admin API", async () => {
+    const expiredConfig = { ...VALID_CONFIG, tokenExpiry: Date.now() - 1000 };
+    vi.stubGlobal(
+      "fetch",
+      mockFetch([
+        { status: 200, body: { access_token: "new-token", expires_in: 3600 } },
+        { status: 200, body: { accountSummaries: [] } },
+      ])
+    );
+    const onRefreshed = vi.fn().mockResolvedValue(undefined);
+    await listAccountProperties(expiredConfig, onRefreshed);
+    expect(onRefreshed).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: "new-token" })
+    );
   });
 });

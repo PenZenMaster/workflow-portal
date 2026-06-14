@@ -36,9 +36,12 @@ vi.mock("../../server/storage", () => ({
   metricStore: {},
 }));
 
+const mockListAccountProperties = vi.fn();
+
 vi.mock("../../server/services/ga4", () => ({
   AI_SEARCH_REFERRERS: ["perplexity.ai", "chatgpt.com"],
   filterAiSearchRows: vi.fn((rows: unknown[]) => rows),
+  listAccountProperties: mockListAccountProperties,
   Ga4Service: vi.fn().mockImplementation(() => ({
     getAiTraffic: vi.fn().mockResolvedValue({
       sessions: 142, engagementRate: 0.68,
@@ -159,6 +162,55 @@ describe("POST /api/clients/:id/integrations/:integrationId/test", () => {
       .post("/api/clients/1/integrations/1/test");
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveProperty("ok");
+  });
+});
+
+describe("GET /api/clients/:id/integrations/:integrationId/ga4/properties", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/clients/1/integrations/1/ga4/properties");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for analyst", async () => {
+    const res = await request(buildApp("analyst")).get("/api/clients/1/integrations/1/ga4/properties");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when integration not found", async () => {
+    mockIntegrationStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("agency_admin")).get("/api/clients/1/integrations/999/ga4/properties");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("INTEGRATION_NOT_FOUND");
+  });
+
+  it("returns 400 when integration is not a ga4 integration", async () => {
+    mockIntegrationStore.get.mockResolvedValue({ ...SAMPLE_INTEGRATION, kind: "search_console" });
+    const res = await request(buildApp("agency_admin")).get("/api/clients/1/integrations/1/ga4/properties");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("NOT_GA4");
+  });
+
+  it("returns 200 with the property list on success", async () => {
+    mockIntegrationStore.get.mockResolvedValue(SAMPLE_INTEGRATION);
+    mockListAccountProperties.mockResolvedValue([
+      { propertyId: "111111111", displayName: "Acme - Main Site", accountName: "Acme Inc" },
+    ]);
+    const res = await request(buildApp("agency_admin")).get("/api/clients/1/integrations/1/ga4/properties");
+    expect(res.status).toBe(200);
+    expect(res.body.data.properties).toEqual([
+      { propertyId: "111111111", displayName: "Acme - Main Site", accountName: "Acme Inc" },
+    ]);
+  });
+
+  it("returns 200 with an empty list and error message when the Admin API call fails", async () => {
+    mockIntegrationStore.get.mockResolvedValue(SAMPLE_INTEGRATION);
+    mockListAccountProperties.mockRejectedValue(new Error("GA4 Admin API error (403): forbidden"));
+    const res = await request(buildApp("agency_admin")).get("/api/clients/1/integrations/1/ga4/properties");
+    expect(res.status).toBe(200);
+    expect(res.body.data.properties).toEqual([]);
+    expect(res.body.data.error).toMatch(/403/);
   });
 });
 

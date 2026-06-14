@@ -2,7 +2,7 @@
 
 Last session: 2026-06-14
 Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
-Branch: main | Version: v1.8.0 | 518 tests passing
+Branch: main | Version: v1.9.0 | 532 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
@@ -10,21 +10,60 @@ confirmed live. v1.6.1 (TD-15 + sentimentStore cross-client leak fix) deployed a
 QA passed. v1.7.0 (platform CRUD API) verified live and QA passed against
 pre-production (GET /api/platforms returns the 7 seeded platforms with
 enabled/config fields). v1.8.0 (AI Platforms admin page) deployed to
-pre-production and verified — /admin/platforms confirmed working.
+pre-production and verified — /admin/platforms confirmed working. v1.9.0 (B-16
+GA4 property picker) implemented this session — not yet deployed.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
+1. Deploy v1.9.0 to pre-production and QA the GA4 property picker (see
+   Post-Sprint Work This Session (v1.9.0) below for the manual verification steps).
+2. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
    /api/platforms via UI), and extend Integrations.tsx to show connection status for
    all 5 target LLMs (currently only Perplexity is shown there).
-2. Continue internal review of the consolidated AI Visibility client page
+3. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
-3. See Tech Debt Register and Backlog below for next priorities.
+4. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.9.0)
+
+- Feature (B-16): GA4 Property ID picker during OAuth connect.
+  - server/services/ga4.ts: added `listAccountProperties()` — calls the Google
+    Analytics Admin API (`accountSummaries`, covered by the existing
+    `analytics.readonly` scope) and flattens the result into
+    `{ propertyId, displayName, accountName }[]`, with pagination support and
+    automatic access-token refresh via the existing `getOrRefreshAccessToken`.
+  - server/routes/integrations.ts: added
+    `GET /api/clients/:id/integrations/:integrationId/ga4/properties`
+    (ADMIN_ROLES) — returns `{ properties }` on success, or
+    `{ properties: [], error }` (HTTP 200) if the Admin API call fails, so the
+    client can degrade gracefully to manual entry.
+  - client/src/pages/ai/Integrations.tsx: after OAuth connects, the property
+    list loads automatically (query enabled once `connectedEmail` is set).
+    Renders a dropdown of properties (grouped by account) when the list is
+    non-empty; selecting an option saves immediately via the existing
+    `PATCH /api/integrations/:id/property`. An "Enter ID manually" toggle (and
+    automatic fallback on empty/error) preserves the original free-text input.
+  - docs/system-documentation.md: documented the new dropdown flow in the GA4
+    connect steps (Section 1B) and added a one-time Cloud Console step (enable
+    the Google Analytics Admin API) to Section 1A.
+  - Tests: 5 new service tests (tests/server/services/ga4.test.ts), 6 new route
+    tests (tests/server/integrations.routes.test.ts), 3 new client tests
+    (client/src/pages/ai/Integrations.test.tsx) — 532 tests passing total.
+  - Manual QA steps (run on pre-production after deploy):
+    1. Client > Integrations > Connect Google Analytics, complete OAuth.
+    2. Confirm the property dropdown auto-populates; pick one; confirm it saves
+       (toast + value shown).
+    3. Confirm "Enter ID manually" toggles to the text box and still saves.
+    4. Click "Test" on the GA4 integration to confirm the saved property
+       fetches traffic.
+    5. Negative: if the Cloud Console project doesn't yet have the Analytics
+       Admin API enabled, confirm the UI falls back to manual entry with the
+       "Couldn't load your GA4 properties automatically" note.
 
 ## Post-Sprint Work This Session (v1.8.0)
 
@@ -376,6 +415,7 @@ Confirmed decisions:
 | TD-13 | Low | Open | skipLibCheck: true masks dep type errors | tsconfig.json |
 | TD-14 | Medium | Done | Salvo (clientId=4) run 6: 8/10 responses had a client-owned citation but zero client-brand mentions detected (all_brand_mentions=0). Root cause: brand_aliases for brand_id=4 was empty in production (v1.2.8 backfill never reached live data.db). Fixed (data-only) by adding the "Salvo Metal Works" alias via portal UI and re-parsing runs 6-8; verified live in v1.6.0 (AI SoV now 88.5%, down from an impossible 153%). | server/services/parser.ts |
 | TD-15 | Medium | Done | citationStore.listByClient, sentimentStore.listByClient, and sentimentStore.getReviewQueue all ignored their clientId parameter and returned the full response_citations / response_sentiment tables across all clients (same pattern fixed for mentionStore in v1.4.2). Fixed in v1.6.1 by joining responses_raw -> prompt_runs and filtering by client_id; feeds Citation Sources, Sentiment, and Recommendations sections on ClientDetail. | server/storage/citationStore.ts, server/storage/sentimentStore.ts |
+| TD-16 | Low | Open | Stale lsnode worker processes can survive a cPanel "Restart" of the Node app, causing env-var drift: a worker started before an env var was added/changed keeps its old `process.env` snapshot (registry.ts builds `_adapters` once at module load), so jobs claimed by that worker fail even though the env var is correctly set for new workers. Observed after adding `OPENAI_API_KEY` — 3/10 prompt-run jobs failed with "No adapter configured for platform: openai" while 7/10 (handled by the new worker) succeeded. Workaround: after changing env vars, manually `kill` any pre-existing `lsnode` PIDs via SSH so only the freshly-restarted worker remains, then requeue failed jobs via /admin/jobs. | ops/cPanel deployment |
 
 ---
 

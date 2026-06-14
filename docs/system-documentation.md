@@ -62,6 +62,9 @@ Navigate to **Users** (top navigation, visible to Super Admin only). Create acco
 **4. Configure GA4 OAuth (if using traffic data)**
 - Create an OAuth 2.0 credential at console.cloud.google.com
 - Enable the Google Analytics Data API in the same project
+- Enable the Google Analytics Admin API in the same project (used for the GA4
+  property picker — covered by the same `analytics.readonly` scope, no extra
+  consent screen changes needed)
 - Add the redirect URI to Authorized redirect URIs
 - Set the three `GOOGLE_*` env vars above
 
@@ -105,7 +108,13 @@ Add every realistic variation — abbreviations, common misspellings, domain nam
 **Step 4 — Connect GA4 (optional)**
 Client page → ⚙ Integrations → Connect Google Analytics
 - Sign in with the Google account that has at least Viewer access to this client's GA4 property
-- After connecting, enter the numeric Property ID (found in GA4 → Admin → Property Settings → Property ID — this is a plain number, NOT the G-XXXXXXXX Measurement ID)
+- After connecting, the portal automatically lists every GA4 property the connected
+  account can access (via the Google Analytics Admin API) — pick the correct one from
+  the dropdown
+- If the dropdown doesn't load (Admin API not enabled, or the account has no GA4
+  properties), use "Enter ID manually" and type the numeric Property ID (found in
+  GA4 → Admin → Property Settings → Property ID — this is a plain number, NOT the
+  G-XXXXXXXX Measurement ID)
 
 **Step 5 — Create a prompt collection**
 Client page → Prompt Collections → New collection

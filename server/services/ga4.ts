@@ -261,6 +261,73 @@ export interface Ga4TrafficData {
   toDate: string;
 }
 
+// ---------------------------------------------------------------------------
+// GA4 Admin API — list properties accessible to the connected account
+
+const GA4_ADMIN_ACCOUNT_SUMMARIES_URL = "https://analyticsadmin.googleapis.com/v1beta/accountSummaries";
+
+export interface Ga4Property {
+  propertyId: string;
+  displayName: string;
+  accountName: string;
+}
+
+interface AccountSummariesResponse {
+  accountSummaries?: Array<{
+    displayName?: string;
+    propertySummaries?: Array<{
+      property?: string;
+      displayName?: string;
+    }>;
+  }>;
+  nextPageToken?: string;
+}
+
+/**
+ * List every GA4 property the connected Google account can access, via the
+ * Analytics Admin API (covered by the existing analytics.readonly scope).
+ */
+export async function listAccountProperties(
+  config: Record<string, unknown>,
+  onTokenRefreshed: (updated: Record<string, unknown>) => Promise<void>
+): Promise<Ga4Property[]> {
+  const accessToken = await getOrRefreshAccessToken(config, onTokenRefreshed);
+
+  const properties: Ga4Property[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const params = new URLSearchParams({ pageSize: "200" });
+    if (pageToken) params.set("pageToken", pageToken);
+
+    const resp = await fetch(`${GA4_ADMIN_ACCOUNT_SUMMARIES_URL}?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`GA4 Admin API error (${resp.status}): ${text}`);
+    }
+
+    const data = (await resp.json()) as AccountSummariesResponse;
+
+    for (const account of data.accountSummaries ?? []) {
+      const accountName = account.displayName ?? "";
+      for (const prop of account.propertySummaries ?? []) {
+        properties.push({
+          propertyId: (prop.property ?? "").replace(/^properties\//, ""),
+          displayName: prop.displayName ?? "",
+          accountName,
+        });
+      }
+    }
+
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return properties;
+}
+
 export class Ga4Service {
   async getAiTraffic(
     config: Record<string, unknown>,

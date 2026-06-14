@@ -10,6 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AlertCircle, CheckCircle2, Trash2, TestTube } from "lucide-react";
 
+interface Ga4PropertyOption {
+  propertyId: string;
+  displayName: string;
+  accountName: string;
+}
+
 const STATUS_STYLE: Record<string, string> = {
   active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   failing: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
@@ -72,10 +78,20 @@ export default function Integrations() {
   const [editingPropertyId, setEditingPropertyId] = useState<number | null>(null);
   const [propertyIdValue, setPropertyIdValue] = useState("");
   const [testingId, setTestingId] = useState<number | null>(null);
+  const [manualEntry, setManualEntry] = useState(false);
 
   const { data, isLoading } = useQuery<{ data: Integration[] }>({
     queryKey: [`/api/clients/${id}/integrations`],
     enabled: !!id,
+  });
+
+  const list = data?.data ?? [];
+  const ga4Integration = list.find((i) => i.kind === "ga4");
+  const ga4Config = ga4Integration?.config as { propertyId?: string; connectedEmail?: string } | undefined;
+
+  const propertiesQuery = useQuery<{ data: { properties: Ga4PropertyOption[]; error?: string } }>({
+    queryKey: [`/api/clients/${id}/integrations/${ga4Integration?.id}/ga4/properties`],
+    enabled: !!ga4Integration?.id && !!ga4Config?.connectedEmail,
   });
 
   const deleteMutation = useMutation({
@@ -117,11 +133,12 @@ export default function Integrations() {
     }
   }
 
-  const list = data?.data ?? [];
-  const ga4Integration = list.find((i) => i.kind === "ga4");
   const perplexityOk = authStatus?.config?.perplexityConfigured ?? false;
   const googleOAuthOk = authStatus?.config?.googleOAuthConfigured ?? false;
-  const ga4Config = ga4Integration?.config as { propertyId?: string; connectedEmail?: string } | undefined;
+  const properties = propertiesQuery.data?.data.properties ?? [];
+  const propertiesError = propertiesQuery.data?.data.error;
+  const showPropertyDropdown = properties.length > 0 && !manualEntry;
+  const propertiesLoadFailed = propertiesQuery.isFetched && (properties.length === 0 || !!propertiesError);
 
   function handleOAuthClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -238,14 +255,48 @@ export default function Integrations() {
                     Numbers only. Found in GA4 → Admin → Property Settings → Property ID (not the G-... Measurement ID).
                   </p>
                 </form>
-              ) : (
-                <div className="flex items-center gap-3">
-                  {ga4Config?.propertyId
-                    ? <code className="text-sm bg-muted px-2 py-0.5 rounded">{ga4Config.propertyId}</code>
-                    : <span className="text-sm text-orange-600">Not set — required to fetch traffic data</span>}
-                  <Button variant="ghost" size="sm" onClick={() => { setEditingPropertyId(ga4Integration.id); setPropertyIdValue(ga4Config?.propertyId ?? ""); }}>
-                    {ga4Config?.propertyId ? "Change" : "Set property ID"}
+              ) : showPropertyDropdown ? (
+                <div className="space-y-1.5">
+                  <select
+                    aria-label="GA4 Property"
+                    value={ga4Config?.propertyId ?? ""}
+                    onChange={(e) => {
+                      if (!e.target.value) return;
+                      savePropertyMutation.mutate({ integrationId: ga4Integration.id, propertyId: e.target.value });
+                    }}
+                    className="flex h-9 w-full max-w-md items-center rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="" disabled>Select a property…</option>
+                    {properties.map((p) => (
+                      <option key={p.propertyId} value={p.propertyId}>
+                        {p.accountName} - {p.displayName} ({p.propertyId})
+                      </option>
+                    ))}
+                  </select>
+                  <Button type="button" variant="ghost" size="sm" className="h-auto py-0 px-1 text-xs" onClick={() => setManualEntry(true)}>
+                    Can't find it? Enter ID manually
                   </Button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {!ga4Config?.propertyId && propertiesLoadFailed && (
+                    <p className="text-xs text-muted-foreground">
+                      Couldn't load your GA4 properties automatically — enter the ID manually.
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3">
+                    {ga4Config?.propertyId
+                      ? <code className="text-sm bg-muted px-2 py-0.5 rounded">{ga4Config.propertyId}</code>
+                      : <span className="text-sm text-orange-600">Not set — required to fetch traffic data</span>}
+                    <Button variant="ghost" size="sm" onClick={() => { setEditingPropertyId(ga4Integration.id); setPropertyIdValue(ga4Config?.propertyId ?? ""); }}>
+                      {ga4Config?.propertyId ? "Change" : "Set property ID"}
+                    </Button>
+                    {properties.length > 0 && manualEntry && (
+                      <Button type="button" variant="ghost" size="sm" className="h-auto py-0 px-1 text-xs" onClick={() => setManualEntry(false)}>
+                        Use dropdown instead
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

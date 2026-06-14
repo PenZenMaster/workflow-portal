@@ -21,7 +21,7 @@ import { integrationStore } from "../storage";
 import { requireAuth, requireRole } from "../auth";
 import { ok, noContent } from "../response";
 import { AppError } from "../errors";
-import { Ga4Service, buildAuthUrl, buildOAuthState } from "../services/ga4";
+import { Ga4Service, buildAuthUrl, buildOAuthState, listAccountProperties } from "../services/ga4";
 import { logger } from "../logger";
 
 const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
@@ -120,6 +120,35 @@ export function registerIntegrationRoutes(app: Express): void {
       await integrationStore.updateStatus(id, "active");
 
       ok(res, { ok: true, propertyId: parsed.data.propertyId });
+    }
+  );
+
+  // --- List GA4 properties accessible to the connected account ------------
+
+  app.get(
+    "/api/clients/:id/integrations/:integrationId/ga4/properties",
+    requireRole(...ADMIN_ROLES),
+    async (req, res) => {
+      const id = Number(req.params.integrationId);
+      if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+
+      const integration = await integrationStore.get(id);
+      if (!integration)
+        throw new AppError(404, "Integration not found", "INTEGRATION_NOT_FOUND");
+      if (integration.kind !== "ga4")
+        throw new AppError(400, "Integration is not a GA4 integration", "NOT_GA4");
+
+      try {
+        const config = integration.config as Record<string, unknown>;
+        const properties = await listAccountProperties(config, async (updated) => {
+          await integrationStore.updateConfig(id, updated);
+        });
+        ok(res, { properties });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn("ga4 properties list failed", { integrationId: id, error: msg });
+        ok(res, { properties: [], error: msg });
+      }
     }
   );
 
