@@ -50,15 +50,38 @@ Pick up from:
    "Llama via Groq" — server/adapters/groq.ts).
 3. B-16 GA4 property dropdown QA complete — Admin API enabled, retested PASS.
    No further action needed.
-4. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
-   /api/platforms via UI), and extend Integrations.tsx to show connection status for
-   all 5 target LLMs (currently only Perplexity is shown there).
+4. B-11 Phase 2 follow-ups complete (v1.12.0): "add custom platform" form on
+   /admin/platforms, and Integrations.tsx now shows connection status + env-var
+   hints for all 7 catalog platforms. Next up: B-12 (AI-assisted prompt
+   generation for Prompt Collections).
 5. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
 6. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.12.0)
+
+- Feature: B-11 Phase 2 follow-ups — add-custom-platform form + per-client LLM
+  connection status.
+  - client/src/pages/admin/Platforms.tsx: added an "Add platform" form
+    (slug + display name inputs) wired to `POST /api/platforms` via a new
+    `createMutation`. Client-side validation mirrors the server's
+    `insertPlatformSchema` slug regex (`^[a-z0-9-]+$`) to disable Submit on
+    invalid input; a 409 duplicate-slug response renders an inline error.
+  - client/src/pages/ai/Integrations.tsx: replaced the Perplexity-only "API
+    Key" section with a generalized "AI Platform API Keys" section listing all
+    catalog platforms (via `/api/platforms`), each with a Connected /
+    Not-configured badge driven by `config.configuredPlatforms`. Not-configured
+    platforms show an env-var setup hint (slug -> env var map matching
+    server/adapters/registry.ts); the Perplexity-specific
+    `PERPLEXITY_DAILY_USD_LIMIT` note is preserved. GA4 section unchanged.
+  - New/updated tests: client/src/pages/admin/Platforms.test.tsx (3 new —
+    add-platform POST, disabled submit on invalid slug, duplicate-slug error),
+    client/src/pages/ai/Integrations.test.tsx (2 new — all-platform status
+    badges, env-var hint rendering).
+  - 545 tests passing (5 new). No server/schema/migration changes.
 
 ## Post-Sprint Work This Session (v1.11.1)
 
@@ -518,9 +541,10 @@ Confirmed decisions:
   core (v1.8.0) COMPLETE** — new `/admin/platforms` page (super_admin/agency_admin nav
   link "AI Platforms") lists all platforms with Connected/Not-configured badges
   (from `config.configuredPlatforms`), an enabled toggle (PATCH), and delete
-  (DELETE, with 409 PLATFORM_IN_USE surfaced via toast). **Remaining**: an
-  "add custom platform" form (POST /api/platforms) and extending Integrations.tsx
-  to show connection status for all 5 target LLMs are deferred follow-ups.
+  (DELETE, with 409 PLATFORM_IN_USE surfaced via toast). **Phase 2 follow-ups
+  (v1.12.0) COMPLETE** — `/admin/platforms` now has an "add custom platform"
+  form (POST /api/platforms), and Integrations.tsx shows connection status +
+  env-var hints for all 7 catalog platforms.
 - B-12 Feature: AI-assisted prompt generation for Prompt Collections — when a Prompt
   Collection is created, offer the user an option to have AI research and generate
   prompts using the client's Brand, website URL, and configured competitors. Generated

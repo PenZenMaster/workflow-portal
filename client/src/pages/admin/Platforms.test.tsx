@@ -48,6 +48,25 @@ beforeEach(() => {
       return { ok: true, status: 204, json: async () => ({}), text: async () => "" } as Response;
     }
 
+    if (method === "POST" && url === "/api/platforms") {
+      const payload = JSON.parse(String(init?.body ?? "{}"));
+      if (payload.slug === "openai") {
+        return {
+          ok: false,
+          status: 409,
+          json: async () => ({ error: "Platform slug already exists", code: "DUPLICATE_SLUG" }),
+          text: async () =>
+            JSON.stringify({ error: "Platform slug already exists", code: "DUPLICATE_SLUG" }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 201,
+        json: async () => ({ data: { id: 9, slug: payload.slug, displayName: payload.displayName, enabled: true, config: {} } }),
+        text: async () => "",
+      } as Response;
+    }
+
     const body = API_RESPONSES[url] ?? { data: null };
     return {
       ok: true,
@@ -117,5 +136,45 @@ describe("Platforms (AI Platforms admin page)", () => {
         expect.objectContaining({ method: "DELETE" }),
       ),
     );
+  });
+
+  it("submitting the add-platform form sends a POST request", async () => {
+    renderPlatforms();
+    await screen.findByText("Perplexity");
+
+    await userEvent.type(screen.getByLabelText(/Slug/i), "groq");
+    await userEvent.type(screen.getByLabelText(/Display name/i), "Llama via Groq");
+    await userEvent.click(screen.getByRole("button", { name: /Add platform/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/platforms",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ slug: "groq", displayName: "Llama via Groq" }),
+        }),
+      ),
+    );
+  });
+
+  it("disables submit when the slug contains invalid characters", async () => {
+    renderPlatforms();
+    await screen.findByText("Perplexity");
+
+    await userEvent.type(screen.getByLabelText(/Slug/i), "Bad Slug");
+    await userEvent.type(screen.getByLabelText(/Display name/i), "Bad Platform");
+
+    expect(screen.getByRole("button", { name: /Add platform/i })).toBeDisabled();
+  });
+
+  it("shows an error toast when adding a platform with a duplicate slug", async () => {
+    renderPlatforms();
+    await screen.findByText("Perplexity");
+
+    await userEvent.type(screen.getByLabelText(/Slug/i), "openai");
+    await userEvent.type(screen.getByLabelText(/Display name/i), "OpenAI Duplicate");
+    await userEvent.click(screen.getByRole("button", { name: /Add platform/i }));
+
+    expect(await screen.findByText(/already exists/i)).toBeInTheDocument();
   });
 });

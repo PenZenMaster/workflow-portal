@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { Integration } from "@shared/schema";
+import type { Integration, Platform } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +20,16 @@ const STATUS_STYLE: Record<string, string> = {
   active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   failing: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
   disabled: "bg-muted text-muted-foreground",
+};
+
+const PLATFORM_ENV_VAR: Record<string, string> = {
+  perplexity: "PERPLEXITY_API_KEY",
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  gemini: "GOOGLE_AI_API_KEY",
+  groq: "GROQ_API_KEY",
+  mistral: "MISTRAL_API_KEY",
+  deepseek: "DEEPSEEK_API_KEY",
 };
 
 // Poll the integrations endpoint until the GA4 integration appears as active
@@ -89,6 +99,10 @@ export default function Integrations() {
   const ga4Integration = list.find((i) => i.kind === "ga4");
   const ga4Config = ga4Integration?.config as { propertyId?: string; connectedEmail?: string } | undefined;
 
+  const platformsQuery = useQuery<{ data: Platform[] }>({
+    queryKey: ["/api/platforms"],
+  });
+
   const propertiesQuery = useQuery<{ data: { properties: Ga4PropertyOption[]; error?: string } }>({
     queryKey: [`/api/clients/${id}/integrations/${ga4Integration?.id}/ga4/properties`],
     enabled: !!ga4Integration?.id && !!ga4Config?.connectedEmail,
@@ -133,8 +147,9 @@ export default function Integrations() {
     }
   }
 
-  const perplexityOk = authStatus?.config?.perplexityConfigured ?? false;
   const googleOAuthOk = authStatus?.config?.googleOAuthConfigured ?? false;
+  const platforms = platformsQuery.data?.data ?? [];
+  const configuredSlugs = authStatus?.config?.configuredPlatforms ?? [];
   const properties = propertiesQuery.data?.data.properties ?? [];
   const propertiesError = propertiesQuery.data?.data.error;
   const showPropertyDropdown = properties.length > 0 && !manualEntry;
@@ -167,25 +182,45 @@ export default function Integrations() {
 
       <h1 className="text-2xl font-bold mb-6">Integrations &amp; API Keys</h1>
 
-      {/* ── Perplexity API Key ────────────────────────────────────── */}
+      {/* ── AI Platform API Keys ─────────────────────────────────── */}
       <section className="mb-8">
-        <h2 className="text-lg font-semibold mb-3">Perplexity API Key</h2>
-        <div className={`border rounded-lg p-4 flex items-start gap-3 ${perplexityOk ? "border-green-500/30 bg-green-50/50 dark:bg-green-950/20" : "border-orange-500/30 bg-orange-50/50 dark:bg-orange-950/20"}`}>
-          {perplexityOk
-            ? <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-            : <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />}
-          <div className="text-sm">
-            <p className="font-medium mb-1">{perplexityOk ? "API key configured" : "API key not configured"}</p>
-            {!perplexityOk && (
-              <div className="text-muted-foreground space-y-2">
-                <p>Add to <code className="bg-muted px-1 rounded">.env</code> and restart:</p>
-                <code className="block bg-muted px-2 py-1 rounded text-xs font-mono">PERPLEXITY_API_KEY=pplx-...</code>
-                <code className="block bg-muted px-2 py-1 rounded text-xs font-mono">PERPLEXITY_DAILY_USD_LIMIT=10</code>
-                <p className="text-xs">On cPanel: Setup Node.js App → Environment Variables → Restart.</p>
-              </div>
-            )}
-          </div>
-        </div>
+        <h2 className="text-lg font-semibold mb-3">AI Platform API Keys</h2>
+        <ul className="space-y-2">
+          {platforms.map((p) => {
+            const connected = configuredSlugs.includes(p.slug);
+            const envVar = PLATFORM_ENV_VAR[p.slug];
+            return (
+              <li
+                key={p.id}
+                className={`border rounded-lg p-4 flex items-start gap-3 ${connected ? "border-green-500/30 bg-green-50/50 dark:bg-green-950/20" : "border-orange-500/30 bg-orange-50/50 dark:bg-orange-950/20"}`}
+              >
+                {connected
+                  ? <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+                  : <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />}
+                <div className="text-sm">
+                  <p className="font-medium mb-1 flex items-center gap-2">
+                    {p.displayName}
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded ${connected ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-muted text-muted-foreground"}`}
+                    >
+                      {connected ? "Connected" : "Not configured"}
+                    </span>
+                  </p>
+                  {!connected && envVar && (
+                    <div className="text-muted-foreground space-y-2">
+                      <p>Add to <code className="bg-muted px-1 rounded">.env</code> and restart:</p>
+                      <code className="block bg-muted px-2 py-1 rounded text-xs font-mono">{envVar}=...</code>
+                      {p.slug === "perplexity" && (
+                        <code className="block bg-muted px-2 py-1 rounded text-xs font-mono">PERPLEXITY_DAILY_USD_LIMIT=10</code>
+                      )}
+                      <p className="text-xs">On cPanel: Setup Node.js App → Environment Variables → Restart.</p>
+                    </div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </section>
 
       {/* ── Google Analytics 4 ───────────────────────────────────── */}

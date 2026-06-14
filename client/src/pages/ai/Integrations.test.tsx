@@ -35,6 +35,16 @@ const GA4_INTEGRATION = {
   updatedAt: Date.now(),
 };
 
+const PLATFORMS = [
+  { id: 1, slug: "perplexity", displayName: "Perplexity", enabled: true, config: {} },
+  { id: 2, slug: "openai", displayName: "ChatGPT (OpenAI)", enabled: true, config: {} },
+  { id: 3, slug: "anthropic", displayName: "Claude (Anthropic)", enabled: true, config: {} },
+  { id: 4, slug: "gemini", displayName: "Gemini (Google)", enabled: true, config: {} },
+  { id: 5, slug: "groq", displayName: "Llama via Groq", enabled: true, config: {} },
+  { id: 6, slug: "mistral", displayName: "Mistral", enabled: true, config: {} },
+  { id: 7, slug: "deepseek", displayName: "DeepSeek", enabled: true, config: {} },
+];
+
 const PROPERTIES_URL = "/api/clients/4/integrations/1/ga4/properties";
 
 const PROPERTY_LIST = [
@@ -66,6 +76,11 @@ beforeEach(() => {
 
     if (url === PROPERTIES_URL) {
       return { ok: true, status: 200, json: async () => propertiesResponse, text: async () => JSON.stringify(propertiesResponse) } as Response;
+    }
+
+    if (url === "/api/platforms") {
+      const body = { data: PLATFORMS };
+      return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
     }
 
     return { ok: true, status: 200, json: async () => ({ data: null }), text: async () => "{}" } as Response;
@@ -126,5 +141,30 @@ describe("Integrations — GA4 property picker", () => {
 
     expect(screen.queryByRole("combobox", { name: /GA4 Property/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Set property ID" })).toBeInTheDocument();
+  });
+});
+
+describe("Integrations — AI platform API key status", () => {
+  it("shows Connected/Not configured badges for all catalog platforms", async () => {
+    renderIntegrations();
+
+    expect(await screen.findByText("Perplexity")).toBeInTheDocument();
+    expect(screen.getByText("ChatGPT (OpenAI)")).toBeInTheDocument();
+    expect(screen.getByText("Claude (Anthropic)")).toBeInTheDocument();
+    expect(screen.getByText("Gemini (Google)")).toBeInTheDocument();
+    expect(screen.getByText("Llama via Groq")).toBeInTheDocument();
+    expect(screen.getByText("Mistral")).toBeInTheDocument();
+    expect(screen.getByText("DeepSeek")).toBeInTheDocument();
+
+    expect(screen.getByText("Connected")).toBeInTheDocument();
+    expect(screen.getAllByText("Not configured")).toHaveLength(6);
+  });
+
+  it("shows the env-var setup hint for a not-configured platform", async () => {
+    renderIntegrations();
+
+    await screen.findByText("Claude (Anthropic)");
+
+    expect(screen.getByText(/ANTHROPIC_API_KEY/)).toBeInTheDocument();
   });
 });

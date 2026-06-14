@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import type { Platform } from "@shared/schema";
@@ -6,11 +7,17 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Cpu, Trash2 } from "lucide-react";
+
+const SLUG_PATTERN = /^[a-z0-9-]+$/;
 
 export default function Platforms() {
   const { status } = useAuth();
   const { toast } = useToast();
+  const [slug, setSlug] = useState("");
+  const [displayName, setDisplayName] = useState("");
 
   const { data, isLoading } = useQuery<{ data: Platform[] }>({
     queryKey: ["/api/platforms"],
@@ -39,8 +46,23 @@ export default function Platforms() {
       toast({ title: "Failed to delete platform", description: String(err), variant: "destructive" }),
   });
 
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/platforms", { slug, displayName });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/platforms"] });
+      toast({ title: "Platform added" });
+      setSlug("");
+      setDisplayName("");
+    },
+    onError: (err) =>
+      toast({ title: "Failed to add platform", description: String(err), variant: "destructive" }),
+  });
+
   const platforms = data?.data ?? [];
   const configuredSlugs = status?.config?.configuredPlatforms ?? [];
+  const canSubmit = SLUG_PATTERN.test(slug) && displayName.trim().length > 0;
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
 
@@ -108,6 +130,42 @@ export default function Platforms() {
           })}
         </ul>
       )}
+
+      <form
+        className="mt-8 border rounded-lg p-4 space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (canSubmit) createMutation.mutate();
+        }}
+      >
+        <h2 className="text-sm font-semibold">Add platform</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="platform-slug">Slug</Label>
+            <Input
+              id="platform-slug"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              placeholder="my-platform"
+            />
+          </div>
+          <div>
+            <Label htmlFor="platform-display-name">Display name</Label>
+            <Input
+              id="platform-display-name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="My Platform"
+            />
+          </div>
+        </div>
+        <Button type="submit" disabled={!canSubmit || createMutation.isPending}>
+          Add platform
+        </Button>
+        {createMutation.isError && (
+          <p className="text-sm text-destructive">{String(createMutation.error)}</p>
+        )}
+      </form>
     </div>
   );
 }
