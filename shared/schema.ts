@@ -257,11 +257,12 @@ export type ClientUser = {
 // --- AI Visibility: Platforms, Prompt Collections, Prompts ----------------
 
 export const PROMPT_CATEGORIES = [
-  "brand",
-  "category",
+  "informational",
+  "comparative",
+  "commercial",
   "local",
-  "comparison",
-  "reputation",
+  "problem_aware",
+  "alternative",
 ] as const;
 export type PromptCategory = (typeof PROMPT_CATEGORIES)[number];
 
@@ -328,9 +329,20 @@ export const bulkInsertPromptsSchema = z.object({
     .max(200, "Maximum 200 prompts per bulk import"),
 });
 
+export const generatePromptsSchema = z.object({
+  count: z.number().int().min(1).max(50).default(12),
+});
+
 export type InsertPromptCollection = z.infer<typeof insertPromptCollectionSchema>;
 export type InsertPrompt = z.infer<typeof insertPromptSchema>;
 export type BulkInsertPrompts = z.infer<typeof bulkInsertPromptsSchema>;
+export type GeneratePromptsInput = z.infer<typeof generatePromptsSchema>;
+
+export type GeneratedPromptCandidate = {
+  text: string;
+  category: PromptCategory;
+  funnelStage: FunnelStage;
+};
 
 export type Platform = {
   id: number;

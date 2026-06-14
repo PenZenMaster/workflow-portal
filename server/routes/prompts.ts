@@ -19,6 +19,8 @@ import {
   platformStore,
   promptCollectionStore,
   promptStore,
+  clientStore,
+  brandStore,
 } from "../storage";
 import {
   insertPromptCollectionSchema,
@@ -26,10 +28,12 @@ import {
   bulkInsertPromptsSchema,
   insertPlatformSchema,
   updatePlatformSchema,
+  generatePromptsSchema,
 } from "@shared/schema";
 import { requireAuth, requireRole } from "../auth";
 import { ok, created, noContent } from "../response";
 import { AppError } from "../errors";
+import { generatePrompts } from "../services/promptGenerator";
 
 const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
 const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
@@ -158,6 +162,48 @@ export function registerPromptRoutes(app: Express): void {
       if (!collection)
         throw new AppError(404, "Collection not found", "COLLECTION_NOT_FOUND");
       ok(res, collection);
+    }
+  );
+
+  app.post(
+    "/api/clients/:clientId/prompt-collections/:id/generate-prompts",
+    requireRole(...EDITOR_ROLES),
+    async (req, res) => {
+      const clientId = Number(req.params.clientId);
+      const collectionId = Number(req.params.id);
+      if (Number.isNaN(clientId) || Number.isNaN(collectionId))
+        throw new AppError(400, "Invalid id", "INVALID_ID");
+
+      const client = await clientStore.get(clientId);
+      if (!client)
+        throw new AppError(404, "Client not found", "CLIENT_NOT_FOUND");
+
+      const collection = await promptCollectionStore.get(collectionId);
+      if (!collection)
+        throw new AppError(404, "Collection not found", "COLLECTION_NOT_FOUND");
+
+      const parsed = generatePromptsSchema.safeParse(req.body ?? {});
+      if (!parsed.success)
+        throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
+
+      const brands = await brandStore.listByClient(clientId);
+      const clientBrandNames = brands
+        .filter((b) => b.kind === "client")
+        .map((b) => b.canonicalName);
+      const competitorNames = brands
+        .filter((b) => b.kind === "competitor")
+        .map((b) => b.canonicalName);
+
+      const candidates = await generatePrompts({
+        clientName: client.name,
+        primaryDomain: client.primaryDomain,
+        geographies: client.geographies,
+        clientBrandNames: clientBrandNames.length > 0 ? clientBrandNames : [client.name],
+        competitorNames,
+        count: parsed.data.count,
+      });
+
+      ok(res, { candidates });
     }
   );
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import { buildAuthApp } from "./_helpers/buildAuthApp";
+import { AppError } from "../../server/errors";
 
 // --- mocks ------------------------------------------------------------------
 
@@ -30,18 +31,25 @@ const mockPromptStore = {
   delete: vi.fn(),
 };
 const mockStorage = { countUsers: vi.fn() };
+const mockClientStore = { get: vi.fn() };
+const mockBrandStore = { listByClient: vi.fn() };
 
 vi.mock("../../server/storage", () => ({
   storage: mockStorage,
   platformStore: mockPlatformStore,
   promptCollectionStore: mockCollectionStore,
   promptStore: mockPromptStore,
+  clientStore: mockClientStore,
+  brandStore: mockBrandStore,
   // Sprint 1 stores (not used in these routes but present in the barrel)
-  clientStore: {},
-  brandStore: {},
   aliasStore: {},
   competitorStore: {},
   clientUserStore: {},
+}));
+
+const mockGeneratePrompts = vi.fn();
+vi.mock("../../server/services/promptGenerator", () => ({
+  generatePrompts: mockGeneratePrompts,
 }));
 
 const { registerPromptRoutes } = await import("../../server/routes/prompts");
@@ -67,11 +75,22 @@ const SAMPLE_COLLECTION = {
   updatedAt: Date.now(),
 };
 
+const SAMPLE_CLIENT = {
+  id: 10,
+  name: "Acme Plumbing",
+  primaryDomain: "acmeplumbing.com",
+  geographies: ["Seattle, WA"],
+  exclusions: [],
+  ownerUserId: null,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+};
+
 const SAMPLE_PROMPT = {
   id: 100,
   collectionId: 1,
   text: "Best SEO agency in Seattle",
-  category: "category" as const,
+  category: "commercial" as const,
   funnelStage: "awareness" as const,
   geo: null,
   deviceContext: null,
@@ -326,7 +345,7 @@ describe("POST /api/prompt-collections/:id/prompts", () => {
   it("returns 400 when priority weight exceeds 10", async () => {
     const res = await request(buildApp("analyst"))
       .post("/api/prompt-collections/1/prompts")
-      .send({ text: "Test", category: "category", priorityWeight: 11 });
+      .send({ text: "Test", category: "commercial", priorityWeight: 11 });
     expect(res.status).toBe(400);
   });
 
@@ -334,7 +353,7 @@ describe("POST /api/prompt-collections/:id/prompts", () => {
     mockPromptStore.create.mockResolvedValue(SAMPLE_PROMPT);
     const res = await request(buildApp("analyst"))
       .post("/api/prompt-collections/1/prompts")
-      .send({ text: "Best SEO agency in Seattle", category: "category" });
+      .send({ text: "Best SEO agency in Seattle", category: "commercial" });
     expect(res.status).toBe(201);
     expect(res.body.data.text).toBe("Best SEO agency in Seattle");
   });
@@ -346,7 +365,7 @@ describe("POST /api/prompt-collections/:id/prompts/bulk", () => {
   it("returns 400 when more than 200 prompts submitted", async () => {
     const prompts = Array.from({ length: 201 }, (_, i) => ({
       text: `Prompt ${i}`,
-      category: "category",
+      category: "commercial",
     }));
     const res = await request(buildApp("analyst"))
       .post("/api/prompt-collections/1/prompts/bulk")
@@ -360,12 +379,90 @@ describe("POST /api/prompt-collections/:id/prompts/bulk", () => {
       .post("/api/prompt-collections/1/prompts/bulk")
       .send({
         prompts: [
-          { text: "Prompt 1", category: "category" },
-          { text: "Prompt 2", category: "brand" },
+          { text: "Prompt 1", category: "commercial" },
+          { text: "Prompt 2", category: "informational" },
         ],
       });
     expect(res.status).toBe(201);
     expect(res.body.data).toHaveLength(2);
+  });
+});
+
+describe("POST /api/clients/:clientId/prompt-collections/:id/generate-prompts", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp())
+      .post("/api/clients/10/prompt-collections/1/generate-prompts")
+      .send({});
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for client_viewer", async () => {
+    const res = await request(buildApp("client_viewer"))
+      .post("/api/clients/10/prompt-collections/1/generate-prompts")
+      .send({});
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when client not found", async () => {
+    mockClientStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("analyst"))
+      .post("/api/clients/999/prompt-collections/1/generate-prompts")
+      .send({});
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("CLIENT_NOT_FOUND");
+  });
+
+  it("returns 404 when collection not found", async () => {
+    mockClientStore.get.mockResolvedValue(SAMPLE_CLIENT);
+    mockCollectionStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("analyst"))
+      .post("/api/clients/10/prompt-collections/999/generate-prompts")
+      .send({});
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("COLLECTION_NOT_FOUND");
+  });
+
+  it("returns 503 when no generation adapter is configured", async () => {
+    mockClientStore.get.mockResolvedValue(SAMPLE_CLIENT);
+    mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION);
+    mockBrandStore.listByClient.mockResolvedValue([]);
+    mockGeneratePrompts.mockRejectedValue(
+      new AppError(503, "No AI platform is configured for prompt generation", "NO_GENERATION_ADAPTER")
+    );
+    const res = await request(buildApp("analyst"))
+      .post("/api/clients/10/prompt-collections/1/generate-prompts")
+      .send({});
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("NO_GENERATION_ADAPTER");
+  });
+
+  it("returns 200 with generated candidates", async () => {
+    mockClientStore.get.mockResolvedValue(SAMPLE_CLIENT);
+    mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION);
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: "acmeplumbing.com", createdAt: Date.now() },
+      { id: 2, clientId: 10, canonicalName: "Best Plumbers Inc", kind: "competitor", primaryDomain: null, createdAt: Date.now() },
+    ]);
+    mockGeneratePrompts.mockResolvedValue([
+      { text: "What is the best way to fix a leaky faucet?", category: "informational", funnelStage: "awareness" },
+    ]);
+
+    const res = await request(buildApp("analyst"))
+      .post("/api/clients/10/prompt-collections/1/generate-prompts")
+      .send({ count: 5 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.candidates).toHaveLength(1);
+    expect(mockGeneratePrompts).toHaveBeenCalledWith({
+      clientName: "Acme Plumbing",
+      primaryDomain: "acmeplumbing.com",
+      geographies: ["Seattle, WA"],
+      clientBrandNames: ["Acme Plumbing"],
+      competitorNames: ["Best Plumbers Inc"],
+      count: 5,
+    });
   });
 });
 
@@ -376,7 +473,7 @@ describe("PATCH /api/prompts/:id", () => {
     mockPromptStore.update.mockResolvedValue(undefined);
     const res = await request(buildApp("analyst"))
       .patch("/api/prompts/999")
-      .send({ text: "Updated", category: "brand" });
+      .send({ text: "Updated", category: "informational" });
     expect(res.status).toBe(404);
   });
 
@@ -384,7 +481,7 @@ describe("PATCH /api/prompts/:id", () => {
     mockPromptStore.update.mockResolvedValue({ ...SAMPLE_PROMPT, text: "Updated" });
     const res = await request(buildApp("analyst"))
       .patch("/api/prompts/1")
-      .send({ text: "Updated", category: "brand" });
+      .send({ text: "Updated", category: "informational" });
     expect(res.status).toBe(200);
     expect(res.body.data.text).toBe("Updated");
   });

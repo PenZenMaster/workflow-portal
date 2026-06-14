@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { Prompt, PromptCollection, Platform } from "@shared/schema";
+import type { Prompt, PromptCollection, Platform, GeneratedPromptCandidate } from "@shared/schema";
 import { PROMPT_CATEGORIES } from "@shared/schema";
 
 const CATEGORY_LABELS: Record<typeof PROMPT_CATEGORIES[number], string> = {
-  brand:      "Brand / Entity",
-  category:   "Category / Commercial Intent",
-  local:      "Local / Regional",
-  comparison: "Comparison / Evaluation",
-  reputation: "Reputation",
+  informational: "Informational",
+  comparative:   "Comparative",
+  commercial:    "Commercial",
+  local:         "Local",
+  problem_aware: "Problem-aware",
+  alternative:   "Alternative",
 };
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
@@ -17,7 +18,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Zap, Play, X } from "lucide-react";
+import { Plus, Trash2, Zap, Play, X, Sparkles } from "lucide-react";
+
+type Candidate = GeneratedPromptCandidate & { selected: boolean };
 
 export default function PromptCollectionDetail() {
   const { id, collectionId } = useParams<{ id: string; collectionId: string }>();
@@ -28,8 +31,9 @@ export default function PromptCollectionDetail() {
   const [showRunForm, setShowRunForm] = useState(false);
   const [selectedPlatformIds, setSelectedPlatformIds] = useState<number[]>([]);
   const [promptText, setPromptText] = useState("");
-  const [category, setCategory] = useState<typeof PROMPT_CATEGORIES[number]>("category");
+  const [category, setCategory] = useState<typeof PROMPT_CATEGORIES[number]>("informational");
   const [geo, setGeo] = useState("");
+  const [candidates, setCandidates] = useState<Candidate[] | null>(null);
 
   const { data: collectionData } = useQuery<{ data: PromptCollection }>({
     queryKey: [`/api/prompt-collections/${collectionId}`],
@@ -55,6 +59,30 @@ export default function PromptCollectionDetail() {
       queryClient.invalidateQueries({ queryKey: [`/api/prompt-collections/${collectionId}/prompts`] });
       setPromptText(""); setGeo(""); setShowForm(false);
       toast({ title: "Prompt added" });
+    },
+    onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/clients/${id}/prompt-collections/${collectionId}/generate-prompts`, {});
+      return res.json() as Promise<{ data: { candidates: GeneratedPromptCandidate[] } }>;
+    },
+    onSuccess: (result) => {
+      setCandidates(result.data.candidates.map((c) => ({ ...c, selected: true })));
+    },
+    onError: (err) => toast({ title: "Generation failed", description: String(err), variant: "destructive" }),
+  });
+
+  const saveBulkMutation = useMutation({
+    mutationFn: async (prompts: GeneratedPromptCandidate[]) => {
+      const res = await apiRequest("POST", `/api/prompt-collections/${collectionId}/prompts/bulk`, { prompts });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prompt-collections/${collectionId}/prompts`] });
+      setCandidates(null);
+      toast({ title: "Prompts saved" });
     },
     onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
   });
@@ -189,12 +217,82 @@ export default function PromptCollectionDetail() {
         <h2 className="text-lg font-semibold">
           Prompts <span className="text-muted-foreground font-normal text-sm">({prompts.length})</span>
         </h2>
-        {!showForm && (
-          <Button size="sm" variant="outline" onClick={() => setShowForm(true)}>
-            <Plus className="h-4 w-4 mr-1.5" />Add prompt
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => generateMutation.mutate()}
+            disabled={generateMutation.isPending}
+          >
+            <Sparkles className="h-4 w-4 mr-1.5" />
+            {generateMutation.isPending ? "Generating…" : "Generate with AI"}
           </Button>
-        )}
+          {!showForm && (
+            <Button size="sm" variant="outline" onClick={() => setShowForm(true)}>
+              <Plus className="h-4 w-4 mr-1.5" />Add prompt
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* AI-generated prompt review panel */}
+      {candidates && (
+        <div className="border rounded-lg p-5 mb-5 bg-muted/30 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="font-medium text-sm">Review generated prompts ({candidates.filter((c) => c.selected).length} selected)</p>
+            <button type="button" onClick={() => setCandidates(null)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+          </div>
+          {candidates.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No prompts were generated.</p>
+          ) : (
+            <ul className="space-y-2">
+              {candidates.map((c, idx) => (
+                <li key={idx} className="flex items-start gap-3 border rounded-lg p-3 bg-background">
+                  <input
+                    type="checkbox"
+                    className="mt-1.5"
+                    checked={c.selected}
+                    onChange={(e) => setCandidates((prev) =>
+                      prev!.map((item, i) => i === idx ? { ...item, selected: e.target.checked } : item)
+                    )}
+                    aria-label={`Include "${c.text}"`}
+                  />
+                  <div className="flex-1 space-y-2">
+                    <Input
+                      value={c.text}
+                      onChange={(e) => setCandidates((prev) =>
+                        prev!.map((item, i) => i === idx ? { ...item, text: e.target.value } : item)
+                      )}
+                    />
+                    <select
+                      value={c.category}
+                      onChange={(e) => setCandidates((prev) =>
+                        prev!.map((item, i) => i === idx ? { ...item, category: e.target.value as typeof PROMPT_CATEGORIES[number] } : item)
+                      )}
+                      className="h-9 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                      aria-label="Category"
+                    >
+                      {PROMPT_CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat}>{CATEGORY_LABELS[cat]}</option>
+                      ))}
+                    </select>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex gap-2 justify-end">
+            <Button variant="ghost" size="sm" onClick={() => setCandidates(null)}>Cancel</Button>
+            <Button
+              size="sm"
+              onClick={() => saveBulkMutation.mutate(candidates.filter((c) => c.selected).map(({ selected: _selected, ...rest }) => rest))}
+              disabled={saveBulkMutation.isPending || candidates.filter((c) => c.selected).length === 0}
+            >
+              {saveBulkMutation.isPending ? "Saving…" : "Save selected"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <form

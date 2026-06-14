@@ -2,7 +2,7 @@
 
 Last session: 2026-06-14
 Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
-Branch: main | Version: v1.11.1 | 540 tests passing
+Branch: main | Version: v1.13.0 | 562 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
@@ -52,14 +52,48 @@ Pick up from:
    No further action needed.
 4. B-11 Phase 2 follow-ups complete (v1.12.0): "add custom platform" form on
    /admin/platforms, and Integrations.tsx now shows connection status + env-var
-   hints for all 7 catalog platforms. Next up: B-12 (AI-assisted prompt
-   generation for Prompt Collections).
+   hints for all 7 catalog platforms.
+4a. B-12 complete (v1.13.0): AI-assisted prompt generation for Prompt
+   Collections — "Generate with AI" button on PromptCollectionDetail, new
+   generate-prompts endpoint, 6-type category taxonomy. Not yet deployed —
+   manual QA on pre-production needed once deployed (generate, review/edit/
+   deselect, save, confirm clear error when no LLM key configured). Next up:
+   B-13 (edit existing prompts).
 5. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
 6. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.13.0)
+
+- Feature: B-12 — AI-assisted prompt generation for Prompt Collections.
+  - shared/schema.ts: replaced `PROMPT_CATEGORIES` with the 6 B-12 types
+    (informational, comparative, commercial, local, problem_aware,
+    alternative); added `generatePromptsSchema` and `GeneratedPromptCandidate`
+    type. No migration needed — the `prompts.category` column is free TEXT.
+  - server/services/promptGenerator.ts (new): `pickGenerationAdapter` (first
+    configured adapter by fixed preference order, throws AppError 503
+    NO_GENERATION_ADAPTER if none), `buildGenerationPrompt` (client/brand/
+    competitor/geo context + the 6 category definitions), `parseGeneratedPrompts`
+    (defensive JSON parsing — handles fenced code blocks and surrounding prose,
+    drops invalid items), `generatePrompts` (orchestration, no DB writes).
+  - server/routes/prompts.ts: new `POST
+    /api/clients/:clientId/prompt-collections/:id/generate-prompts`
+    (EDITOR_ROLES) — gathers client + brand/competitor context, calls
+    `generatePrompts`, returns `{ candidates }`. Generation is
+    generate-then-review; persisting reuses the existing
+    `POST /api/prompt-collections/:id/prompts/bulk`.
+  - client/src/pages/ai/PromptCollectionDetail.tsx: "Generate with AI" button,
+    review panel (per-candidate checkbox + editable text/category), "Save
+    selected" -> bulk import. `CATEGORY_LABELS` updated to the 6 new types.
+  - New/updated tests: tests/server/services/promptGenerator.test.ts (new, 9
+    tests), tests/server/prompts.routes.test.ts (extended, generate-prompts
+    route incl. 503/404/role checks; legacy category values in existing tests
+    updated to the new taxonomy), client/src/pages/ai/PromptCollectionDetail.test.tsx
+    (new, 2 tests).
+  - 562 tests passing (17 new). No DB migration.
 
 ## Post-Sprint Work This Session (v1.12.0)
 
@@ -545,18 +579,21 @@ Confirmed decisions:
   (v1.12.0) COMPLETE** — `/admin/platforms` now has an "add custom platform"
   form (POST /api/platforms), and Integrations.tsx shows connection status +
   env-var hints for all 7 catalog platforms.
-- B-12 Feature: AI-assisted prompt generation for Prompt Collections — when a Prompt
-  Collection is created, offer the user an option to have AI research and generate
-  prompts using the client's Brand, website URL, and configured competitors. Generated
-  prompts should be grouped by type:
-  | Prompt type | Example |
-  |---|---|
-  | Informational | "What is the best way to solve X?" |
-  | Comparative | "Brand A vs Brand B" |
-  | Commercial | "Best software for X" |
-  | Local | "Best emergency plumber near Seattle" |
-  | Problem-aware | "Why is my furnace making noise?" |
-  | Alternative | "Alternatives to [competitor]" |
+- B-12 Feature: AI-assisted prompt generation for Prompt Collections — **COMPLETE
+  (v1.13.0)**. When working on a Prompt Collection, the analyst can click
+  "Generate with AI" to have the first configured LLM adapter research and
+  generate candidate prompts from the client's Brand, website domain,
+  geographies, and configured competitors. `PROMPT_CATEGORIES` was replaced
+  with the 6 B-12 types: informational, comparative, commercial, local,
+  problem_aware, alternative (no migration needed — free TEXT column).
+  Generation is generate-then-review: `POST
+  /api/clients/:clientId/prompt-collections/:id/generate-prompts` returns
+  candidates (not persisted); the analyst reviews/edits/deselects in a panel,
+  then "Save selected" reuses the existing `POST
+  /api/prompt-collections/:id/prompts/bulk` endpoint. New service
+  `server/services/promptGenerator.ts` (pickGenerationAdapter,
+  buildGenerationPrompt, parseGeneratedPrompts, generatePrompts) — returns 503
+  NO_GENERATION_ADAPTER if no LLM key is configured.
 - B-13 Feature: Edit existing prompts — add the ability to edit a prompt's text/category
   on an existing Prompt Collection (currently prompts can only be created/removed, not edited).
 
