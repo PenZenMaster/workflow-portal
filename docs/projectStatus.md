@@ -629,6 +629,22 @@ Confirmed decisions:
   editor; Save PATCHes /api/prompts/:id with the full prompt payload.
 
 ### Medium Priority
+- B-18 Full CRUD UI for Prompt Collections (PromptCollections.tsx /
+  PromptCollectionDetail.tsx). Currently Create/Read/Activate/Clone exist but
+  Update and Delete are incomplete:
+  - Edit: expose a rename/edit-notes UI for an existing collection (backend
+    `PATCH /api/prompt-collections/:id` + `insertPromptCollectionSchema`
+    already support name/notes/status/version — just needs a frontend form,
+    similar in shape to B-13's inline prompt edit).
+  - Delete: no backend route or store method exists for deleting/archiving a
+    prompt collection. Add `DELETE /api/prompt-collections/:id` (or an
+    "archive" status transition, consistent with the existing draft/active/
+    archived `STATUS_COLOURS` already defined in PromptCollections.tsx) plus
+    `PromptCollectionStore.delete()`, with a confirm step and a 409 guard if
+    the collection has runs referencing it (mirroring the PLATFORM_IN_USE
+    pattern from B-11).
+  - Clone: backend `POST /api/prompt-collections/:id/clone` exists but has no
+    UI entry point.
 - B-17 On /ai/clients/:id/settings/integrations ("Integrations & API Keys"),
   display the client's name underneath the page heading / AI Platform keys
   section so the analyst has confirmation of which client's integrations
