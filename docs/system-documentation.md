@@ -34,6 +34,12 @@ In cPanel → Setup Node.js App → Environment Variables:
 | `NODE_ENV` | Yes | `production` |
 | `PERPLEXITY_API_KEY` | For AI runs | Get from perplexity.ai/settings/api |
 | `PERPLEXITY_DAILY_USD_LIMIT` | Recommended | e.g. `10` — caps daily API spend |
+| `OPENAI_API_KEY` | Optional | Enables ChatGPT as a query target in Runs |
+| `ANTHROPIC_API_KEY` | Optional | Enables Claude as a query target in Runs |
+| `GOOGLE_AI_API_KEY` | Optional | Enables Gemini as a query target in Runs (distinct from GA4 OAuth credentials below) |
+| `GROQ_API_KEY` | Optional | Enables Llama (via Groq) as a query target in Runs — free tier available |
+| `MISTRAL_API_KEY` | Optional | Enables Mistral as a query target in Runs |
+| `DEEPSEEK_API_KEY` | Optional | Enables DeepSeek as a query target in Runs |
 | `GOOGLE_CLIENT_ID` | For GA4 | OAuth credential from Google Cloud Console |
 | `GOOGLE_CLIENT_SECRET` | For GA4 | OAuth credential from Google Cloud Console |
 | `GOOGLE_REDIRECT_URI` | For GA4 | `https://yourportal.com/api/oauth/google/callback` |
