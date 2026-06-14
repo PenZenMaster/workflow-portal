@@ -61,10 +61,16 @@ Navigate to **Users** (top navigation, visible to Super Admin only). Create acco
 
 **4. Configure GA4 OAuth (if using traffic data)**
 - Create an OAuth 2.0 credential at console.cloud.google.com
-- Enable the Google Analytics Data API in the same project
-- Enable the Google Analytics Admin API in the same project (used for the GA4
-  property picker — covered by the same `analytics.readonly` scope, no extra
-  consent screen changes needed)
+- Enable **both** of the following APIs in the same Cloud project — they are
+  separate APIs and both must be enabled individually, even though a single
+  `analytics.readonly` OAuth scope and consent screen covers both:
+  - **Google Analytics Data API** (`analyticsdata.googleapis.com`) — used to
+    fetch AI traffic numbers on the client Traffic tab
+  - **Google Analytics Admin API** (`analyticsadmin.googleapis.com`) — used by
+    the GA4 property picker dropdown on the Integrations page
+    (`Section 1B Step 4`). If only the Data API is enabled, traffic fetching
+    works but the property picker silently falls back to manual entry — see
+    the troubleshooting note in Step 4 below.
 - Add the redirect URI to Authorized redirect URIs
 - Set the three `GOOGLE_*` env vars above
 
@@ -115,6 +121,19 @@ Client page → ⚙ Integrations → Connect Google Analytics
   properties), use "Enter ID manually" and type the numeric Property ID (found in
   GA4 → Admin → Property Settings → Property ID — this is a plain number, NOT the
   G-XXXXXXXX Measurement ID)
+
+> **Troubleshooting — property dropdown always shows manual entry:**
+> Check the server log for `"ga4 properties list failed"`. If the error body
+> contains `"status": "PERMISSION_DENIED"` / `"reason": "SERVICE_DISABLED"` for
+> `analyticsadmin.googleapis.com`, the Google Analytics Admin API is not
+> enabled in the Cloud project backing `GOOGLE_CLIENT_ID` (see Section 1A
+> Step 4). Fix:
+> 1. Open `https://console.developers.google.com/apis/api/analyticsadmin.googleapis.com/overview?project=<PROJECT_NUMBER>`
+>    (the project number is included in the error message).
+> 2. Click **Enable** and wait a few minutes for it to propagate.
+> 3. Reload the Integrations page, or click "Re-connect Google account" to
+>    retry — no portal restart or re-authentication is required.
+> This is the picker's designed fallback behavior, not a portal bug.
 
 **Step 5 — Create a prompt collection**
 Client page → Prompt Collections → New collection
