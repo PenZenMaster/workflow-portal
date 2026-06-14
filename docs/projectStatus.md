@@ -18,23 +18,32 @@ once the fresh worker took over; "No adapter configured" errors gone. v1.10.0
 v1.11.0 (nav/layout refactor: Clients link on Home, Back to Workflows
 positioning fix on ai/clients) deployed to pre-production. v1.11.1 (fix:
 Retry failed didn't resume run polling and double-counted failedPrompts)
-implemented this session — not yet deployed.
+deployed to pre-production and verified — "Retry failed" behaves as expected
+(page auto-updates after the retry completes, no manual refresh needed).
+
+A 5-platform run (Perplexity, ChatGPT, Claude, Gemini, Groq/Llama) was tested
+on pre-production: all passed except Gemini (429 rate limit, expected — see
+v1.10.0 context). Note: the Groq ("Llama via Groq") adapter is implemented and
+seeded, but the user's Groq API access is still pending GA approval (requested,
+not yet granted) — Groq-based runs cannot be fully exercised until that access
+comes through.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Deploy v1.11.1 to pre-production and QA: click "Retry failed" on a run with
-   a failed Gemini response (429) and confirm the Run Detail page now polls
-   automatically and updates within ~5-10s once the retry completes (no manual
-   page refresh needed), and that failedPrompts/run status end up correct.
-2. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
+1. v1.11.1 QA complete — no further action needed for the Retry failed fix.
+2. Once Groq API access is granted, set GROQ_API_KEY in the pre-production
+   .env and re-run a multi-platform collection to confirm the Groq/Llama
+   adapter works end-to-end (it is already implemented and seeded as
+   "Llama via Groq" — server/adapters/groq.ts).
+3. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
    /api/platforms via UI), and extend Integrations.tsx to show connection status for
    all 5 target LLMs (currently only Perplexity is shown there).
-3. Continue internal review of the consolidated AI Visibility client page
+4. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
-4. See Tech Debt Register and Backlog below for next priorities.
+5. See Tech Debt Register and Backlog below for next priorities.
 
 ---
 
