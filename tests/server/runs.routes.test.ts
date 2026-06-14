@@ -11,6 +11,7 @@ const mockRunStore = {
   updateStatus: vi.fn(),
   incrementCompleted: vi.fn(),
   incrementFailed: vi.fn(),
+  decrementFailed: vi.fn(),
 };
 const mockResponseStore = {
   listByRun: vi.fn(),
@@ -202,6 +203,32 @@ describe("POST /api/runs/:id/retry-failed", () => {
       .post("/api/runs/1/retry-failed");
     expect(res.status).toBe(202);
     expect(res.body.data.retriedCount).toBe(1);
+  });
+
+  it("decrements failedPrompts and sets the run back to running so the UI resumes polling", async () => {
+    mockRunStore.get.mockResolvedValue(SAMPLE_RUN);
+    mockResponseStore.listFailedByRun.mockResolvedValue([SAMPLE_RESPONSE]);
+    mockResponseStore.updateResult.mockResolvedValue(undefined);
+    mockRunStore.decrementFailed.mockResolvedValue(undefined);
+    mockRunStore.updateStatus.mockResolvedValue(undefined);
+    mockJobRunner.enqueue = vi.fn().mockResolvedValue(undefined);
+
+    await request(buildApp("agency_admin")).post("/api/runs/1/retry-failed");
+
+    expect(mockRunStore.decrementFailed).toHaveBeenCalledWith(SAMPLE_RUN.id);
+    expect(mockResponseStore.updateResult).toHaveBeenCalledWith(SAMPLE_RESPONSE.id, { status: "queued" });
+    expect(mockRunStore.updateStatus).toHaveBeenCalledWith(SAMPLE_RUN.id, "running");
+  });
+
+  it("does not touch run status when there are no failed responses to retry", async () => {
+    mockRunStore.get.mockResolvedValue(SAMPLE_RUN);
+    mockResponseStore.listFailedByRun.mockResolvedValue([]);
+
+    const res = await request(buildApp("agency_admin")).post("/api/runs/1/retry-failed");
+
+    expect(res.body.data.retriedCount).toBe(0);
+    expect(mockRunStore.decrementFailed).not.toHaveBeenCalled();
+    expect(mockRunStore.updateStatus).not.toHaveBeenCalled();
   });
 });
 

@@ -2,7 +2,7 @@
 
 Last session: 2026-06-14
 Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
-Branch: main | Version: v1.11.0 | 536 tests passing
+Branch: main | Version: v1.11.1 | 540 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
@@ -16,16 +16,18 @@ on this deploy's restart (stale lsnode worker, killed manually) but resolved
 once the fresh worker took over; "No adapter configured" errors gone. v1.10.0
 (Retry failed button on RunDetail) implemented this session — not yet deployed.
 v1.11.0 (nav/layout refactor: Clients link on Home, Back to Workflows
-positioning fix on ai/clients) implemented this session — not yet deployed.
+positioning fix on ai/clients) deployed to pre-production. v1.11.1 (fix:
+Retry failed didn't resume run polling and double-counted failedPrompts)
+implemented this session — not yet deployed.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Deploy v1.11.0 to pre-production and QA: the "Retry failed" button on a run
-   with a failed response (e.g. re-trigger the Gemini 429 from this session and
-   confirm Retry failed requeues it and it completes on retry), and the new
-   "Clients" nav link / ai/clients "Back to Workflows" positioning.
+1. Deploy v1.11.1 to pre-production and QA: click "Retry failed" on a run with
+   a failed Gemini response (429) and confirm the Run Detail page now polls
+   automatically and updates within ~5-10s once the retry completes (no manual
+   page refresh needed), and that failedPrompts/run status end up correct.
 2. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
    /api/platforms via UI), and extend Integrations.tsx to show connection status for
    all 5 target LLMs (currently only Perplexity is shown there).
@@ -35,6 +37,26 @@ Pick up from:
 4. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.11.1)
+
+- Fix: "Retry failed" left the Run Detail page stuck with no updates.
+  - Root cause: `POST /api/runs/:id/retry-failed` set the retried response(s)
+    back to "queued" and enqueued a prompt-run job, but left `run.status`
+    unchanged (e.g. "failed"/"partial", both terminal). RunDetail's
+    `refetchInterval` only polls while `run.status` is non-terminal, so the
+    page never refetched and the user saw no update even after the retry
+    completed. It also never decremented `run.failedPrompts`, so a second
+    failure on retry would double-count it.
+  - server/storage/runStore.ts: added `decrementFailed()` (floored at 0).
+  - server/routes/runs.ts: `retry-failed` now calls `decrementFailed()` for
+    each retried response and sets `run.status` to "running" when any
+    responses were retried, so the existing 5s poll resumes until the job
+    runner finalises the run again.
+  - New/updated tests: tests/server/storage/runs.test.ts (decrementFailed,
+    floor at 0), tests/server/runs.routes.test.ts (retry-failed decrements
+    counters and sets status to "running"; no-op when nothing to retry).
+  - 540 tests passing (4 new).
 
 ## Post-Sprint Work This Session (v1.11.0)
 

@@ -81,6 +81,22 @@ describe("RunStore", () => {
     const updated = await store.get(run.id);
     expect(updated?.failedPrompts).toBe(1);
   });
+
+  it("decrements failedPrompts", async () => {
+    const run = await store.create(SAMPLE_RUN_DATA);
+    await store.incrementFailed(run.id);
+    await store.incrementFailed(run.id);
+    await store.decrementFailed(run.id);
+    const updated = await store.get(run.id);
+    expect(updated?.failedPrompts).toBe(1);
+  });
+
+  it("does not decrement failedPrompts below zero", async () => {
+    const run = await store.create(SAMPLE_RUN_DATA);
+    await store.decrementFailed(run.id);
+    const updated = await store.get(run.id);
+    expect(updated?.failedPrompts).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -181,8 +181,13 @@ export function registerRunRoutes(app: Express): void {
 
       const failed = await responseStore.listFailedByRun(id);
       for (const resp of failed) {
+        await runStore.decrementFailed(id);
         await responseStore.updateResult(resp.id, { status: "queued" });
         jobRunner.enqueue("prompt-run", { responseId: resp.id });
+      }
+
+      if (failed.length > 0) {
+        await runStore.updateStatus(id, "running");
       }
 
       res.status(202).json({ data: { retriedCount: failed.length } });

@@ -54,6 +54,7 @@ export interface IRunStore {
   updateStatus(id: number, status: PromptRun["status"]): Promise<void>;
   incrementCompleted(id: number): Promise<void>;
   incrementFailed(id: number): Promise<void>;
+  decrementFailed(id: number): Promise<void>;
 }
 
 export class RunStore implements IRunStore {
@@ -136,6 +137,17 @@ export class RunStore implements IRunStore {
       .update(promptRuns)
       .set({
         failedPrompts: sql`${promptRuns.failedPrompts} + 1`,
+        updatedAt: Date.now(),
+      })
+      .where(eq(promptRuns.id, id))
+      .run();
+  }
+
+  async decrementFailed(id: number): Promise<void> {
+    this._db
+      .update(promptRuns)
+      .set({
+        failedPrompts: sql`MAX(${promptRuns.failedPrompts} - 1, 0)`,
         updatedAt: Date.now(),
       })
       .where(eq(promptRuns.id, id))
