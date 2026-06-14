@@ -2,7 +2,7 @@
 
 Last session: 2026-06-14
 Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
-Branch: main | Version: v1.9.0 | 532 tests passing
+Branch: main | Version: v1.10.0 | 534 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
@@ -11,14 +11,18 @@ QA passed. v1.7.0 (platform CRUD API) verified live and QA passed against
 pre-production (GET /api/platforms returns the 7 seeded platforms with
 enabled/config fields). v1.8.0 (AI Platforms admin page) deployed to
 pre-production and verified — /admin/platforms confirmed working. v1.9.0 (B-16
-GA4 property picker) implemented this session — not yet deployed.
+GA4 property picker) deployed to pre-production and verified — TD-16 recurred
+on this deploy's restart (stale lsnode worker, killed manually) but resolved
+once the fresh worker took over; "No adapter configured" errors gone. v1.10.0
+(Retry failed button on RunDetail) implemented this session — not yet deployed.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Deploy v1.9.0 to pre-production and QA the GA4 property picker (see
-   Post-Sprint Work This Session (v1.9.0) below for the manual verification steps).
+1. Deploy v1.10.0 to pre-production and QA the "Retry failed" button on a run
+   with a failed response (e.g. re-trigger the Gemini 429 from this session and
+   confirm Retry failed requeues it and it completes on retry).
 2. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
    /api/platforms via UI), and extend Integrations.tsx to show connection status for
    all 5 target LLMs (currently only Perplexity is shown there).
@@ -28,6 +32,25 @@ Pick up from:
 4. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.10.0)
+
+- Feature: "Retry failed" button on the Run Detail page.
+  - client/src/pages/ai/RunDetail.tsx: added a `retryFailedMutation` wired to
+    the existing `POST /api/runs/:id/retry-failed` endpoint (previously
+    backend-only, with no UI). Shown next to "Re-parse responses" whenever the
+    run is terminal and `run.failedPrompts > 0`. On success, invalidates the
+    run query and toasts the retried count.
+  - client/src/pages/ai/RunDetail.test.tsx (new): 2 tests — button renders and
+    fires the retry endpoint when failedPrompts > 0; button absent when there
+    are no failed responses.
+  - 534 tests passing (2 new).
+  - Context: surfaced while debugging a Gemini 429 (rate limit) on a single
+    prompt run after the v1.9.0 deploy — the adapter retries 429s 3x with
+    backoff, but if all 3 fail, the prompt-run job marks the response "failed"
+    without itself failing, so there was no automatic or manual retry path in
+    the UI. This is a one-off rate-limit issue (Gemini free-tier ~15 RPM), not
+    a regression.
 
 ## Post-Sprint Work This Session (v1.9.0)
 

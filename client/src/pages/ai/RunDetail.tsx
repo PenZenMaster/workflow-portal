@@ -5,7 +5,7 @@ import type { PromptRun, ResponseRaw } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, CheckCircle2 } from "lucide-react";
+import { RefreshCw, CheckCircle2, RotateCcw } from "lucide-react";
 import { isReparseComplete, reparseProgressLabel, type ReparseStatus } from "./reparseStatus";
 
 const TERMINAL = new Set(["complete", "partial", "failed"]);
@@ -71,6 +71,18 @@ export default function RunDetail() {
     onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
   });
 
+  const retryFailedMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/runs/${runId}/retry-failed`);
+      return res.json() as Promise<{ data: { retriedCount: number } }>;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/runs/${runId}`] });
+      toast({ title: `Retrying ${result.data.retriedCount} failed response(s)` });
+    },
+    onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
+  });
+
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
   if (!data) return <div className="p-8 text-destructive">Run not found.</div>;
 
@@ -94,18 +106,32 @@ export default function RunDetail() {
             {run.failedPrompts > 0 && <span className="text-red-600">{run.failedPrompts} failed</span>}
           </div>
         </div>
-        {TERMINAL.has(run.status) && completedCount > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => reparseMutation.mutate()}
-            disabled={reparseMutation.isPending}
-            title="Re-run the mention/citation/metric extraction — useful if you added brands after the run completed"
-          >
-            <RefreshCw className={`h-4 w-4 mr-1.5 ${reparseMutation.isPending ? "animate-spin" : ""}`} />
-            {reparseMutation.isPending ? "Re-parsing…" : "Re-parse responses"}
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {TERMINAL.has(run.status) && run.failedPrompts > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => retryFailedMutation.mutate()}
+              disabled={retryFailedMutation.isPending}
+              title="Requeue failed responses for another attempt — useful after a transient API error or rate limit"
+            >
+              <RotateCcw className={`h-4 w-4 mr-1.5 ${retryFailedMutation.isPending ? "animate-spin" : ""}`} />
+              {retryFailedMutation.isPending ? "Retrying…" : "Retry failed"}
+            </Button>
+          )}
+          {TERMINAL.has(run.status) && completedCount > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => reparseMutation.mutate()}
+              disabled={reparseMutation.isPending}
+              title="Re-run the mention/citation/metric extraction — useful if you added brands after the run completed"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1.5 ${reparseMutation.isPending ? "animate-spin" : ""}`} />
+              {reparseMutation.isPending ? "Re-parsing…" : "Re-parse responses"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {reparseStatus && reparseStatus.total > 0 && (
