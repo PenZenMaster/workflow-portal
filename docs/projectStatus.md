@@ -28,6 +28,18 @@ seeded, but the user's Groq API access is still pending GA approval (requested,
 not yet granted) — Groq-based runs cannot be fully exercised until that access
 comes through.
 
+QA on v1.11.1 found the B-16 GA4 property dropdown still shows the manual-entry
+form instead of the picker. Diagnosed via pre-production stderr.log
+("ga4 properties list failed", integrationId 5): the GA4 Admin API
+(analyticsadmin.googleapis.com) returns 403 SERVICE_DISABLED — it is a
+separate API from the GA4 Data API and is not yet enabled in the Google Cloud
+project (551074775331) backing the OAuth client. This is the documented
+graceful-degradation path working as designed, not a code bug. One-time fix
+(user/Cloud Console side): enable it at
+https://console.developers.google.com/apis/api/analyticsadmin.googleapis.com/overview?project=551074775331,
+wait a few minutes, then reload the Integrations page (or click "Re-connect
+Google account") to confirm the dropdown populates.
+
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
@@ -37,13 +49,16 @@ Pick up from:
    .env and re-run a multi-platform collection to confirm the Groq/Llama
    adapter works end-to-end (it is already implemented and seeded as
    "Llama via Groq" — server/adapters/groq.ts).
-3. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
+3. Enable the Google Analytics Admin API in Google Cloud project 551074775331
+   (see above) so the B-16 GA4 property dropdown can populate, then re-test
+   on the Integrations page. No code change needed.
+4. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
    /api/platforms via UI), and extend Integrations.tsx to show connection status for
    all 5 target LLMs (currently only Perplexity is shown there).
-4. Continue internal review of the consolidated AI Visibility client page
+5. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
-5. See Tech Debt Register and Backlog below for next priorities.
+6. See Tech Debt Register and Backlog below for next priorities.
 
 ---
 
