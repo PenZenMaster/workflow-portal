@@ -1,7 +1,7 @@
 ## Resume From
 
-Last session: 2026-06-12
-Last commit: 22f13cb feat(admin): add AI Platforms management page — v1.8.0
+Last session: 2026-06-14
+Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
 Branch: main | Version: v1.8.0 | 518 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
@@ -9,22 +9,20 @@ re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
 confirmed live. v1.6.1 (TD-15 + sentimentStore cross-client leak fix) deployed and
 QA passed. v1.7.0 (platform CRUD API) verified live and QA passed against
 pre-production (GET /api/platforms returns the 7 seeded platforms with
-enabled/config fields). v1.8.0 packaged this session, not yet deployed.
+enabled/config fields). v1.8.0 (AI Platforms admin page) deployed to
+pre-production and verified — /admin/platforms confirmed working.
 
 v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /admin/jobs
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Deploy v1.8.0 to pre-production and verify the new /admin/platforms page (toggle
-   enabled, delete a platform, confirm Connected/Not-configured badges match
-   configuredPlatforms).
-2. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
+1. B-11 Phase 2 follow-ups (deferred): "add custom platform" form (POST
    /api/platforms via UI), and extend Integrations.tsx to show connection status for
    all 5 target LLMs (currently only Perplexity is shown there).
-3. Continue internal review of the consolidated AI Visibility client page
+2. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
-4. See Tech Debt Register and Backlog below for next priorities.
+3. See Tech Debt Register and Backlog below for next priorities.
 
 ---
 
