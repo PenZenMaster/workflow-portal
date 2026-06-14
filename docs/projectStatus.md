@@ -2,7 +2,7 @@
 
 Last session: 2026-06-14
 Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
-Branch: main | Version: v1.13.1 | 563 tests passing
+Branch: main | Version: v1.14.0 | 564 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
@@ -57,14 +57,33 @@ Pick up from:
    Collections — "Generate with AI" button on PromptCollectionDetail, new
    generate-prompts endpoint, 6-type category taxonomy. Not yet deployed —
    manual QA on pre-production needed once deployed (generate, review/edit/
-   deselect, save, confirm clear error when no LLM key configured). Next up:
-   B-13 (edit existing prompts).
+   deselect, save, confirm clear error when no LLM key configured).
+4b. v1.13.1: /ai/clients list now sorted alphabetically (case-insensitive).
+4c. B-13 complete (v1.14.0): Edit existing prompts — each prompt row on
+   PromptCollectionDetail has an Edit (pencil) action that opens an inline
+   form (text + category), Save PATCHes /api/prompts/:id with the full
+   prompt payload (preserving funnelStage/geo/priorityWeight/status/
+   targetPlatforms/position) to avoid the schema-defaults wiping those
+   fields. Not yet deployed.
 5. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
 6. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.14.0)
+
+- Feature: B-13 — Edit existing prompts. PromptCollectionDetail.tsx adds an
+  Edit (pencil) button per prompt that opens an inline text/category editor;
+  Save calls the existing `PATCH /api/prompts/:id` with the full prompt
+  payload (text, category, funnelStage, geo, deviceContext, priorityWeight,
+  status, targetPlatforms, position) so `insertPromptSchema` defaults don't
+  overwrite fields not present in a partial payload. No backend changes
+  needed — `PromptStore.update()` and the PATCH route already existed.
+  - New test: PromptCollectionDetail.test.tsx ("Edit reveals an editable
+    form and Save PATCHes the prompt, preserving other fields").
+  - 564 tests passing (1 new).
 
 ## Post-Sprint Work This Session (v1.13.1)
 
@@ -603,8 +622,9 @@ Confirmed decisions:
   `server/services/promptGenerator.ts` (pickGenerationAdapter,
   buildGenerationPrompt, parseGeneratedPrompts, generatePrompts) — returns 503
   NO_GENERATION_ADAPTER if no LLM key is configured.
-- B-13 Feature: Edit existing prompts — add the ability to edit a prompt's text/category
-  on an existing Prompt Collection (currently prompts can only be created/removed, not edited).
+- B-13 Feature: Edit existing prompts — **COMPLETE (v1.14.0)**. Each prompt row on
+  PromptCollectionDetail has an Edit action that opens an inline text/category
+  editor; Save PATCHes /api/prompts/:id with the full prompt payload.
 
 ### Medium Priority
 - B-17 On /ai/clients/:id/settings/integrations ("Integrations & API Keys"),

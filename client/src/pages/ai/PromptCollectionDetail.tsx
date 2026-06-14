@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Zap, Play, X, Sparkles } from "lucide-react";
+import { Plus, Trash2, Zap, Play, X, Sparkles, Pencil } from "lucide-react";
 
 type Candidate = GeneratedPromptCandidate & { selected: boolean };
 
@@ -34,6 +34,9 @@ export default function PromptCollectionDetail() {
   const [category, setCategory] = useState<typeof PROMPT_CATEGORIES[number]>("informational");
   const [geo, setGeo] = useState("");
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editCategory, setEditCategory] = useState<typeof PROMPT_CATEGORIES[number]>("informational");
 
   const { data: collectionData } = useQuery<{ data: PromptCollection }>({
     queryKey: [`/api/prompt-collections/${collectionId}`],
@@ -94,6 +97,29 @@ export default function PromptCollectionDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/prompt-collections/${collectionId}/prompts`] });
       toast({ title: "Prompt removed" });
+    },
+    onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
+  });
+
+  const editPromptMutation = useMutation({
+    mutationFn: async (prompt: Prompt) => {
+      const res = await apiRequest("PATCH", `/api/prompts/${prompt.id}`, {
+        text: prompt.text,
+        category: prompt.category,
+        funnelStage: prompt.funnelStage,
+        geo: prompt.geo ?? undefined,
+        deviceContext: prompt.deviceContext ?? undefined,
+        priorityWeight: prompt.priorityWeight,
+        status: prompt.status,
+        targetPlatforms: prompt.targetPlatforms,
+        position: prompt.position,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prompt-collections/${collectionId}/prompts`] });
+      setEditingId(null);
+      toast({ title: "Prompt updated" });
     },
     onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
   });
@@ -351,23 +377,70 @@ export default function PromptCollectionDetail() {
         <ul className="space-y-2">
           {prompts.map((p) => (
             <li key={p.id} className="border rounded-lg p-3 flex items-start justify-between gap-3">
-              <div className="flex-1">
-                <p className="text-sm">{p.text}</p>
-                <div className="flex gap-2 mt-1.5">
-                  <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{CATEGORY_LABELS[p.category as typeof PROMPT_CATEGORIES[number]] ?? p.category}</span>
-                  <span className="text-xs text-muted-foreground">{p.funnelStage}</span>
-                  {p.geo && <span className="text-xs text-muted-foreground">{p.geo}</span>}
+              {editingId === p.id ? (
+                <div className="flex-1 space-y-2">
+                  <Input
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    aria-label="Prompt text"
+                    autoFocus
+                  />
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value as typeof PROMPT_CATEGORIES[number])}
+                    className="h-9 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                    aria-label="Category"
+                  >
+                    {PROMPT_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>{CATEGORY_LABELS[cat]}</option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="ghost" size="sm" onClick={() => setEditingId(null)}>Cancel</Button>
+                    <Button
+                      size="sm"
+                      onClick={() => editPromptMutation.mutate({ ...p, text: editText.trim(), category: editCategory })}
+                      disabled={editPromptMutation.isPending || !editText.trim()}
+                    >
+                      {editPromptMutation.isPending ? "Saving…" : "Save"}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => deletePromptMutation.mutate(p.id)}
-                disabled={deletePromptMutation.isPending}
-                className="text-destructive hover:text-destructive shrink-0"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              ) : (
+                <>
+                  <div className="flex-1">
+                    <p className="text-sm">{p.text}</p>
+                    <div className="flex gap-2 mt-1.5">
+                      <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{CATEGORY_LABELS[p.category as typeof PROMPT_CATEGORIES[number]] ?? p.category}</span>
+                      <span className="text-xs text-muted-foreground">{p.funnelStage}</span>
+                      {p.geo && <span className="text-xs text-muted-foreground">{p.geo}</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setEditingId(p.id);
+                        setEditText(p.text);
+                        setEditCategory(p.category as typeof PROMPT_CATEGORIES[number]);
+                      }}
+                      aria-label={`Edit "${p.text}"`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deletePromptMutation.mutate(p.id)}
+                      disabled={deletePromptMutation.isPending}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              )}
             </li>
           ))}
         </ul>

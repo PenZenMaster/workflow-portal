@@ -40,8 +40,25 @@ const CANDIDATES = [
   { text: "Best plumber near Seattle", category: "local", funnelStage: "decision" },
 ];
 
+const EXISTING_PROMPT = {
+  id: 5,
+  collectionId: 1,
+  text: "Best plumber in Seattle",
+  category: "local" as const,
+  funnelStage: "decision" as const,
+  geo: "Seattle, WA",
+  deviceContext: null,
+  priorityWeight: 1,
+  status: "active" as const,
+  targetPlatforms: [],
+  position: 0,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+};
+
 const GENERATE_URL = "/api/clients/10/prompt-collections/1/generate-prompts";
 const BULK_URL = "/api/prompt-collections/1/prompts/bulk";
+const PROMPT_PATCH_URL = "/api/prompts/5";
 
 let fetchMock: ReturnType<typeof vi.fn>;
 let promptsResponse: unknown;
@@ -58,6 +75,10 @@ beforeEach(() => {
 
     if (method === "POST" && url === BULK_URL) {
       return { ok: true, status: 201, json: async () => ({ data: [] }), text: async () => "" } as Response;
+    }
+
+    if (method === "PATCH" && url === PROMPT_PATCH_URL) {
+      return { ok: true, status: 200, json: async () => ({ data: EXISTING_PROMPT }), text: async () => "" } as Response;
     }
 
     if (url === "/api/auth/status") {
@@ -132,6 +153,45 @@ describe("PromptCollectionDetail — AI prompt generation", () => {
       text: "What is the best way to fix a leaky faucet?",
       category: "informational",
       funnelStage: "awareness",
+    });
+  });
+});
+
+describe("PromptCollectionDetail — edit existing prompt", () => {
+  beforeEach(() => {
+    promptsResponse = { data: [EXISTING_PROMPT] };
+  });
+
+  it("Edit reveals an editable form and Save PATCHes the prompt, preserving other fields", async () => {
+    renderPage();
+
+    expect(await screen.findByText("Best plumber in Seattle")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Edit/i }));
+
+    const textInput = screen.getByDisplayValue("Best plumber in Seattle");
+    await userEvent.clear(textInput);
+    await userEvent.type(textInput, "Best plumber near Seattle, WA");
+
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        PROMPT_PATCH_URL,
+        expect.objectContaining({ method: "PATCH" }),
+      ),
+    );
+
+    const [, init] = fetchMock.mock.calls.find(([url, reqInit]) => url === PROMPT_PATCH_URL && reqInit?.method === "PATCH")!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body).toMatchObject({
+      text: "Best plumber near Seattle, WA",
+      category: "local",
+      funnelStage: "decision",
+      geo: "Seattle, WA",
+      priorityWeight: 1,
+      status: "active",
+      targetPlatforms: [],
     });
   });
 });
