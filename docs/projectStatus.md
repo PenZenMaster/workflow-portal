@@ -2,7 +2,7 @@
 
 Last session: 2026-06-14
 Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
-Branch: main | Version: v1.13.0 | 562 tests passing
+Branch: main | Version: v1.13.1 | 563 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
@@ -65,6 +65,15 @@ Pick up from:
 6. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.13.1)
+
+- Fix: /ai/clients list was unsorted (insertion order). `ClientStore.list()`
+  (server/storage/clientStore.ts) now orders by `lower(name)` ascending, so
+  the Clients list renders alphabetically (case-insensitive).
+  - New test: tests/server/storage/clients.test.ts ("returns clients sorted
+    alphabetically by name, case-insensitive").
+  - 563 tests passing (1 new).
 
 ## Post-Sprint Work This Session (v1.13.0)
 

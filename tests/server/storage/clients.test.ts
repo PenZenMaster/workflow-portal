@@ -54,6 +54,15 @@ describe("ClientStore", () => {
     expect(await store.get(9999)).toBeUndefined();
   });
 
+  it("returns clients sorted alphabetically by name, case-insensitive", async () => {
+    await store.create({ ...SAMPLE_CLIENT, name: "zeta Corp" });
+    await store.create({ ...SAMPLE_CLIENT, name: "Acme Corp" });
+    await store.create({ ...SAMPLE_CLIENT, name: "mid Co" });
+
+    const names = (await store.list()).map((c) => c.name);
+    expect(names).toEqual(["Acme Corp", "mid Co", "zeta Corp"]);
+  });
+
   it("soft-deletes and excludes from list", async () => {
     const c = await store.create(SAMPLE_CLIENT);
     const ok = await store.delete(c.id);

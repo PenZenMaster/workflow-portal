@@ -15,7 +15,7 @@
 
 import { clients } from "@shared/schema";
 import type { Client, InsertClient } from "@shared/schema";
-import { eq, isNull } from "drizzle-orm";
+import { asc, eq, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -50,6 +50,7 @@ export class ClientStore implements IClientStore {
       .select()
       .from(clients)
       .where(isNull(clients.deletedAt))
+      .orderBy(asc(sql`lower(${clients.name})`))
       .all();
     return rows.map(hydrate);
   }
