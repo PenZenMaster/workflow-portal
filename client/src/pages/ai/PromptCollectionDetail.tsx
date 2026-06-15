@@ -12,6 +12,7 @@ const CATEGORY_LABELS: Record<typeof PROMPT_CATEGORIES[number], string> = {
   problem_aware: "Problem-aware",
   alternative:   "Alternative",
 };
+import { utcToLocalWeekly, localToUtcWeekly, utcHourToLocalHour, localHourToUtcHour } from "@/lib/scheduleTiming";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -27,11 +28,12 @@ const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function formatCadence(schedule: RunSchedule): string {
-  const hour = String(schedule.hourUtc).padStart(2, "0");
   if (schedule.cadence === "weekly") {
-    return `Weekly on ${DAY_NAMES[schedule.dayOfWeek ?? 0]} at ${hour}:00 UTC`;
+    const { dayOfWeek, hour } = utcToLocalWeekly(schedule.dayOfWeek ?? 0, schedule.hourUtc);
+    return `Weekly on ${DAY_NAMES[dayOfWeek]} at ${String(hour).padStart(2, "0")}:00`;
   }
-  return `Monthly on day ${schedule.dayOfMonth ?? 1} at ${hour}:00 UTC`;
+  const hour = utcHourToLocalHour(schedule.hourUtc);
+  return `Monthly on day ${schedule.dayOfMonth ?? 1} (UTC date) at ${String(hour).padStart(2, "0")}:00`;
 }
 
 export default function PromptCollectionDetail() {
@@ -51,9 +53,9 @@ export default function PromptCollectionDetail() {
   const [editCategory, setEditCategory] = useState<typeof PROMPT_CATEGORIES[number]>("informational");
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [scheduleCadence, setScheduleCadence] = useState<"weekly" | "monthly">("weekly");
-  const [scheduleDayOfWeek, setScheduleDayOfWeek] = useState(1);
+  const [scheduleDayOfWeekLocal, setScheduleDayOfWeekLocal] = useState(1);
   const [scheduleDayOfMonth, setScheduleDayOfMonth] = useState(1);
-  const [scheduleHourUtc, setScheduleHourUtc] = useState(0);
+  const [scheduleHourLocal, setScheduleHourLocal] = useState(0);
   const [schedulePlatformIds, setSchedulePlatformIds] = useState<number[]>([]);
 
   const { data: collectionData } = useQuery<{ data: PromptCollection }>({
@@ -176,13 +178,22 @@ export default function PromptCollectionDetail() {
 
   const createScheduleMutation = useMutation({
     mutationFn: async () => {
+      let hourUtc: number;
+      let dayOfWeek: number | undefined;
+      if (scheduleCadence === "weekly") {
+        const converted = localToUtcWeekly(scheduleDayOfWeekLocal, scheduleHourLocal);
+        hourUtc = converted.hourUtc;
+        dayOfWeek = converted.dayOfWeek;
+      } else {
+        hourUtc = localHourToUtcHour(scheduleHourLocal);
+      }
       const res = await apiRequest("POST", `/api/clients/${id}/schedules`, {
         collectionId: Number(collectionId),
         platformIds: schedulePlatformIds,
         cadence: scheduleCadence,
-        hourUtc: scheduleHourUtc,
+        hourUtc,
         ...(scheduleCadence === "weekly"
-          ? { dayOfWeek: scheduleDayOfWeek }
+          ? { dayOfWeek }
           : { dayOfMonth: scheduleDayOfMonth }),
       });
       return res.json();
@@ -550,14 +561,14 @@ export default function PromptCollectionDetail() {
               </select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="schedule-hour">Hour (UTC)</Label>
+              <Label htmlFor="schedule-hour">Hour (local time)</Label>
               <Input
                 id="schedule-hour"
                 type="number"
                 min={0}
                 max={23}
-                value={scheduleHourUtc}
-                onChange={(e) => setScheduleHourUtc(Number(e.target.value))}
+                value={scheduleHourLocal}
+                onChange={(e) => setScheduleHourLocal(Number(e.target.value))}
               />
             </div>
           </div>
@@ -566,8 +577,8 @@ export default function PromptCollectionDetail() {
               <Label htmlFor="schedule-day-of-week">Day of week</Label>
               <select
                 id="schedule-day-of-week"
-                value={scheduleDayOfWeek}
-                onChange={(e) => setScheduleDayOfWeek(Number(e.target.value))}
+                value={scheduleDayOfWeekLocal}
+                onChange={(e) => setScheduleDayOfWeekLocal(Number(e.target.value))}
                 className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 {DAY_NAMES.map((day, idx) => (
@@ -577,7 +588,7 @@ export default function PromptCollectionDetail() {
             </div>
           ) : (
             <div className="space-y-1.5">
-              <Label htmlFor="schedule-day-of-month">Day of month</Label>
+              <Label htmlFor="schedule-day-of-month">Day of month (UTC date)</Label>
               <Input
                 id="schedule-day-of-month"
                 type="number"

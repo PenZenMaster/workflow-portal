@@ -2,7 +2,7 @@
 
 Last session: 2026-06-14
 Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
-Branch: main | Version: v1.17.0 | 600 tests passing
+Branch: main | Version: v1.18.0 | 606 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
@@ -89,9 +89,38 @@ Pick up from:
    honors weekly dayOfWeek / monthly dayOfMonth + hourUtc. New "Schedules"
    section on PromptCollectionDetail lists/creates/enables/deletes schedules
    (admin-only mutations). Not yet deployed.
+4h. B-19 follow-up (v1.18.0): Schedules now display/edit times in the
+   browser's local timezone instead of raw UTC. Weekly schedules show/edit
+   day-of-week + hour fully in local time; monthly schedules show/edit the
+   hour in local time but keep day-of-month labeled and stored as UTC (to
+   avoid the 1-28 range edge case from timezone shifts). Not yet deployed.
 6. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.18.0)
+
+- Feature: B-19 follow-up — convert schedule times from UTC to the browser's
+  local timezone for display and input, with no persisted timezone setting
+  (uses native `Date` local getters/setters, grabbed from the browser).
+  - New `client/src/lib/scheduleTiming.ts`: pure conversion helpers
+    `utcToLocalWeekly`, `localToUtcWeekly`, `utcHourToLocalHour`,
+    `localHourToUtcHour`.
+  - `PromptCollectionDetail.tsx`:
+    - `formatCadence()` now shows weekly schedules fully in local time (day +
+      hour, e.g. "Weekly on Tuesday at 07:00") and monthly schedules with the
+      day-of-month labeled "(UTC date)" but the hour converted to local time.
+    - The add-schedule form's "Day of week" and "Hour (local time)" inputs
+      collect local values; on submit they are converted to `dayOfWeek` /
+      `hourUtc` via `localToUtcWeekly` (weekly) or `localHourToUtcHour`
+      (monthly) before posting to `/api/clients/:id/schedules`. "Day of month
+      (UTC date)" is unchanged/unconverted.
+  - New tests: `client/src/lib/scheduleTiming.test.ts` (6, pinned to
+    America/New_York/EST for determinism); updated 2 of the 4
+    `PromptCollectionDetail.test.tsx` Schedules tests to pin
+    `process.env.TZ = "America/Phoenix"` (UTC-7, no DST) and assert local-time
+    display/conversion.
+  - 606 tests passing (6 new).
 
 ## Post-Sprint Work This Session (v1.17.0)
 

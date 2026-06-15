@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -244,16 +244,30 @@ describe("PromptCollectionDetail — edit existing prompt", () => {
 });
 
 describe("PromptCollectionDetail — Schedules", () => {
-  it("lists existing schedules with a cadence summary, next-run time, and admin-only enable/delete controls", async () => {
+  // Arizona (America/Phoenix) is UTC-7 year-round (no DST), so the
+  // local<->UTC offset used by scheduleTiming is fixed and deterministic
+  // regardless of the current date.
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    process.env.TZ = "America/Phoenix";
+  });
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
+  it("lists existing schedules with a cadence summary (in local time), next-run time, and admin-only enable/delete controls", async () => {
     schedulesResponse = { data: [SAMPLE_SCHEDULE] };
     renderPage();
 
-    expect(await screen.findByText(/Weekly on Tuesday at 14:00 UTC/i)).toBeInTheDocument();
+    // hourUtc:14 on Tuesday (UTC) -> 07:00 Tuesday in America/Phoenix (UTC-7).
+    expect(await screen.findByText(/Weekly on Tuesday at 07:00/i)).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /Enabled/i })).toBeChecked();
     expect(screen.getByRole("button", { name: /Delete schedule/i })).toBeInTheDocument();
   });
 
-  it("admin can add a new schedule, which POSTs cadence/day/hour/platforms to the schedules endpoint", async () => {
+  it("admin can add a new schedule, converting local day/hour input to UTC before posting", async () => {
     schedulesResponse = { data: [] };
     renderPage();
 
@@ -261,7 +275,7 @@ describe("PromptCollectionDetail — Schedules", () => {
 
     await userEvent.selectOptions(screen.getByLabelText(/Cadence/i), "weekly");
     await userEvent.selectOptions(screen.getByLabelText(/Day of week/i), "3");
-    const hourInput = screen.getByLabelText(/Hour \(UTC\)/i);
+    const hourInput = screen.getByLabelText(/Hour/i);
     await userEvent.clear(hourInput);
     await userEvent.type(hourInput, "9");
     await userEvent.click(screen.getByRole("checkbox", { name: /Perplexity/i }));
@@ -275,13 +289,14 @@ describe("PromptCollectionDetail — Schedules", () => {
       ),
     );
 
+    // Wednesday 09:00 local (America/Phoenix, UTC-7) -> Wednesday 16:00 UTC.
     const [, init] = fetchMock.mock.calls.find(([url, reqInit]) => url === SCHEDULES_URL && reqInit?.method === "POST")!;
     const body = JSON.parse((init as RequestInit).body as string);
     expect(body).toMatchObject({
       collectionId: 1,
       cadence: "weekly",
       dayOfWeek: 3,
-      hourUtc: 9,
+      hourUtc: 16,
       platformIds: [1],
     });
   });
@@ -306,7 +321,7 @@ describe("PromptCollectionDetail — Schedules", () => {
     schedulesResponse = { data: [SAMPLE_SCHEDULE] };
     renderPage();
 
-    expect(await screen.findByText(/Weekly on Tuesday at 14:00 UTC/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Weekly on Tuesday at 07:00/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Add schedule/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Delete schedule/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: /Enabled/i })).not.toBeInTheDocument();
