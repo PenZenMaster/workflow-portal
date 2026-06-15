@@ -316,6 +316,90 @@ describe("POST /api/clients/:id/schedules", () => {
       .send({ collectionId: 5, platformIds: [1], cadence: "weekly", dayOfWeek: 1 });
     expect(res.status).toBe(201);
   });
+
+  it("computes nextFireAt from cadence/dayOfWeek/hourUtc when not provided", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-15T10:00:00.000Z")); // Monday
+    mockScheduleStore.create.mockImplementation((_clientId, data) =>
+      Promise.resolve({ id: 1, clientId: 10, lastFiredAt: null, createdAt: Date.now(), updatedAt: Date.now(), ...data })
+    );
+
+    const res = await request(buildApp("agency_admin"))
+      .post("/api/clients/10/schedules")
+      .send({ collectionId: 5, platformIds: [1], cadence: "weekly", dayOfWeek: 2, hourUtc: 14 });
+
+    expect(res.status).toBe(201);
+    expect(mockScheduleStore.create).toHaveBeenCalledWith(
+      10,
+      expect.objectContaining({ nextFireAt: new Date("2026-06-16T14:00:00.000Z").getTime() })
+    );
+    vi.useRealTimers();
+  });
+});
+
+describe("PATCH /api/schedules/:id", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 403 for analyst", async () => {
+    const res = await request(buildApp("analyst"))
+      .patch("/api/schedules/1")
+      .send({ enabled: false });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when schedule not found", async () => {
+    mockScheduleStore.update.mockResolvedValue(undefined);
+    const res = await request(buildApp("agency_admin"))
+      .patch("/api/schedules/999")
+      .send({ enabled: false });
+    expect(res.status).toBe(404);
+  });
+
+  it("updates fields without recomputing nextFireAt when timing is unchanged", async () => {
+    mockScheduleStore.update.mockResolvedValue({
+      id: 1, clientId: 10, collectionId: 5, platformIds: [1],
+      cadence: "weekly", dayOfWeek: 1, dayOfMonth: null, hourUtc: 8,
+      lastFiredAt: null, nextFireAt: 123, enabled: false,
+      createdAt: Date.now(), updatedAt: Date.now(),
+    });
+
+    const res = await request(buildApp("agency_admin"))
+      .patch("/api/schedules/1")
+      .send({ enabled: false });
+
+    expect(res.status).toBe(200);
+    expect(mockScheduleStore.get).not.toHaveBeenCalled();
+    expect(mockScheduleStore.update).toHaveBeenCalledWith(1, { enabled: false });
+  });
+
+  it("recomputes nextFireAt when cadence/hour/day fields change without an explicit nextFireAt", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-15T10:00:00.000Z")); // Monday
+    mockScheduleStore.get.mockResolvedValue({
+      id: 1, clientId: 10, collectionId: 5, platformIds: [1],
+      cadence: "weekly", dayOfWeek: 1, dayOfMonth: null, hourUtc: 8,
+      lastFiredAt: null, nextFireAt: 123, enabled: true,
+      createdAt: Date.now(), updatedAt: Date.now(),
+    });
+    mockScheduleStore.update.mockImplementation((_id, data) =>
+      Promise.resolve({ id: 1, clientId: 10, collectionId: 5, platformIds: [1], dayOfMonth: null, lastFiredAt: null, enabled: true, createdAt: Date.now(), updatedAt: Date.now(), cadence: "weekly", dayOfWeek: 1, hourUtc: 8, ...data })
+    );
+
+    const res = await request(buildApp("agency_admin"))
+      .patch("/api/schedules/1")
+      .send({ hourUtc: 14, dayOfWeek: 2 });
+
+    expect(res.status).toBe(200);
+    expect(mockScheduleStore.update).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        hourUtc: 14,
+        dayOfWeek: 2,
+        nextFireAt: new Date("2026-06-16T14:00:00.000Z").getTime(),
+      })
+    );
+    vi.useRealTimers();
+  });
 });
 
 describe("DELETE /api/schedules/:id", () => {

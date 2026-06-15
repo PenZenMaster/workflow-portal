@@ -71,6 +71,22 @@ export class JobRunner {
     };
   }
 
+  // Enqueues a job of `kind` only if one isn't already queued or running.
+  // Used to seed self-perpetuating recurring jobs (e.g. schedule-tick) once
+  // on startup without creating duplicate chains across restarts.
+  seedRecurring(kind: string, payload: unknown = {}): void {
+    if (!this.db) return;
+    const existing = this.db
+      .select({ id: jobs.id })
+      .from(jobs)
+      .where(
+        and(eq(jobs.kind, kind), or(eq(jobs.status, "queued"), eq(jobs.status, "running")))
+      )
+      .get();
+    if (existing) return;
+    this.enqueue(kind, payload);
+  }
+
   enqueue(kind: string, payload: unknown, nextRunAt = Date.now()): void {
     if (!this.db) return;
     const now = Date.now();

@@ -77,6 +77,8 @@ app.use((req, res, next) => {
   // Register job kinds then start the background runner.
   registerJobHandlers(jobRunner);
   jobRunner.start(db);
+  // Bootstrap the recurring schedule-tick job if one isn't already queued/running.
+  jobRunner.seedRecurring("schedule-tick");
 
   app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) {

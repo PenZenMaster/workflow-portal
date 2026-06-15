@@ -44,18 +44,8 @@ import { computeVisibilityScore } from "../services/scoring";
 import { classifySentiment } from "../services/sentiment";
 import { generateCsvLines } from "../services/csv";
 import { Ga4Service } from "../services/ga4";
+import { computeNextFireAt, SCHEDULE_TICK_INTERVAL_MS } from "../services/scheduling";
 import { logger } from "../logger";
-
-function computeNextFireAt(cadence: "weekly" | "monthly", hourUtc: number): number {
-  const next = new Date();
-  next.setUTCHours(hourUtc, 0, 0, 0);
-  if (cadence === "weekly") {
-    next.setUTCDate(next.getUTCDate() + 7);
-  } else {
-    next.setUTCMonth(next.getUTCMonth() + 1);
-  }
-  return next.getTime();
-}
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -394,15 +384,21 @@ export function registerJobHandlers(runner: JobRunner): void {
       const due = await scheduleStore.listDue(now);
 
       for (const schedule of due) {
+        const nextFireAt = computeNextFireAt(
+          {
+            cadence: schedule.cadence,
+            hourUtc: schedule.hourUtc,
+            dayOfWeek: schedule.dayOfWeek,
+            dayOfMonth: schedule.dayOfMonth,
+          },
+          new Date(now)
+        );
+
         const prompts = await promptStore.listByCollection(schedule.collectionId);
         const totalPrompts = prompts.length * schedule.platformIds.length;
 
         if (totalPrompts === 0) {
-          await scheduleStore.markFired(
-            schedule.id,
-            now,
-            computeNextFireAt(schedule.cadence, schedule.hourUtc)
-          );
+          await scheduleStore.markFired(schedule.id, now, nextFireAt);
           continue;
         }
 
@@ -428,11 +424,7 @@ export function registerJobHandlers(runner: JobRunner): void {
           }
         }
 
-        await scheduleStore.markFired(
-          schedule.id,
-          now,
-          computeNextFireAt(schedule.cadence, schedule.hourUtc)
-        );
+        await scheduleStore.markFired(schedule.id, now, nextFireAt);
 
         logger.info("schedule-tick: created run", {
           scheduleId: schedule.id,
@@ -440,6 +432,9 @@ export function registerJobHandlers(runner: JobRunner): void {
           totalPrompts,
         });
       }
+
+      // Self-perpetuate: schedule the next check one tick interval out.
+      runner.enqueue("schedule-tick", {}, now + SCHEDULE_TICK_INTERVAL_MS);
     },
   });
 }

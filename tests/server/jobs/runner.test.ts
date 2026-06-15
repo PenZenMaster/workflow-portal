@@ -180,6 +180,37 @@ describe("JobRunner", () => {
     expect(health.running).toBe(true);
   });
 
+  it("seedRecurring enqueues a job when none of that kind exists", () => {
+    runner.seedRecurring("schedule-tick");
+
+    const row = sqlite
+      .prepare("SELECT * FROM jobs WHERE kind = 'schedule-tick'")
+      .get() as { kind: string; status: string } | undefined;
+    expect(row?.status).toBe("queued");
+  });
+
+  it("seedRecurring does not enqueue when a queued job of that kind already exists", () => {
+    insertJob(sqlite, { kind: "schedule-tick", status: "queued" });
+
+    runner.seedRecurring("schedule-tick");
+
+    const rows = sqlite
+      .prepare("SELECT * FROM jobs WHERE kind = 'schedule-tick'")
+      .all();
+    expect(rows).toHaveLength(1);
+  });
+
+  it("seedRecurring does not enqueue when a running job of that kind already exists", () => {
+    insertJob(sqlite, { kind: "schedule-tick", status: "running" });
+
+    runner.seedRecurring("schedule-tick");
+
+    const rows = sqlite
+      .prepare("SELECT * FROM jobs WHERE kind = 'schedule-tick'")
+      .all();
+    expect(rows).toHaveLength(1);
+  });
+
   it("resets running jobs with expired locks to queued on startup", () => {
     // Insert a 'running' job with an expired lock — simulates a process crash.
     // nextRunAt is in the future so tick() won't pick it up immediately,

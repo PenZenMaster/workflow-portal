@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
 import { AuthProvider } from "@/lib/auth";
+import type { UserRole } from "@shared/schema";
 import PromptCollectionDetail from "./PromptCollectionDetail";
 
 vi.mock("wouter", async () => {
@@ -15,7 +16,7 @@ vi.mock("wouter", async () => {
 const AUTH_STATUS = {
   needsSetup: false,
   authenticated: true,
-  user: { id: 1, username: "admin", email: null, role: "agency_admin" as const },
+  user: { id: 1, username: "admin", email: null, role: "agency_admin" as UserRole },
   config: {
     perplexityConfigured: true,
     googleOAuthConfigured: true,
@@ -59,12 +60,37 @@ const EXISTING_PROMPT = {
 const GENERATE_URL = "/api/clients/10/prompt-collections/1/generate-prompts";
 const BULK_URL = "/api/prompt-collections/1/prompts/bulk";
 const PROMPT_PATCH_URL = "/api/prompts/5";
+const SCHEDULES_URL = "/api/clients/10/schedules";
+
+const SAMPLE_SCHEDULE = {
+  id: 7,
+  clientId: 10,
+  collectionId: 1,
+  platformIds: [1],
+  cadence: "weekly" as const,
+  dayOfWeek: 2,
+  dayOfMonth: null,
+  hourUtc: 14,
+  lastFiredAt: null,
+  nextFireAt: Date.now() + 86_400_000,
+  enabled: true,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+};
+
+const PLATFORMS = [
+  { id: 1, slug: "perplexity", displayName: "Perplexity", enabled: true, createdAt: Date.now(), updatedAt: Date.now() },
+];
 
 let fetchMock: ReturnType<typeof vi.fn>;
 let promptsResponse: unknown;
+let schedulesResponse: unknown;
+let authStatus: typeof AUTH_STATUS;
 
 beforeEach(() => {
   promptsResponse = { data: [] };
+  schedulesResponse = { data: [] };
+  authStatus = AUTH_STATUS;
 
   fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
@@ -82,7 +108,7 @@ beforeEach(() => {
     }
 
     if (url === "/api/auth/status") {
-      return { ok: true, status: 200, json: async () => AUTH_STATUS, text: async () => JSON.stringify(AUTH_STATUS) } as Response;
+      return { ok: true, status: 200, json: async () => authStatus, text: async () => JSON.stringify(authStatus) } as Response;
     }
 
     if (url === "/api/prompt-collections/1") {
@@ -92,6 +118,27 @@ beforeEach(() => {
 
     if (url === "/api/prompt-collections/1/prompts") {
       return { ok: true, status: 200, json: async () => promptsResponse, text: async () => JSON.stringify(promptsResponse) } as Response;
+    }
+
+    if (url === "/api/platforms") {
+      const body = { data: PLATFORMS };
+      return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
+    }
+
+    if (method === "GET" && url === SCHEDULES_URL) {
+      return { ok: true, status: 200, json: async () => schedulesResponse, text: async () => JSON.stringify(schedulesResponse) } as Response;
+    }
+
+    if (method === "POST" && url === SCHEDULES_URL) {
+      return { ok: true, status: 201, json: async () => ({ data: SAMPLE_SCHEDULE }), text: async () => "" } as Response;
+    }
+
+    if (method === "PATCH" && url.startsWith("/api/schedules/")) {
+      return { ok: true, status: 200, json: async () => ({ data: { ...SAMPLE_SCHEDULE, enabled: false } }), text: async () => "" } as Response;
+    }
+
+    if (method === "DELETE" && url.startsWith("/api/schedules/")) {
+      return { ok: true, status: 204, json: async () => ({}), text: async () => "" } as Response;
     }
 
     return { ok: true, status: 200, json: async () => ({ data: null }), text: async () => "{}" } as Response;
@@ -193,5 +240,75 @@ describe("PromptCollectionDetail — edit existing prompt", () => {
       status: "active",
       targetPlatforms: [],
     });
+  });
+});
+
+describe("PromptCollectionDetail — Schedules", () => {
+  it("lists existing schedules with a cadence summary, next-run time, and admin-only enable/delete controls", async () => {
+    schedulesResponse = { data: [SAMPLE_SCHEDULE] };
+    renderPage();
+
+    expect(await screen.findByText(/Weekly on Tuesday at 14:00 UTC/i)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Enabled/i })).toBeChecked();
+    expect(screen.getByRole("button", { name: /Delete schedule/i })).toBeInTheDocument();
+  });
+
+  it("admin can add a new schedule, which POSTs cadence/day/hour/platforms to the schedules endpoint", async () => {
+    schedulesResponse = { data: [] };
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Add schedule/i }));
+
+    await userEvent.selectOptions(screen.getByLabelText(/Cadence/i), "weekly");
+    await userEvent.selectOptions(screen.getByLabelText(/Day of week/i), "3");
+    const hourInput = screen.getByLabelText(/Hour \(UTC\)/i);
+    await userEvent.clear(hourInput);
+    await userEvent.type(hourInput, "9");
+    await userEvent.click(screen.getByRole("checkbox", { name: /Perplexity/i }));
+
+    await userEvent.click(screen.getByRole("button", { name: /Save schedule/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        SCHEDULES_URL,
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+
+    const [, init] = fetchMock.mock.calls.find(([url, reqInit]) => url === SCHEDULES_URL && reqInit?.method === "POST")!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body).toMatchObject({
+      collectionId: 1,
+      cadence: "weekly",
+      dayOfWeek: 3,
+      hourUtc: 9,
+      platformIds: [1],
+    });
+  });
+
+  it("toggling the enabled checkbox PATCHes the schedule", async () => {
+    schedulesResponse = { data: [SAMPLE_SCHEDULE] };
+    renderPage();
+
+    const toggle = await screen.findByRole("checkbox", { name: /Enabled/i });
+    await userEvent.click(toggle);
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/schedules/7",
+        expect.objectContaining({ method: "PATCH" }),
+      ),
+    );
+  });
+
+  it("non-admin roles see the schedule list but no add/delete/toggle controls", async () => {
+    authStatus = { ...AUTH_STATUS, user: { ...AUTH_STATUS.user, role: "analyst" as const } };
+    schedulesResponse = { data: [SAMPLE_SCHEDULE] };
+    renderPage();
+
+    expect(await screen.findByText(/Weekly on Tuesday at 14:00 UTC/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Add schedule/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Delete schedule/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Enabled/i })).not.toBeInTheDocument();
   });
 });

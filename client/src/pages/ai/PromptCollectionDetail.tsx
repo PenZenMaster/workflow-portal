@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { Prompt, PromptCollection, Platform, GeneratedPromptCandidate } from "@shared/schema";
+import type { Prompt, PromptCollection, Platform, GeneratedPromptCandidate, RunSchedule } from "@shared/schema";
 import { PROMPT_CATEGORIES } from "@shared/schema";
 
 const CATEGORY_LABELS: Record<typeof PROMPT_CATEGORIES[number], string> = {
@@ -22,6 +22,18 @@ import { Plus, Trash2, Zap, Play, X, Sparkles, Pencil } from "lucide-react";
 
 type Candidate = GeneratedPromptCandidate & { selected: boolean };
 
+const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
+
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function formatCadence(schedule: RunSchedule): string {
+  const hour = String(schedule.hourUtc).padStart(2, "0");
+  if (schedule.cadence === "weekly") {
+    return `Weekly on ${DAY_NAMES[schedule.dayOfWeek ?? 0]} at ${hour}:00 UTC`;
+  }
+  return `Monthly on day ${schedule.dayOfMonth ?? 1} at ${hour}:00 UTC`;
+}
+
 export default function PromptCollectionDetail() {
   const { id, collectionId } = useParams<{ id: string; collectionId: string }>();
   const [, navigate] = useLocation();
@@ -37,6 +49,12 @@ export default function PromptCollectionDetail() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
   const [editCategory, setEditCategory] = useState<typeof PROMPT_CATEGORIES[number]>("informational");
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [scheduleCadence, setScheduleCadence] = useState<"weekly" | "monthly">("weekly");
+  const [scheduleDayOfWeek, setScheduleDayOfWeek] = useState(1);
+  const [scheduleDayOfMonth, setScheduleDayOfMonth] = useState(1);
+  const [scheduleHourUtc, setScheduleHourUtc] = useState(0);
+  const [schedulePlatformIds, setSchedulePlatformIds] = useState<number[]>([]);
 
   const { data: collectionData } = useQuery<{ data: PromptCollection }>({
     queryKey: [`/api/prompt-collections/${collectionId}`],
@@ -50,7 +68,12 @@ export default function PromptCollectionDetail() {
 
   const { data: platformsData } = useQuery<{ data: Platform[] }>({
     queryKey: ["/api/platforms"],
-    enabled: showRunForm,
+    enabled: showRunForm || showScheduleForm,
+  });
+
+  const { data: schedulesData } = useQuery<{ data: RunSchedule[] }>({
+    queryKey: [`/api/clients/${id}/schedules`],
+    enabled: !!id,
   });
 
   const addPromptMutation = useMutation({
@@ -151,6 +174,50 @@ export default function PromptCollectionDetail() {
     onError: (err) => toast({ title: "Run failed", description: String(err), variant: "destructive" }),
   });
 
+  const createScheduleMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/clients/${id}/schedules`, {
+        collectionId: Number(collectionId),
+        platformIds: schedulePlatformIds,
+        cadence: scheduleCadence,
+        hourUtc: scheduleHourUtc,
+        ...(scheduleCadence === "weekly"
+          ? { dayOfWeek: scheduleDayOfWeek }
+          : { dayOfMonth: scheduleDayOfMonth }),
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}/schedules`] });
+      setShowScheduleForm(false);
+      setSchedulePlatformIds([]);
+      toast({ title: "Schedule created" });
+    },
+    onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
+  });
+
+  const toggleScheduleMutation = useMutation({
+    mutationFn: async (schedule: RunSchedule) => {
+      const res = await apiRequest("PATCH", `/api/schedules/${schedule.id}`, { enabled: !schedule.enabled });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}/schedules`] });
+    },
+    onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
+  });
+
+  const deleteScheduleMutation = useMutation({
+    mutationFn: async (scheduleId: number) => {
+      await apiRequest("DELETE", `/api/schedules/${scheduleId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}/schedules`] });
+      toast({ title: "Schedule removed" });
+    },
+    onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
+  });
+
   const collection = collectionData?.data;
   const prompts = promptsData?.data ?? [];
   const isActive = collection?.status === "active";
@@ -158,6 +225,8 @@ export default function PromptCollectionDetail() {
   const availablePlatforms = (platformsData?.data ?? []).filter(
     (p) => configuredSlugs.includes(p.slug) && p.enabled
   );
+  const schedules = (schedulesData?.data ?? []).filter((s) => s.collectionId === Number(collectionId));
+  const isAdmin = !!authStatus?.user && (ADMIN_ROLES as readonly string[]).includes(authStatus.user.role);
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
 
@@ -440,6 +509,152 @@ export default function PromptCollectionDetail() {
                     </Button>
                   </div>
                 </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Recurring run schedules */}
+      <div className="flex items-center justify-between mt-10 mb-4">
+        <h2 className="text-lg font-semibold">
+          Schedules <span className="text-muted-foreground font-normal text-sm">({schedules.length})</span>
+        </h2>
+        {isAdmin && !showScheduleForm && (
+          <Button size="sm" variant="outline" onClick={() => setShowScheduleForm(true)}>
+            <Plus className="h-4 w-4 mr-1.5" />Add schedule
+          </Button>
+        )}
+      </div>
+
+      {showScheduleForm && (
+        <form
+          onSubmit={(e) => { e.preventDefault(); createScheduleMutation.mutate(); }}
+          className="border rounded-lg p-5 mb-5 bg-muted/30 space-y-4"
+        >
+          <div className="flex items-center justify-between">
+            <p className="font-medium text-sm">New Schedule</p>
+            <button type="button" onClick={() => setShowScheduleForm(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="schedule-cadence">Cadence</Label>
+              <select
+                id="schedule-cadence"
+                value={scheduleCadence}
+                onChange={(e) => setScheduleCadence(e.target.value as "weekly" | "monthly")}
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="schedule-hour">Hour (UTC)</Label>
+              <Input
+                id="schedule-hour"
+                type="number"
+                min={0}
+                max={23}
+                value={scheduleHourUtc}
+                onChange={(e) => setScheduleHourUtc(Number(e.target.value))}
+              />
+            </div>
+          </div>
+          {scheduleCadence === "weekly" ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="schedule-day-of-week">Day of week</Label>
+              <select
+                id="schedule-day-of-week"
+                value={scheduleDayOfWeek}
+                onChange={(e) => setScheduleDayOfWeek(Number(e.target.value))}
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {DAY_NAMES.map((day, idx) => (
+                  <option key={day} value={idx}>{day}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="schedule-day-of-month">Day of month</Label>
+              <Input
+                id="schedule-day-of-month"
+                type="number"
+                min={1}
+                max={28}
+                value={scheduleDayOfMonth}
+                onChange={(e) => setScheduleDayOfMonth(Number(e.target.value))}
+              />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label>Platforms</Label>
+            {availablePlatforms.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No platforms configured — add API keys in environment variables.</p>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {availablePlatforms.map((p) => (
+                  <label key={p.id} className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      aria-label={p.displayName}
+                      checked={schedulePlatformIds.includes(p.id)}
+                      onChange={(e) => setSchedulePlatformIds((prev) =>
+                        e.target.checked ? [...prev, p.id] : prev.filter((x) => x !== p.id)
+                      )}
+                    />
+                    {p.displayName}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowScheduleForm(false)}>Cancel</Button>
+            <Button type="submit" size="sm" disabled={createScheduleMutation.isPending || schedulePlatformIds.length === 0}>
+              {createScheduleMutation.isPending ? "Saving…" : "Save schedule"}
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {schedules.length === 0 ? (
+        <div className="border border-dashed rounded-lg p-6 text-center">
+          <p className="text-muted-foreground text-sm">No recurring schedules yet.</p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {schedules.map((schedule) => (
+            <li key={schedule.id} className="border rounded-lg p-3 flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <p className="text-sm">{formatCadence(schedule)}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Next run: {new Date(schedule.nextFireAt).toLocaleString()}
+                </p>
+              </div>
+              {isAdmin && (
+                <div className="flex items-center gap-3 shrink-0">
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      aria-label="Enabled"
+                      checked={schedule.enabled}
+                      onChange={() => toggleScheduleMutation.mutate(schedule)}
+                    />
+                    Enabled
+                  </label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteScheduleMutation.mutate(schedule.id)}
+                    disabled={deleteScheduleMutation.isPending}
+                    className="text-destructive hover:text-destructive"
+                    aria-label="Delete schedule"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               )}
             </li>
           ))}

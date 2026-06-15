@@ -2,7 +2,7 @@
 
 Last session: 2026-06-14
 Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
-Branch: main | Version: v1.16.0 | 578 tests passing
+Branch: main | Version: v1.17.0 | 600 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
@@ -83,9 +83,45 @@ Pick up from:
 5. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
+4g. B-19 complete (v1.17.0): Recurring AEO/GEO prompt run schedules now
+   actually fire. `schedule-tick` is seeded on startup (if not already
+   queued/running) and self-re-enqueues hourly; `computeNextFireAt` correctly
+   honors weekly dayOfWeek / monthly dayOfMonth + hourUtc. New "Schedules"
+   section on PromptCollectionDetail lists/creates/enables/deletes schedules
+   (admin-only mutations). Not yet deployed.
 6. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.17.0)
+
+- Feature: B-19 — recurring AEO/GEO prompt run schedules now actually run.
+  - New `server/services/scheduling.ts`: `computeNextFireAt({cadence,
+    hourUtc, dayOfWeek?, dayOfMonth?}, from?)` (pure, UTC-based, correctly
+    handles weekly day-of-week and monthly day-of-month rollover) and
+    `SCHEDULE_TICK_INTERVAL_MS` (1 hour).
+  - `server/routes/runs.ts`: POST `/api/clients/:id/schedules` and PATCH
+    `/api/schedules/:id` now compute/recompute `nextFireAt` via
+    `computeNextFireAt` when not explicitly provided.
+  - `server/jobs/runner.ts`: new `JobRunner.seedRecurring(kind, payload?)`
+    enqueues a job of that kind only if none is already queued/running.
+  - `server/jobs/handlers.ts`: `schedule-tick` now uses the new
+    `computeNextFireAt` (honoring dayOfWeek/dayOfMonth) when marking a
+    schedule fired, and self-re-enqueues via
+    `runner.enqueue("schedule-tick", {}, now + SCHEDULE_TICK_INTERVAL_MS)`.
+  - `server/index.ts`: calls `jobRunner.seedRecurring("schedule-tick")` after
+    `jobRunner.start(db)` so the recurring chain is bootstrapped on startup.
+  - New "Schedules" section on `PromptCollectionDetail.tsx`: lists schedules
+    for the collection with a cadence summary ("Weekly on Tuesday at 14:00
+    UTC") and next-run time; super_admin/agency_admin can add a schedule
+    (cadence, day-of-week/month, hour UTC, platforms), toggle enabled, and
+    delete.
+  - New tests: `tests/server/services/scheduling.test.ts` (7),
+    `tests/server/jobs/runner.test.ts` (+3 seedRecurring),
+    `tests/server/jobs/handlers.test.ts` (new, 3),
+    `tests/server/runs.routes.test.ts` (+2 nextFireAt compute/recompute),
+    `PromptCollectionDetail.test.tsx` (+4 Schedules section).
+  - 600 tests passing (22 new).
 
 ## Post-Sprint Work This Session (v1.16.0)
 
@@ -672,6 +708,21 @@ Confirmed decisions:
 - B-13 Feature: Edit existing prompts — **COMPLETE (v1.14.0)**. Each prompt row on
   PromptCollectionDetail has an Edit action that opens an inline text/category
   editor; Save PATCHes /api/prompts/:id with the full prompt payload.
+- B-19 Feature: Recurring AEO/GEO prompt run schedules — **COMPLETE (v1.17.0)**.
+  Previously the `run_schedules` table, store, and CRUD API existed but the
+  `schedule-tick` job handler was registered and never enqueued, so prompts
+  only ever ran via manual "Run Now". New `server/services/scheduling.ts`
+  (`computeNextFireAt`, `SCHEDULE_TICK_INTERVAL_MS` = 1 hour) computes the
+  next UTC fire time for weekly (day-of-week) or monthly (day-of-month)
+  cadences, replacing the old helper that ignored those fields. POST/PATCH
+  `/api/clients/:id/schedules` and `/api/schedules/:id` now compute/recompute
+  `nextFireAt` on create and on timing-field changes. New
+  `JobRunner.seedRecurring(kind)` enqueues a `schedule-tick` job on startup
+  only if one isn't already queued/running (server/index.ts); the handler now
+  self-re-enqueues every `SCHEDULE_TICK_INTERVAL_MS`. New "Schedules" section
+  on PromptCollectionDetail.tsx lists schedules with a cadence summary and
+  next-run time; super_admin/agency_admin can add, enable/disable, and delete
+  schedules.
 
 ### Medium Priority
 - B-18 Full CRUD UI for Prompt Collections (PromptCollections.tsx /

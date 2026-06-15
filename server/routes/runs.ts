@@ -29,6 +29,7 @@ import { requireAuth, requireRole } from "../auth";
 import { ok, created, noContent } from "../response";
 import { AppError } from "../errors";
 import { jobRunner } from "../jobs/runner";
+import { computeNextFireAt } from "../services/scheduling";
 
 const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
 const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
@@ -214,7 +215,11 @@ export function registerRunRoutes(app: Express): void {
       const parsed = insertScheduleSchema.safeParse(req.body);
       if (!parsed.success)
         throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
-      const schedule = await scheduleStore.create(clientId, parsed.data);
+      const data = {
+        ...parsed.data,
+        nextFireAt: parsed.data.nextFireAt ?? computeNextFireAt(parsed.data),
+      };
+      const schedule = await scheduleStore.create(clientId, data);
       created(res, schedule);
     }
   );
@@ -228,7 +233,23 @@ export function registerRunRoutes(app: Express): void {
       const parsed = insertScheduleSchema.partial().safeParse(req.body);
       if (!parsed.success)
         throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
-      const schedule = await scheduleStore.update(id, parsed.data);
+
+      const data: Partial<typeof parsed.data> = { ...parsed.data };
+      const timingChanged = ["cadence", "hourUtc", "dayOfWeek", "dayOfMonth"].some(
+        (key) => key in data
+      );
+      if (timingChanged && data.nextFireAt === undefined) {
+        const existing = await scheduleStore.get(id);
+        if (!existing) throw new AppError(404, "Schedule not found", "SCHEDULE_NOT_FOUND");
+        data.nextFireAt = computeNextFireAt({
+          cadence: data.cadence ?? existing.cadence,
+          hourUtc: data.hourUtc ?? existing.hourUtc,
+          dayOfWeek: data.dayOfWeek ?? existing.dayOfWeek,
+          dayOfMonth: data.dayOfMonth ?? existing.dayOfMonth,
+        });
+      }
+
+      const schedule = await scheduleStore.update(id, data);
       if (!schedule)
         throw new AppError(404, "Schedule not found", "SCHEDULE_NOT_FOUND");
       ok(res, schedule);
