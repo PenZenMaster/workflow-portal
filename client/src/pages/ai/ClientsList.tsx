@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import type { Client } from "@shared/schema";
+import type { Client, ClientReadiness } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -17,9 +17,14 @@ export default function ClientsList() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
+  const [expandedReadinessId, setExpandedReadinessId] = useState<number | null>(null);
 
   const { data, isLoading, isError } = useQuery<{ data: Client[] }>({
     queryKey: ["/api/clients"],
+  });
+
+  const { data: readinessData } = useQuery<{ data: ClientReadiness[] }>({
+    queryKey: ["/api/clients/readiness"],
   });
 
   const createMutation = useMutation({
@@ -54,6 +59,9 @@ export default function ClientsList() {
   if (isError) return <div className="p-8 text-destructive">Failed to load clients.</div>;
 
   const clients = data?.data ?? [];
+  const readinessByClientId = new Map(
+    (readinessData?.data ?? []).map((r) => [r.clientId, r]),
+  );
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
@@ -168,17 +176,45 @@ export default function ClientsList() {
         </div>
       ) : (
         <ul className="space-y-3">
-          {clients.map((c) => (
-            <li
-              key={c.id}
-              className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
-            >
-              <Link href={`/ai/clients/${c.id}`}>
-                <span className="font-medium text-primary hover:underline">{c.name}</span>
-              </Link>
-              <span className="text-muted-foreground text-sm ml-3">{c.primaryDomain}</span>
-            </li>
-          ))}
+          {clients.map((c) => {
+            const readiness = readinessByClientId.get(c.id);
+            const expanded = expandedReadinessId === c.id;
+            return (
+              <li
+                key={c.id}
+                className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-center">
+                  <Link href={`/ai/clients/${c.id}`}>
+                    <span className="font-medium text-primary hover:underline">{c.name}</span>
+                  </Link>
+                  <span className="text-muted-foreground text-sm ml-3">{c.primaryDomain}</span>
+                  {readiness && (
+                    readiness.ready ? (
+                      <span className="ml-auto text-xs px-2 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                        Ready
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedReadinessId(expanded ? null : c.id)}
+                        className="ml-auto text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                      >
+                        Setup incomplete ({readiness.issues.length})
+                      </button>
+                    )
+                  )}
+                </div>
+                {readiness && !readiness.ready && expanded && (
+                  <ul className="mt-2 ml-1 list-disc list-inside text-xs text-muted-foreground space-y-0.5">
+                    {readiness.issues.map((issue) => (
+                      <li key={issue}>{issue}</li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

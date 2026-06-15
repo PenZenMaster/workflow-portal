@@ -344,6 +344,16 @@ export type GeneratedPromptCandidate = {
   funnelStage: FunnelStage;
 };
 
+export type ClientReadiness = {
+  clientId: number;
+  hasClientBrand: boolean;
+  competitorBrandCount: number;
+  competitorBrandsWithAliasCount: number;
+  hasActivePromptCollectionWithPrompts: boolean;
+  ready: boolean;
+  issues: string[];
+};
+
 export type Platform = {
   id: number;
   slug: string;

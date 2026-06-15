@@ -32,6 +32,7 @@ import {
 import { requireAuth, requireRole } from "../auth";
 import { ok, created, noContent } from "../response";
 import { AppError } from "../errors";
+import { computeReadinessForAllClients } from "../services/clientReadiness";
 
 const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
 const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
@@ -56,6 +57,11 @@ export function registerClientRoutes(app: Express): void {
       created(res, client);
     }
   );
+
+  app.get("/api/clients/readiness", requireAuth, async (_req, res) => {
+    const data = await computeReadinessForAllClients();
+    ok(res, data);
+  });
 
   app.get("/api/clients/:id", requireAuth, async (req, res) => {
     const id = Number(req.params.id);

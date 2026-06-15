@@ -49,6 +49,11 @@ vi.mock("../../server/storage", () => ({
   clientUserStore: mockClientUserStore,
 }));
 
+const mockComputeReadinessForAllClients = vi.fn();
+vi.mock("../../server/services/clientReadiness", () => ({
+  computeReadinessForAllClients: mockComputeReadinessForAllClients,
+}));
+
 // Import AFTER mocks are registered
 const { registerClientRoutes } = await import("../../server/routes/clients");
 
@@ -107,6 +112,34 @@ describe("GET /api/clients", () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(1);
     expect(res.body.data[0].name).toBe("Acme Corp");
+  });
+});
+
+describe("GET /api/clients/readiness", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/clients/readiness");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns readiness for every client", async () => {
+    const readiness = [
+      {
+        clientId: 1,
+        hasClientBrand: true,
+        competitorBrandCount: 1,
+        competitorBrandsWithAliasCount: 1,
+        hasActivePromptCollectionWithPrompts: true,
+        ready: true,
+        issues: [],
+      },
+    ];
+    mockComputeReadinessForAllClients.mockResolvedValue(readiness);
+
+    const res = await request(buildApp("agency_admin")).get("/api/clients/readiness");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual(readiness);
   });
 });
 

@@ -2,7 +2,7 @@
 
 Last session: 2026-06-14
 Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
-Branch: main | Version: v1.14.0 | 564 tests passing
+Branch: main | Version: v1.15.0 | 573 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
@@ -67,12 +67,38 @@ Pick up from:
    Pending: confirm B-12 generate/review/save flow + clear error when no LLM
    key configured, B-13 inline edit preserves funnelStage/geo/etc., and
    /ai/clients alphabetical sort.
+4e. B-15 v1 complete (v1.15.0): Client Run-Readiness. New
+   `GET /api/clients/readiness` (server/services/clientReadiness.ts) computes
+   per-client readiness (client brand present, competitor brands with
+   aliases, active prompt collection with prompts) and returns
+   `ready`/`issues[]`. /ai/clients now shows a green "Ready" badge or an
+   amber "Setup incomplete (N)" badge per client; clicking the amber badge
+   expands the specific missing-setup issues. Not yet deployed.
 5. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
 6. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.15.0)
+
+- Feature: B-15 v1 — Client Run-Readiness. New `shared/schema.ts` type
+  `ClientReadiness` and `server/services/clientReadiness.ts`
+  (`computeReadiness`, `computeReadinessForAllClients`) check, per client:
+  a client brand exists, at least one competitor brand has aliases, and an
+  active prompt collection has at least one prompt. New
+  `GET /api/clients/readiness` route (server/routes/clients.ts, registered
+  before `/api/clients/:id` to avoid route collision) returns
+  `{ data: ClientReadiness[] }`.
+  - ClientsList.tsx (`/ai/clients`) shows a green "Ready" badge per client,
+    or an amber "Setup incomplete (N)" badge that expands on click to list
+    the specific issues (e.g. "No competitor brands defined - AI Share of
+    Voice will be meaningless", "No active prompt collection with prompts").
+  - New tests: tests/server/services/clientReadiness.test.ts (6),
+    GET /api/clients/readiness in tests/server/clients.routes.test.ts (2),
+    ClientsList.test.tsx readiness badges (1).
+  - 573 tests passing (9 new).
 
 ## Post-Sprint Work This Session (v1.14.0)
 
@@ -651,11 +677,13 @@ Confirmed decisions:
   they are viewing/editing.
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
 - B-06 Session store: session expiry cleanup configuration review
-- B-15 Investigate mechanism to create a guided workflow to onboard new clients —
-  Section 1B of system-documentation.md lists 6 manual setup steps (brands, aliases,
-  GA4, prompt collection, run); a wizard/checklist in-app would reduce setup errors
-  such as the missing-competitors gap that caused Salvo's AI SoV to read 0%/100%
-  (see system-documentation.md Section 1B Step 2 note, added 2026-06-12).
+- B-15 v1 DONE (v1.15.0): Client Run-Readiness badges on /ai/clients (Ready /
+  Setup incomplete with itemized issues) catch the missing-competitors gap that
+  caused Salvo's AI SoV to read 0%/100% (see system-documentation.md Section 1B
+  Step 2 note, added 2026-06-12). Remaining for a v2: turn the issues list into
+  a guided onboarding wizard/checklist that links directly to the page where
+  each fix is made (add brand, add competitor + aliases, create prompt
+  collection), per the 6 manual setup steps in Section 1B.
 
 ### Low Priority
 - B-08 skipLibCheck: false in tsconfig
