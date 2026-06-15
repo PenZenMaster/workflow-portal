@@ -37,6 +37,7 @@ import {
   integrationStore,
   brandStore,
   aliasStore,
+  clientStore,
 } from "../storage";
 import { getAdapter } from "../adapters/registry";
 import { parseResponse } from "../services/parser";
@@ -45,6 +46,7 @@ import { classifySentiment } from "../services/sentiment";
 import { generateCsvLines } from "../services/csv";
 import { Ga4Service } from "../services/ga4";
 import { computeNextFireAt, SCHEDULE_TICK_INTERVAL_MS } from "../services/scheduling";
+import { buildPromptTokenContext, expandPromptText, type ClientBrandContext } from "../services/promptTokens";
 import { logger } from "../logger";
 
 function todayIso(): string {
@@ -395,7 +397,25 @@ export function registerJobHandlers(runner: JobRunner): void {
         );
 
         const prompts = await promptStore.listByCollection(schedule.collectionId);
-        const totalPrompts = prompts.length * schedule.platformIds.length;
+
+        if (prompts.length === 0) {
+          await scheduleStore.markFired(schedule.id, now, nextFireAt);
+          continue;
+        }
+
+        const client = await clientStore.get(schedule.clientId);
+        const brands = await brandStore.listByClient(schedule.clientId);
+        const brandContext: ClientBrandContext = {
+          brand: brands.find((b) => b.kind === "client")?.canonicalName ?? client?.name ?? "",
+          competitors: brands.filter((b) => b.kind === "competitor").map((b) => b.canonicalName),
+          geographies: client?.geographies ?? [],
+        };
+
+        const expandedPrompts = prompts.map((prompt) => ({
+          prompt,
+          queryTexts: expandPromptText(prompt.text, buildPromptTokenContext(brandContext, prompt.geo)),
+        }));
+        const totalPrompts = expandedPrompts.reduce((sum, p) => sum + p.queryTexts.length, 0) * schedule.platformIds.length;
 
         if (totalPrompts === 0) {
           await scheduleStore.markFired(schedule.id, now, nextFireAt);
@@ -411,16 +431,18 @@ export function registerJobHandlers(runner: JobRunner): void {
           triggeredBy: "schedule",
         });
 
-        for (const prompt of prompts) {
-          for (const platformId of schedule.platformIds) {
-            const response = await responseStore.create({
-              runId: run.id,
-              promptId: prompt.id,
-              platformId,
-              queryText: prompt.text,
-              geo: prompt.geo,
-            });
-            runner.enqueue("prompt-run", { responseId: response.id });
+        for (const { prompt, queryTexts } of expandedPrompts) {
+          for (const queryText of queryTexts) {
+            for (const platformId of schedule.platformIds) {
+              const response = await responseStore.create({
+                runId: run.id,
+                promptId: prompt.id,
+                platformId,
+                queryText,
+                geo: prompt.geo,
+              });
+              runner.enqueue("prompt-run", { responseId: response.id });
+            }
           }
         }
 

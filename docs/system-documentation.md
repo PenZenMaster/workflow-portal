@@ -159,7 +159,7 @@ Every metric in the portal traces back to raw AI response text stored in the dat
 ### 2.1 How Responses Are Collected
 
 When a run is triggered:
-1. Each prompt is sent to the Perplexity Sonar API verbatim — no client context is injected
+1. Each prompt's text is expanded for template tokens (see Section 3.5) and the resulting query string is sent to the Perplexity Sonar API
 2. The full response text and ordered citation URLs are stored in `responses_raw`
 3. The **parse-response** job scans the response text for brand aliases (exact, fuzzy, and regex matching)
 4. Detected mentions are stored in `response_mentions` with position, section, and evidence text
@@ -416,6 +416,27 @@ The client is not appearing in AI answers at all. Priority: create category-defi
 
 **Negative framing:**
 The AI describes the client negatively (pricing, reliability, reviews). Priority: audit reputation inputs — review platforms, outdated pages, negative press that AI platforms may be training on.
+
+### 3.5 Prompt Template Tokens
+
+Prompt text can include the following tokens. They are substituted at run time
+(both manual "Run Now" and scheduled runs) — the stored prompt text keeps the
+literal token, only the query sent to the AI platform is expanded.
+
+| Token | Resolves to |
+|---|---|
+| `{{brand}}` | The client's primary brand name (the brand record with kind "client"; falls back to the client's name if none is configured) |
+| `{{competitor}}` | Each configured competitor brand's canonical name. A prompt containing `{{competitor}}` **fans out into one response per competitor** — e.g. with 3 competitors configured, one prompt becomes 3 responses, each querying a different competitor name. If no competitors are configured, the token resolves to an empty string and the prompt still runs once. |
+| `{{city}}` / `{{geo}}` | The prompt's own Geography field if set, otherwise the client's first configured geography. Resolves to an empty string if neither is set. Both tokens resolve to the same value. |
+
+**Example:**
+A prompt `"Alternatives to {{competitor}} for local SEO"` with competitors
+"Globex Plumbing" and "Initech Plumbing" configured produces two responses:
+- `"Alternatives to Globex Plumbing for local SEO"`
+- `"Alternatives to Initech Plumbing for local SEO"`
+
+This is the recommended way to write **Comparison** and **Alternative** prompts
+(Section 3.2) without needing to manually duplicate prompts per competitor.
 
 **Competitor citation advantage:**
 Competitors are cited more often than the client. Priority: identify which domains cite competitors and pursue mentions or guest content there.

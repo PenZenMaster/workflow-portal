@@ -22,6 +22,8 @@ import {
   scheduleStore,
   promptStore,
   jobStore,
+  clientStore,
+  brandStore,
 } from "../storage";
 import { JOB_STATUSES } from "@shared/schema";
 import { triggerRunSchema, insertScheduleSchema } from "@shared/schema";
@@ -30,6 +32,7 @@ import { ok, created, noContent } from "../response";
 import { AppError } from "../errors";
 import { jobRunner } from "../jobs/runner";
 import { computeNextFireAt } from "../services/scheduling";
+import { buildPromptTokenContext, expandPromptText, type ClientBrandContext } from "../services/promptTokens";
 
 const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
 const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
@@ -49,9 +52,23 @@ export function registerRunRoutes(app: Express): void {
       if (!parsed.success)
         throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
 
+      const client = await clientStore.get(clientId);
+      if (!client) throw new AppError(404, "Client not found", "CLIENT_NOT_FOUND");
+
+      const brands = await brandStore.listByClient(clientId);
+      const brandContext: ClientBrandContext = {
+        brand: brands.find((b) => b.kind === "client")?.canonicalName ?? client.name,
+        competitors: brands.filter((b) => b.kind === "competitor").map((b) => b.canonicalName),
+        geographies: client.geographies,
+      };
+
       const { collectionId, platformIds } = parsed.data;
       const prompts = await promptStore.listByCollection(collectionId);
-      const totalPrompts = prompts.length * platformIds.length;
+      const expandedPrompts = prompts.map((prompt) => ({
+        prompt,
+        queryTexts: expandPromptText(prompt.text, buildPromptTokenContext(brandContext, prompt.geo)),
+      }));
+      const totalPrompts = expandedPrompts.reduce((sum, p) => sum + p.queryTexts.length, 0) * platformIds.length;
 
       const batchId = crypto.randomUUID();
       const run = await runStore.create({
@@ -63,16 +80,18 @@ export function registerRunRoutes(app: Express): void {
         triggeredByUserId: req.session.user?.id ?? null,
       });
 
-      for (const prompt of prompts) {
-        for (const platformId of platformIds) {
-          const response = await responseStore.create({
-            runId: run.id,
-            promptId: prompt.id,
-            platformId,
-            queryText: prompt.text,
-            geo: prompt.geo,
-          });
-          jobRunner.enqueue("prompt-run", { responseId: response.id });
+      for (const { prompt, queryTexts } of expandedPrompts) {
+        for (const queryText of queryTexts) {
+          for (const platformId of platformIds) {
+            const response = await responseStore.create({
+              runId: run.id,
+              promptId: prompt.id,
+              platformId,
+              queryText,
+              geo: prompt.geo,
+            });
+            jobRunner.enqueue("prompt-run", { responseId: response.id });
+          }
         }
       }
 

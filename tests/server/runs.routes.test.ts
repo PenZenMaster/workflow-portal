@@ -30,6 +30,8 @@ const mockScheduleStore = {
 const mockPromptStore = { listByCollection: vi.fn() };
 const mockJobStore = { listByKindAndResponseIds: vi.fn() };
 const mockJobRunner = { register: vi.fn(), enqueue: vi.fn() };
+const mockClientStore = { get: vi.fn() };
+const mockBrandStore = { listByClient: vi.fn() };
 
 vi.mock("../../server/storage", () => ({
   storage: { countUsers: vi.fn() },
@@ -40,8 +42,8 @@ vi.mock("../../server/storage", () => ({
   responseStore: mockResponseStore,
   scheduleStore: mockScheduleStore,
   jobStore: mockJobStore,
-  clientStore: {},
-  brandStore: {},
+  clientStore: mockClientStore,
+  brandStore: mockBrandStore,
   aliasStore: {},
   competitorStore: {},
   clientUserStore: {},
@@ -75,6 +77,17 @@ const SAMPLE_RUN = {
   failedPrompts: 0,
   startedAt: null,
   finishedAt: null,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+};
+
+const SAMPLE_CLIENT = {
+  id: 10,
+  name: "Acme Plumbing",
+  primaryDomain: "acme.com",
+  geographies: ["Seattle, WA"],
+  exclusions: [],
+  ownerUserId: null,
   createdAt: Date.now(),
   updatedAt: Date.now(),
 };
@@ -123,6 +136,8 @@ describe("POST /api/clients/:id/runs", () => {
   });
 
   it("returns 202 with runId on success", async () => {
+    mockClientStore.get.mockResolvedValue(SAMPLE_CLIENT);
+    mockBrandStore.listByClient.mockResolvedValue([]);
     mockPromptStore.listByCollection.mockResolvedValue([
       { id: 50, text: "Prompt 1", geo: null },
     ]);
@@ -135,6 +150,45 @@ describe("POST /api/clients/:id/runs", () => {
       .send({ collectionId: 5, platformIds: [1] });
     expect(res.status).toBe(202);
     expect(res.body.data.runId).toBe(1);
+    expect(mockResponseStore.create).toHaveBeenCalledWith(
+      expect.objectContaining({ queryText: "Prompt 1" })
+    );
+  });
+
+  it("returns 404 when the client is not found", async () => {
+    mockClientStore.get.mockResolvedValue(undefined);
+
+    const res = await request(buildApp("agency_admin"))
+      .post("/api/clients/10/runs")
+      .send({ collectionId: 5, platformIds: [1] });
+    expect(res.status).toBe(404);
+  });
+
+  it("expands {{competitor}} into one response per configured competitor and reflects it in totalPrompts", async () => {
+    mockClientStore.get.mockResolvedValue(SAMPLE_CLIENT);
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: null, createdAt: Date.now() },
+      { id: 2, clientId: 10, canonicalName: "Globex Plumbing", kind: "competitor", primaryDomain: null, createdAt: Date.now() },
+      { id: 3, clientId: 10, canonicalName: "Initech Plumbing", kind: "competitor", primaryDomain: null, createdAt: Date.now() },
+    ]);
+    mockPromptStore.listByCollection.mockResolvedValue([
+      { id: 50, text: "Alternatives to {{competitor}}", geo: null },
+    ]);
+    mockRunStore.create.mockResolvedValue(SAMPLE_RUN);
+    mockResponseStore.create.mockResolvedValue(SAMPLE_RESPONSE);
+    mockJobRunner.enqueue = vi.fn().mockResolvedValue(undefined);
+
+    const res = await request(buildApp("agency_admin"))
+      .post("/api/clients/10/runs")
+      .send({ collectionId: 5, platformIds: [1] });
+
+    expect(res.status).toBe(202);
+    expect(res.body.data.totalJobs).toBe(2);
+    expect(mockRunStore.create).toHaveBeenCalledWith(
+      expect.objectContaining({ totalPrompts: 2 })
+    );
+    const queryTexts = mockResponseStore.create.mock.calls.map(([arg]) => arg.queryText);
+    expect(queryTexts).toEqual(["Alternatives to Globex Plumbing", "Alternatives to Initech Plumbing"]);
   });
 });
 

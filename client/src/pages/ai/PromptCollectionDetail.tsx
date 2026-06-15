@@ -419,6 +419,9 @@ export default function PromptCollectionDetail() {
               required
               autoFocus
             />
+            <p className="text-xs text-muted-foreground">
+              Tokens: {"{{brand}}"}, {"{{competitor}}"} (fans out per competitor), {"{{city}}"} / {"{{geo}}"}
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">

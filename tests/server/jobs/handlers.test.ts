@@ -17,6 +17,7 @@ const {
   mockIntegrationStore,
   mockBrandStore,
   mockAliasStore,
+  mockClientStore,
 } = vi.hoisted(() => ({
   mockScheduleStore: { listDue: vi.fn(), markFired: vi.fn() },
   mockPromptStore: { listByCollection: vi.fn() },
@@ -59,6 +60,7 @@ const {
   },
   mockBrandStore: { listByClient: vi.fn() },
   mockAliasStore: { listByBrand: vi.fn() },
+  mockClientStore: { get: vi.fn() },
 }));
 
 vi.mock("../../../server/storage", () => ({
@@ -75,6 +77,7 @@ vi.mock("../../../server/storage", () => ({
   integrationStore: mockIntegrationStore,
   brandStore: mockBrandStore,
   aliasStore: mockAliasStore,
+  clientStore: mockClientStore,
 }));
 
 type Handler = (payload: unknown, jobId: number) => Promise<void>;
@@ -141,6 +144,17 @@ describe("schedule-tick handler", () => {
     mockPromptStore.listByCollection.mockResolvedValue([
       { id: 50, text: "Prompt 1", geo: null },
     ]);
+    mockClientStore.get.mockResolvedValue({
+      id: 10,
+      name: "Acme Plumbing",
+      primaryDomain: "acme.com",
+      geographies: [],
+      exclusions: [],
+      ownerUserId: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    mockBrandStore.listByClient.mockResolvedValue([]);
     mockRunStore.create.mockResolvedValue({ id: 99 });
     mockResponseStore.create
       .mockResolvedValueOnce({ id: 200 })
@@ -171,6 +185,61 @@ describe("schedule-tick handler", () => {
       {},
       new Date("2026-06-15T10:00:00.000Z").getTime() + SCHEDULE_TICK_INTERVAL_MS
     );
+  });
+
+  it("expands {{competitor}} tokens into one response per competitor and reflects it in totalPrompts", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-15T10:00:00.000Z")); // Monday
+
+    const schedule = {
+      id: 3,
+      clientId: 12,
+      collectionId: 7,
+      platformIds: [1],
+      cadence: "weekly" as const,
+      dayOfWeek: 2,
+      dayOfMonth: null,
+      hourUtc: 14,
+      lastFiredAt: null,
+      nextFireAt: Date.now(),
+      enabled: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    mockScheduleStore.listDue.mockResolvedValue([schedule]);
+    mockPromptStore.listByCollection.mockResolvedValue([
+      { id: 60, text: "Alternatives to {{competitor}}", geo: null },
+    ]);
+    mockClientStore.get.mockResolvedValue({
+      id: 12,
+      name: "Acme Plumbing",
+      primaryDomain: "acme.com",
+      geographies: [],
+      exclusions: [],
+      ownerUserId: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 12, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: null, createdAt: Date.now() },
+      { id: 2, clientId: 12, canonicalName: "Globex Plumbing", kind: "competitor", primaryDomain: null, createdAt: Date.now() },
+      { id: 3, clientId: 12, canonicalName: "Initech Plumbing", kind: "competitor", primaryDomain: null, createdAt: Date.now() },
+    ]);
+    mockRunStore.create.mockResolvedValue({ id: 100 });
+    mockResponseStore.create
+      .mockResolvedValueOnce({ id: 300 })
+      .mockResolvedValueOnce({ id: 301 });
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("schedule-tick")!({}, 1);
+
+    expect(mockRunStore.create).toHaveBeenCalledWith(
+      expect.objectContaining({ totalPrompts: 2 })
+    );
+    const queryTexts = mockResponseStore.create.mock.calls.map(([arg]) => arg.queryText);
+    expect(queryTexts).toEqual(["Alternatives to Globex Plumbing", "Alternatives to Initech Plumbing"]);
   });
 
   it("marks a schedule fired without creating a run when the collection has no prompts", async () => {

@@ -1,8 +1,8 @@
 ## Resume From
 
-Last session: 2026-06-14
+Last session: 2026-06-15
 Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
-Branch: main | Version: v1.18.0 | 606 tests passing
+Branch: main | Version: v1.19.0 | 620 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
@@ -94,7 +94,34 @@ Pick up from:
    day-of-week + hour fully in local time; monthly schedules show/edit the
    hour in local time but keep day-of-month labeled and stored as UTC (to
    avoid the 1-28 range edge case from timezone shifts). Not yet deployed.
+4i. B-20 complete (v1.19.0): Prompt template tokens {{brand}}, {{competitor}}
+   (fans out one response per competitor), {{city}}/{{geo}} now expand at run
+   time for both manual runs and schedule-tick. Not yet deployed.
 6. See Tech Debt Register and Backlog below for next priorities.
+
+---
+
+## Post-Sprint Work This Session (v1.19.0)
+
+- Feature: B-20 — Prompt template tokens for Prompt Collections.
+  - New `server/services/promptTokens.ts`: pure `buildPromptTokenContext` and
+    `expandPromptText` functions. `{{brand}}` -> client's primary brand
+    (first `brands` row with kind "client", else `client.name`).
+    `{{city}}`/`{{geo}}` -> `prompt.geo` if set, else
+    `client.geographies[0]`, else `""`. `{{competitor}}` fans the prompt out
+    into one response per configured competitor brand (or `""` with a single
+    response if none configured).
+  - `server/routes/runs.ts` (`POST /api/clients/:id/runs`) and
+    `server/jobs/handlers.ts` (`schedule-tick`) both look up the client and
+    its brands, build a `ClientBrandContext`, expand each prompt's text, and
+    create one response per expanded query string per platform. `totalPrompts`
+    now reflects the expanded count.
+  - `PromptCollectionDetail.tsx`: add-prompt form shows a hint listing the
+    available tokens and the {{competitor}} fan-out behavior.
+  - `docs/system-documentation.md`: new Section 3.5 "Prompt Template Tokens"
+    documents the token table, resolution rules, and a worked example; updated
+    Section 2.1 to note prompt text is expanded before being sent to the AI
+    platform.
 
 ---
 
@@ -752,6 +779,20 @@ Confirmed decisions:
   on PromptCollectionDetail.tsx lists schedules with a cadence summary and
   next-run time; super_admin/agency_admin can add, enable/disable, and delete
   schedules.
+- B-20 Feature: Prompt template tokens ({{brand}}, {{competitor}}, {{city}}/
+  {{geo}}) — **COMPLETE (v1.19.0)**. Prompt text can now include `{{brand}}`
+  (client's primary brand, falling back to client.name), `{{city}}`/`{{geo}}`
+  (prompt.geo, falling back to client's first geography, else empty string),
+  and `{{competitor}}` (fans the prompt out into one response per configured
+  competitor; resolves to an empty string with a single response if no
+  competitors are configured). Substitution happens at run time (not baked
+  into stored prompt.text) for both the manual run trigger
+  (`POST /api/clients/:id/runs`) and the recurring `schedule-tick` handler.
+  New pure service `server/services/promptTokens.ts`
+  (`buildPromptTokenContext`, `expandPromptText`), shared by both call sites.
+  PromptCollectionDetail's add-prompt form now shows a hint listing the
+  available tokens. docs/system-documentation.md Section 3.5 documents the
+  token table and fan-out behavior.
 
 ### Medium Priority
 - B-18 Full CRUD UI for Prompt Collections (PromptCollections.tsx /
