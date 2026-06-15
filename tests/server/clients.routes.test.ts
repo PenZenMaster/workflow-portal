@@ -50,8 +50,10 @@ vi.mock("../../server/storage", () => ({
 }));
 
 const mockComputeReadinessForAllClients = vi.fn();
+const mockComputeReadiness = vi.fn();
 vi.mock("../../server/services/clientReadiness", () => ({
   computeReadinessForAllClients: mockComputeReadinessForAllClients,
+  computeReadiness: mockComputeReadiness,
 }));
 
 // Import AFTER mocks are registered
@@ -194,6 +196,48 @@ describe("GET /api/clients/:id", () => {
 
   it("returns 400 for non-numeric id", async () => {
     const res = await request(buildApp("agency_admin")).get("/api/clients/abc");
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /api/clients/:id/readiness", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/clients/1/readiness");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 when client not found", async () => {
+    mockClientStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("agency_admin")).get("/api/clients/999/readiness");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns readiness for the client", async () => {
+    mockClientStore.get.mockResolvedValue(SAMPLE_CLIENT);
+    const readiness = {
+      clientId: 1,
+      hasClientBrand: true,
+      competitorBrandCount: 0,
+      competitorBrandsWithAliasCount: 0,
+      hasActivePromptCollectionWithPrompts: false,
+      ready: false,
+      issues: [
+        "No competitor brands defined - AI Share of Voice will be meaningless",
+        "No active prompt collection with prompts",
+      ],
+    };
+    mockComputeReadiness.mockResolvedValue(readiness);
+
+    const res = await request(buildApp("agency_admin")).get("/api/clients/1/readiness");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual(readiness);
+    expect(mockComputeReadiness).toHaveBeenCalledWith(1);
+  });
+
+  it("returns 400 for non-numeric id", async () => {
+    const res = await request(buildApp("agency_admin")).get("/api/clients/abc/readiness");
     expect(res.status).toBe(400);
   });
 });

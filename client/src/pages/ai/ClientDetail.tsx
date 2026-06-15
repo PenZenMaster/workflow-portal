@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { Client, Brand, BrandAlias } from "@shared/schema";
+import type { Client, Brand, BrandAlias, ClientReadiness } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, ChevronDown, ChevronRight, X } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronRight, X, AlertCircle } from "lucide-react";
 import { OverviewSection } from "./sections/OverviewSection";
 import { MentionsSection } from "./sections/MentionsSection";
 import { SoVSection } from "./sections/SoVSection";
@@ -184,6 +184,11 @@ export default function ClientDetail() {
     enabled: !!id,
   });
 
+  const { data: readinessData } = useQuery<{ data: ClientReadiness }>({
+    queryKey: [`/api/clients/${id}/readiness`],
+    enabled: !!id,
+  });
+
   const addBrandMutation = useMutation({
     mutationFn: async (body: { canonicalName: string; kind: string; primaryDomain?: string }) => {
       await apiRequest("POST", `/api/clients/${id}/brands`, body);
@@ -201,6 +206,7 @@ export default function ClientDetail() {
 
   const client = clientData.data;
   const brands = brandsData?.data ?? [];
+  const readiness = readinessData?.data;
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -217,6 +223,24 @@ export default function ClientDetail() {
         <div className="mb-4">
           <span className="text-sm font-medium">Geographies: </span>
           <span className="text-sm text-muted-foreground">{client.geographies.join(", ")}</span>
+        </div>
+      )}
+
+      {readiness && !readiness.ready && (
+        <div className="mb-6 border border-orange-500/30 rounded-lg p-4 bg-orange-50/50 dark:bg-orange-950/20 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-medium mb-1">Setup incomplete</p>
+            <p className="text-muted-foreground mb-2">
+              The following items need attention before AI Visibility data for this
+              client will be meaningful:
+            </p>
+            <ul className="list-disc list-inside space-y-0.5">
+              {readiness.issues.map((issue) => (
+                <li key={issue}>{issue}</li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 

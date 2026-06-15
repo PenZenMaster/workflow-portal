@@ -2,7 +2,7 @@
 
 Last session: 2026-06-14
 Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
-Branch: main | Version: v1.15.0 | 573 tests passing
+Branch: main | Version: v1.16.0 | 578 tests passing
 Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
 live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
@@ -73,13 +73,32 @@ Pick up from:
    aliases, active prompt collection with prompts) and returns
    `ready`/`issues[]`. /ai/clients now shows a green "Ready" badge or an
    amber "Setup incomplete (N)" badge per client; clicking the amber badge
-   expands the specific missing-setup issues. Not yet deployed.
+   expands the specific missing-setup issues.
+4f. B-15 v1.1 complete (v1.16.0): New `GET /api/clients/:id/readiness`
+   returns the same readiness data for a single client. /ai/clients/:id
+   (ClientDetail) now shows an orange "Setup incomplete" banner listing the
+   specific outstanding issues when the client isn't fully configured, so
+   the message is visible immediately after clicking through from the
+   Clients list, not just from the list's expandable badge. Not yet deployed.
 5. Continue internal review of the consolidated AI Visibility client page
    (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
    on ClientDetail) before exposing pre-production to clients.
 6. See Tech Debt Register and Backlog below for next priorities.
 
 ---
+
+## Post-Sprint Work This Session (v1.16.0)
+
+- Feature: B-15 v1.1 — per-client readiness on ClientDetail. New
+  `GET /api/clients/:id/readiness` (server/routes/clients.ts, reuses
+  `computeReadiness` from server/services/clientReadiness.ts, 404s if the
+  client doesn't exist). ClientDetail.tsx now shows an orange "Setup
+  incomplete" banner (matching the Perplexity-key-warning style) listing
+  the readiness issues for that client when `ready` is false.
+  - New tests: GET /api/clients/:id/readiness in
+    tests/server/clients.routes.test.ts (3), ClientDetail.test.tsx banner
+    test (1).
+  - 578 tests passing (5 new).
 
 ## Post-Sprint Work This Session (v1.15.0)
 

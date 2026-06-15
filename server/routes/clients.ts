@@ -32,7 +32,7 @@ import {
 import { requireAuth, requireRole } from "../auth";
 import { ok, created, noContent } from "../response";
 import { AppError } from "../errors";
-import { computeReadinessForAllClients } from "../services/clientReadiness";
+import { computeReadiness, computeReadinessForAllClients } from "../services/clientReadiness";
 
 const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
 const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
@@ -69,6 +69,15 @@ export function registerClientRoutes(app: Express): void {
     const client = await clientStore.get(id);
     if (!client) throw new AppError(404, "Client not found", "CLIENT_NOT_FOUND");
     ok(res, client);
+  });
+
+  app.get("/api/clients/:id/readiness", requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+    const client = await clientStore.get(id);
+    if (!client) throw new AppError(404, "Client not found", "CLIENT_NOT_FOUND");
+    const data = await computeReadiness(id);
+    ok(res, data);
   });
 
   app.patch(

@@ -13,6 +13,20 @@ vi.mock("wouter", async () => {
 const API_RESPONSES: Record<string, unknown> = {
   "/api/clients/4": { data: { id: 4, name: "Acme", primaryDomain: "acme.com", geographies: [] } },
   "/api/clients/4/brands": { data: [] },
+  "/api/clients/4/readiness": {
+    data: {
+      clientId: 4,
+      hasClientBrand: true,
+      competitorBrandCount: 0,
+      competitorBrandsWithAliasCount: 0,
+      hasActivePromptCollectionWithPrompts: false,
+      ready: false,
+      issues: [
+        "No competitor brands defined - AI Share of Voice will be meaningless",
+        "No active prompt collection with prompts",
+      ],
+    },
+  },
   "/api/clients/4/metrics/overview?period=30d": {
     data: { citationFrequency: 0, mentionRate: 0, aiSoV: 0, avgVisibilityScore: 0, totalResponses: 0, period: "30d" },
   },
@@ -80,6 +94,15 @@ describe("ClientDetail (consolidated AI visibility page)", () => {
     for (const label of ["Runs", "Prompt Collections", "Reports", "Integrations"]) {
       expect(screen.getByRole("link", { name: new RegExp(label) })).toBeInTheDocument();
     }
+  });
+
+  it("shows a setup-incomplete banner listing what still needs to be configured", async () => {
+    renderClientDetail();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Acme" })).toBeInTheDocument());
+
+    expect(await screen.findByText(/Setup incomplete/i)).toBeInTheDocument();
+    expect(screen.getByText("No competitor brands defined - AI Share of Voice will be meaningless")).toBeInTheDocument();
+    expect(screen.getByText("No active prompt collection with prompts")).toBeInTheDocument();
   });
 
   it("does not render separate top-nav links for sections now shown inline", async () => {
