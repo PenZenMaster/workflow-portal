@@ -1,10 +1,10 @@
 ## Resume From
 
-Last session: 2026-06-15
-Last commit: 1d1131c docs(status): record v1.8.0 commit hash for resume point
+Last session: 2026-07-01
+Last commit: 25a8257 feat(ai): add {{brand}}/{{competitor}}/{{city}} prompt template tokens with run-time substitution
 Branch: main | Version: v1.19.0 | 620 tests passing
-Production: v1.4.0 - v1.6.1 deployed to pre-production, QA passed. v1.6.0 verified
-live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
+Production: All versions through v1.19.0 deployed to pre-production, QA passed (2026-07-01).
+v1.6.0 verified live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
 confirmed live. v1.6.1 (TD-15 + sentimentStore cross-client leak fix) deployed and
 QA passed. v1.7.0 (platform CRUD API) verified live and QA passed against
@@ -14,7 +14,7 @@ pre-production and verified — /admin/platforms confirmed working. v1.9.0 (B-16
 GA4 property picker) deployed to pre-production and verified — TD-16 recurred
 on this deploy's restart (stale lsnode worker, killed manually) but resolved
 once the fresh worker took over; "No adapter configured" errors gone. v1.10.0
-(Retry failed button on RunDetail) implemented this session — not yet deployed.
+(Retry failed button on RunDetail) deployed and QA passed.
 v1.11.0 (nav/layout refactor: Clients link on Home, Back to Workflows
 positioning fix on ai/clients) deployed to pre-production. v1.11.1 (fix:
 Retry failed didn't resume run polling and double-counted failedPrompts)
@@ -43,61 +43,15 @@ v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /ad
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. v1.11.1 QA complete — no further action needed for the Retry failed fix.
+1. All versions through v1.19.0 deployed to pre-production and QA passed (2026-07-01).
 2. Once Groq API access is granted, set GROQ_API_KEY in the pre-production
    .env and re-run a multi-platform collection to confirm the Groq/Llama
    adapter works end-to-end (it is already implemented and seeded as
    "Llama via Groq" — server/adapters/groq.ts).
-3. B-16 GA4 property dropdown QA complete — Admin API enabled, retested PASS.
-   No further action needed.
-4. B-11 Phase 2 follow-ups complete (v1.12.0): "add custom platform" form on
-   /admin/platforms, and Integrations.tsx now shows connection status + env-var
-   hints for all 7 catalog platforms.
-4a. B-12 complete (v1.13.0): AI-assisted prompt generation for Prompt
-   Collections — "Generate with AI" button on PromptCollectionDetail, new
-   generate-prompts endpoint, 6-type category taxonomy.
-4b. v1.13.1: /ai/clients list now sorted alphabetically (case-insensitive).
-4c. B-13 complete (v1.14.0): Edit existing prompts — each prompt row on
-   PromptCollectionDetail has an Edit (pencil) action that opens an inline
-   form (text + category), Save PATCHes /api/prompts/:id with the full
-   prompt payload (preserving funnelStage/geo/priorityWeight/status/
-   targetPlatforms/position) to avoid the schema-defaults wiping those
-   fields.
-4d. v1.13.1 - v1.14.0 deployed to pre-production, QA in progress (2026-06-14).
-   Pending: confirm B-12 generate/review/save flow + clear error when no LLM
-   key configured, B-13 inline edit preserves funnelStage/geo/etc., and
-   /ai/clients alphabetical sort.
-4e. B-15 v1 complete (v1.15.0): Client Run-Readiness. New
-   `GET /api/clients/readiness` (server/services/clientReadiness.ts) computes
-   per-client readiness (client brand present, competitor brands with
-   aliases, active prompt collection with prompts) and returns
-   `ready`/`issues[]`. /ai/clients now shows a green "Ready" badge or an
-   amber "Setup incomplete (N)" badge per client; clicking the amber badge
-   expands the specific missing-setup issues.
-4f. B-15 v1.1 complete (v1.16.0): New `GET /api/clients/:id/readiness`
-   returns the same readiness data for a single client. /ai/clients/:id
-   (ClientDetail) now shows an orange "Setup incomplete" banner listing the
-   specific outstanding issues when the client isn't fully configured, so
-   the message is visible immediately after clicking through from the
-   Clients list, not just from the list's expandable badge. Not yet deployed.
-5. Continue internal review of the consolidated AI Visibility client page
-   (Overview/Mentions/SoV/Sentiment/Sources/Recommendations/Traffic now inline
-   on ClientDetail) before exposing pre-production to clients.
-4g. B-19 complete (v1.17.0): Recurring AEO/GEO prompt run schedules now
-   actually fire. `schedule-tick` is seeded on startup (if not already
-   queued/running) and self-re-enqueues hourly; `computeNextFireAt` correctly
-   honors weekly dayOfWeek / monthly dayOfMonth + hourUtc. New "Schedules"
-   section on PromptCollectionDetail lists/creates/enables/deletes schedules
-   (admin-only mutations). Not yet deployed.
-4h. B-19 follow-up (v1.18.0): Schedules now display/edit times in the
-   browser's local timezone instead of raw UTC. Weekly schedules show/edit
-   day-of-week + hour fully in local time; monthly schedules show/edit the
-   hour in local time but keep day-of-month labeled and stored as UTC (to
-   avoid the 1-28 range edge case from timezone shifts). Not yet deployed.
-4i. B-20 complete (v1.19.0): Prompt template tokens {{brand}}, {{competitor}}
-   (fans out one response per competitor), {{city}}/{{geo}} now expand at run
-   time for both manual runs and schedule-tick. Not yet deployed.
-6. See Tech Debt Register and Backlog below for next priorities.
+3. Next backlog items: B-18 (prompt collection Edit/Delete/Clone UI),
+   B-17 (client name on Integrations page), B-15 v2 (guided onboarding wizard),
+   B-14 (app version in footer).
+4. See Tech Debt Register and Backlog below for full priority list.
 
 ---
 
