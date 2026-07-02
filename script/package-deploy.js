@@ -11,7 +11,9 @@ const relOut = `../${archive}`;
 
 // Only include what the production server actually needs to run.
 // Everything else (source, tests, docs, git history, dev config) stays local.
-const include = ["dist/", "migrations/", "package.json", "package-lock.json"];
+// No trailing slashes on directories: Windows bsdtar 3.8.x mangles
+// trailing-slash path arguments into empty strings ("Couldn't visit directory").
+const include = ["dist", "migrations", "package.json", "package-lock.json"];
 
 console.log(`Packaging ${archive} ...`);
 console.log(`  Including: ${include.join(", ")}`);
