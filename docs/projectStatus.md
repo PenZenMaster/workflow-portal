@@ -1,9 +1,10 @@
 ## Resume From
 
 Last session: 2026-07-01
-Last commit: 25a8257 feat(ai): add {{brand}}/{{competitor}}/{{city}} prompt template tokens with run-time substitution
-Branch: main | Version: v1.19.0 | 620 tests passing
-Production: All versions through v1.19.0 deployed to pre-production, QA passed (2026-07-01).
+Last commit: see git log (v1.20.0 workflow CSV upload feature)
+Branch: main | Version: v1.20.0 | 642 tests passing
+Production: All versions through v1.19.0 deployed to pre-production, QA passed
+(2026-07-01). v1.20.0 (workflow CSV upload + AI run) not yet deployed.
 v1.6.0 verified live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
 confirmed live. v1.6.1 (TD-15 + sentimentStore cross-client leak fix) deployed and
@@ -43,7 +44,9 @@ v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /ad
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. All versions through v1.19.0 deployed to pre-production and QA passed (2026-07-01).
+1. Deploy v1.20.0 (workflow CSV upload + AI run) to pre-production; QA with
+   the United Structural Systems Rank Tracker CSV (248 KB, 2,192 rows —
+   fits whole in LLM context, no truncation).
 2. Once Groq API access is granted, set GROQ_API_KEY in the pre-production
    .env and re-run a multi-platform collection to confirm the Groq/Llama
    adapter works end-to-end (it is already implemented and seeded as
@@ -52,6 +55,46 @@ Pick up from:
    B-17 (client name on Integrations page), B-15 v2 (guided onboarding wizard),
    B-14 (app version in footer).
 4. See Tech Debt Register and Backlog below for full priority list.
+
+---
+
+## Post-Sprint Work This Session (v1.20.0)
+
+- Feature: Workflow CSV upload + AI run (Option B of the file-upload
+  operational question). A workflow can now be flagged "Accept CSV upload";
+  its card then shows a file picker + "Run with AI" button. The file's text
+  is POSTed as text/csv (never written to disk), embedded whole into the
+  workflow's prompt, sent to the first configured LLM adapter, and the
+  response renders in a dismissible panel on the card.
+  - shared/schema.ts: `workflows.acceptsFileUpload` column (integer, default
+    0), `insertWorkflowSchema` boolean default false, `Workflow` type field.
+    Migration 0011_nervous_kronos.sql.
+  - server/storage.ts: SCHEMA_SQL gains `accepts_file_upload`.
+  - server/storage/workflowStore.ts: hydrate/create/update carry the flag.
+  - server/services/workflowFileRun.ts (new): `countCsvDataRows`,
+    `buildCsvRunPrompt` (embeds full CSV + row count + optional filename),
+    `runWorkflowWithCsv` (reuses `pickGenerationAdapter` from
+    promptGenerator — 503 NO_GENERATION_ADAPTER if no LLM key configured).
+  - server/routes/workflows.ts: new `POST /api/workflows/:id/run-with-file`
+    (requireAuth) — route-level `express.text({ type: text/csv, limit: 5MB })`
+    bypasses the app-wide 100kb JSON parser; guards: 400 invalid id,
+    404 not found, 400 FILE_UPLOAD_NOT_ENABLED, 400 EMPTY_FILE. Returns
+    `{ data: { response, modelVariant, latencyMs } }`. No multer, no
+    multipart, no temp files — the CSV travels as a raw text body.
+  - client/src/components/WorkflowCard.tsx: upload section (file input +
+    Run with AI button + response panel) rendered only when
+    `acceptsFileUpload` is true; uses `File.text()` client-side.
+  - client/src/components/WorkflowDialog.tsx: "Accept CSV upload" switch.
+  - tests/setup.ts: added jsdom polyfills — ResizeObserver stub (Radix
+    Select) and Blob.prototype.text via FileReader.
+  - New tests: tests/server/services/workflowFileRun.test.ts (7),
+    tests/server/workflows.filerun.test.ts (7), storage.test.ts (+2),
+    WorkflowCard.test.tsx (new, 4), WorkflowDialog.test.tsx (new, 2).
+  - 642 tests passing (22 new). TDD cycle followed (tests written first,
+    confirmed failing for the right reasons).
+  - Sizing note: a 248 KB / 2,192-row CSV ≈ 63k tokens — fits whole in all
+    configured LLM contexts; no preprocessor/truncation needed. The 5 MB
+    limit is the guard rail.
 
 ---
 

@@ -15,6 +15,7 @@ export const workflows = sqliteTable("workflows", {
   launchUrl: text("launch_url").notNull().default(""),
   launchLabel: text("launch_label").notNull().default(""),
   pinned: integer("pinned").notNull().default(0),
+  acceptsFileUpload: integer("accepts_file_upload").notNull().default(0),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -25,6 +26,7 @@ export const insertWorkflowSchema = createInsertSchema(workflows)
     inputs: z.array(z.string()).default([]),
     tags: z.array(z.string()).default([]),
     pinned: z.boolean().default(false),
+    acceptsFileUpload: z.boolean().default(false),
     name: z.string().min(1, "Name is required"),
     category: z.string().min(1, "Category is required"),
     description: z.string().min(1, "Description is required"),
@@ -47,6 +49,7 @@ export type Workflow = {
   launchUrl: string;
   launchLabel: string;
   pinned: boolean;
+  acceptsFileUpload: boolean;
   createdAt: number;
   updatedAt: number;
 };

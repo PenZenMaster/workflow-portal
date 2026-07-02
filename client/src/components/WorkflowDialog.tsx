@@ -52,6 +52,7 @@ type FormValues = {
   launchUrl: string;
   launchLabel: string;
   pinned: boolean;
+  acceptsFileUpload: boolean;
 };
 
 // The form keeps inputs/tags as raw text and we split on submit.
@@ -65,6 +66,7 @@ const localSchema = z.object({
   launchUrl: z.string().default(""),
   launchLabel: z.string().default(""),
   pinned: z.boolean().default(false),
+  acceptsFileUpload: z.boolean().default(false),
 });
 
 export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
@@ -81,6 +83,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
       launchUrl: "",
       launchLabel: "",
       pinned: false,
+      acceptsFileUpload: false,
     },
   });
 
@@ -97,6 +100,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
           launchUrl: editing.launchUrl,
           launchLabel: editing.launchLabel,
           pinned: editing.pinned,
+          acceptsFileUpload: editing.acceptsFileUpload,
         });
       } else {
         form.reset({
@@ -109,6 +113,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
           launchUrl: "",
           launchLabel: "",
           pinned: false,
+          acceptsFileUpload: false,
         });
       }
     }
@@ -132,6 +137,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
         launchUrl: values.launchUrl.trim(),
         launchLabel: values.launchLabel.trim(),
         pinned: values.pinned,
+        acceptsFileUpload: values.acceptsFileUpload,
       };
       if (editing) {
         return apiRequest("PUT", `/api/workflows/${editing.id}`, payload);
@@ -241,6 +247,35 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="acceptsFileUpload"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <FormLabel>Accept CSV upload</FormLabel>
+                  <FormControl>
+                    <div className="flex items-center gap-2 h-10">
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-accepts-file"
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {field.value
+                          ? "Users can upload a CSV and run it with AI"
+                          : "No file upload"}
+                      </span>
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    Shows an upload + Run with AI action on the workflow card.
+                    The CSV is sent to the first configured AI platform along
+                    with this workflow's prompt.
+                  </FormDescription>
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

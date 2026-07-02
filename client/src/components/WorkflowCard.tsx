@@ -3,6 +3,7 @@ import type { Workflow } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Copy,
   Check,
@@ -12,6 +13,9 @@ import {
   Pin,
   PinOff,
   ListChecks,
+  FileUp,
+  Loader2,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { LaunchInputsDialog } from "@/components/LaunchInputsDialog";
@@ -37,7 +41,42 @@ const CATEGORY_COLORS: Record<string, string> = {
 export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props) {
   const [copied, setCopied] = useState(false);
   const [launchDialogOpen, setLaunchDialogOpen] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [aiRunning, setAiRunning] = useState(false);
+  const [aiResponse, setAiResponse] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const handleRunWithFile = async () => {
+    if (!csvFile) return;
+    setAiRunning(true);
+    try {
+      const text = await csvFile.text();
+      const url =
+        `/api/workflows/${workflow.id}/run-with-file` +
+        `?filename=${encodeURIComponent(csvFile.name)}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "text/csv" },
+        body: text,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(err?.error ?? `Request failed (${res.status})`);
+      }
+      const json = (await res.json()) as { data: { response: string } };
+      setAiResponse(json.data.response);
+    } catch (e) {
+      toast({
+        title: "AI run failed",
+        description: e instanceof Error ? e.message : "Please try again.",
+      });
+    } finally {
+      setAiRunning(false);
+    }
+  };
 
   const handleCopy = async () => {
     if (!workflow.prompt) {
@@ -159,6 +198,61 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
                 #{tag}
               </span>
             ))}
+          </div>
+        )}
+
+        {workflow.acceptsFileUpload && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <FileUp className="h-3.5 w-3.5" />
+              Run with a CSV file
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                type="file"
+                accept=".csv,text/csv"
+                className="h-9 max-w-56 text-xs"
+                onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
+                data-testid={`input-file-${workflow.id}`}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!csvFile || aiRunning}
+                onClick={handleRunWithFile}
+                data-testid={`button-run-file-${workflow.id}`}
+              >
+                {aiRunning ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                    Running...
+                  </>
+                ) : (
+                  <>
+                    <FileUp className="h-4 w-4 mr-1.5" />
+                    Run with AI
+                  </>
+                )}
+              </Button>
+            </div>
+            {aiResponse !== null && (
+              <div
+                className="relative rounded-md border border-card-border bg-muted/40 p-3"
+                data-testid={`panel-ai-response-${workflow.id}`}
+              >
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-1 right-1 h-6 w-6"
+                  onClick={() => setAiResponse(null)}
+                  title="Dismiss"
+                  data-testid={`button-dismiss-response-${workflow.id}`}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+                <p className="text-sm whitespace-pre-wrap pr-6">{aiResponse}</p>
+              </div>
+            )}
           </div>
         )}
 

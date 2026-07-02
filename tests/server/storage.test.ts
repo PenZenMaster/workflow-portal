@@ -19,6 +19,7 @@ const SAMPLE = {
   launchUrl: "https://www.perplexity.ai/",
   launchLabel: "Launch in Perplexity",
   pinned: false,
+  acceptsFileUpload: false,
 };
 
 describe("DatabaseStorage — workflows", () => {
@@ -93,6 +94,28 @@ describe("DatabaseStorage — workflows", () => {
     });
     expect(created.inputs).toEqual([]);
     expect(created.tags).toEqual([]);
+  });
+
+  it("stores acceptsFileUpload=false by default sample and hydrates it as boolean", async () => {
+    const created = await storage.createWorkflow(SAMPLE);
+    expect(created.acceptsFileUpload).toBe(false);
+  });
+
+  it("persists acceptsFileUpload=true on create and can toggle it off on update", async () => {
+    const created = await storage.createWorkflow({
+      ...SAMPLE,
+      acceptsFileUpload: true,
+    });
+    expect(created.acceptsFileUpload).toBe(true);
+
+    const fetched = await storage.getWorkflow(created.id);
+    expect(fetched?.acceptsFileUpload).toBe(true);
+
+    const updated = await storage.updateWorkflow(created.id, {
+      ...SAMPLE,
+      acceptsFileUpload: false,
+    });
+    expect(updated?.acceptsFileUpload).toBe(false);
   });
 });
 

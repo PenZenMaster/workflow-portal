@@ -1,0 +1,1 @@
+ALTER TABLE `workflows` ADD `accepts_file_upload` integer DEFAULT 0 NOT NULL;
