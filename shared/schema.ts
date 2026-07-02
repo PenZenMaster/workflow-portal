@@ -10,6 +10,8 @@ export const workflows = sqliteTable("workflows", {
   // JSON array of strings
   inputs: text("inputs").notNull().default("[]"),
   // JSON array of strings
+  optionalInputs: text("optional_inputs").notNull().default("[]"),
+  // JSON array of strings
   tags: text("tags").notNull().default("[]"),
   prompt: text("prompt").notNull().default(""),
   launchUrl: text("launch_url").notNull().default(""),
@@ -24,6 +26,7 @@ export const insertWorkflowSchema = createInsertSchema(workflows)
   .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({
     inputs: z.array(z.string()).default([]),
+    optionalInputs: z.array(z.string()).default([]),
     tags: z.array(z.string()).default([]),
     pinned: z.boolean().default(false),
     acceptsFileUpload: z.boolean().default(false),
@@ -44,6 +47,7 @@ export type Workflow = {
   category: string;
   description: string;
   inputs: string[];
+  optionalInputs: string[];
   tags: string[];
   prompt: string;
   launchUrl: string;

@@ -20,6 +20,7 @@ const SAMPLE = {
   launchLabel: "Launch in Perplexity",
   pinned: false,
   acceptsFileUpload: false,
+  optionalInputs: [],
 };
 
 describe("DatabaseStorage — workflows", () => {
@@ -116,6 +117,28 @@ describe("DatabaseStorage — workflows", () => {
       acceptsFileUpload: false,
     });
     expect(updated?.acceptsFileUpload).toBe(false);
+  });
+
+  it("round-trips optionalInputs on create, get, and update", async () => {
+    const created = await storage.createWorkflow({
+      ...SAMPLE,
+      optionalInputs: ["Competitor URL", "Target keyword"],
+    });
+    expect(created.optionalInputs).toEqual(["Competitor URL", "Target keyword"]);
+
+    const fetched = await storage.getWorkflow(created.id);
+    expect(fetched?.optionalInputs).toEqual(["Competitor URL", "Target keyword"]);
+
+    const updated = await storage.updateWorkflow(created.id, {
+      ...SAMPLE,
+      optionalInputs: ["City"],
+    });
+    expect(updated?.optionalInputs).toEqual(["City"]);
+  });
+
+  it("defaults optionalInputs to an empty array", async () => {
+    const created = await storage.createWorkflow(SAMPLE);
+    expect(created.optionalInputs).toEqual([]);
   });
 });
 

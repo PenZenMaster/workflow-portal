@@ -47,6 +47,7 @@ type FormValues = {
   category: string;
   description: string;
   inputsText: string;
+  optionalInputsText: string;
   tagsText: string;
   prompt: string;
   launchUrl: string;
@@ -61,6 +62,7 @@ const localSchema = z.object({
   category: z.string().min(1, "Category is required"),
   description: z.string().min(1, "Description is required"),
   inputsText: z.string().default(""),
+  optionalInputsText: z.string().default(""),
   tagsText: z.string().default(""),
   prompt: z.string().default(""),
   launchUrl: z.string().default(""),
@@ -78,6 +80,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
       category: "Audit",
       description: "",
       inputsText: "",
+      optionalInputsText: "",
       tagsText: "",
       prompt: "",
       launchUrl: "",
@@ -95,6 +98,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
           category: editing.category,
           description: editing.description,
           inputsText: editing.inputs.join("\n"),
+          optionalInputsText: editing.optionalInputs.join("\n"),
           tagsText: editing.tags.join(", "),
           prompt: editing.prompt,
           launchUrl: editing.launchUrl,
@@ -108,6 +112,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
           category: "Audit",
           description: "",
           inputsText: "",
+          optionalInputsText: "",
           tagsText: "",
           prompt: "",
           launchUrl: "",
@@ -126,6 +131,10 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
         category: values.category,
         description: values.description.trim(),
         inputs: values.inputsText
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        optionalInputs: values.optionalInputsText
           .split("\n")
           .map((s) => s.trim())
           .filter(Boolean),
@@ -311,6 +320,30 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
                     />
                   </FormControl>
                   <FormDescription>One input per line.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="optionalInputsText"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Optional inputs</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder={"One per line, e.g.\nCompetitor URL\nTarget keyword"}
+                      rows={3}
+                      {...field}
+                      data-testid="input-optional-inputs"
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    One input per line. Optional inputs appear in the Launch
+                    dialog after the required ones and can be left blank; their
+                    values fill the prompt's later &lt;PASTE&gt; tokens.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

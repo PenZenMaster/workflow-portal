@@ -23,13 +23,15 @@ type Props = {
 
 export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
   const [values, setValues] = useState<string[]>([]);
+  const [optionalValues, setOptionalValues] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
       setValues(workflow.inputs.map(() => ""));
+      setOptionalValues(workflow.optionalInputs.map(() => ""));
     }
-  }, [open, workflow.inputs]);
+  }, [open, workflow.inputs, workflow.optionalInputs]);
 
   const setValue = (index: number, value: string) => {
     setValues((prev) => {
@@ -39,8 +41,20 @@ export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
     });
   };
 
+  const setOptionalValue = (index: number, value: string) => {
+    setOptionalValues((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  };
+
+  // Required values fill the prompt's <PASTE> tokens first, then optional
+  // values; a blank optional value fills its token as empty text.
+  const allValues = [...values, ...optionalValues];
+
   const handleLaunch = async () => {
-    const filled = fillPrompt(workflow.prompt, values);
+    const filled = fillPrompt(workflow.prompt, allValues);
 
     // Try the Perplexity prefilled-search URL first — it auto-submits.
     const directUrl = buildPerplexityLaunchUrl(workflow.launchUrl, filled);
@@ -91,7 +105,7 @@ export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
   };
 
   const handleCopyOnly = async () => {
-    const filled = fillPrompt(workflow.prompt, values);
+    const filled = fillPrompt(workflow.prompt, allValues);
     try {
       await navigator.clipboard.writeText(filled);
       toast({
@@ -128,6 +142,23 @@ export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
                 onChange={(e) => setValue(i, e.target.value)}
                 placeholder={`Enter ${label.toLowerCase()}`}
                 data-testid={`launch-input-${i}`}
+              />
+            </div>
+          ))}
+          {workflow.optionalInputs.map((label, i) => (
+            <div key={`opt-${i}`} className="space-y-1.5">
+              <Label htmlFor={`launch-optional-input-${i}`}>
+                {label}{" "}
+                <span className="text-muted-foreground font-normal">
+                  (optional)
+                </span>
+              </Label>
+              <Input
+                id={`launch-optional-input-${i}`}
+                value={optionalValues[i] ?? ""}
+                onChange={(e) => setOptionalValue(i, e.target.value)}
+                placeholder={`Enter ${label.toLowerCase()} (optional)`}
+                data-testid={`launch-optional-input-${i}`}
               />
             </div>
           ))}

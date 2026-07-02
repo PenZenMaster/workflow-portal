@@ -96,6 +96,9 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
   const categoryClass =
     CATEGORY_COLORS[workflow.category] ?? CATEGORY_COLORS.Other;
 
+  const hasLaunchInputs =
+    workflow.inputs.length + workflow.optionalInputs.length > 0;
+
   return (
     <Card
       className="flex flex-col h-full border-card-border bg-card/60 backdrop-blur-sm transition-shadow hover:shadow-lg"
@@ -180,6 +183,27 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
                   data-testid={`text-input-${workflow.id}-${i}`}
                 >
                   <span className="text-primary mt-0.5">•</span>
+                  <span>{input}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {workflow.optionalInputs.length > 0 && (
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+              <ListChecks className="h-3.5 w-3.5" />
+              Optional inputs
+            </div>
+            <ul className="space-y-1">
+              {workflow.optionalInputs.map((input, i) => (
+                <li
+                  key={i}
+                  className="text-sm text-muted-foreground flex gap-2"
+                  data-testid={`text-optional-input-${workflow.id}-${i}`}
+                >
+                  <span className="text-muted-foreground mt-0.5">•</span>
                   <span>{input}</span>
                 </li>
               ))}
@@ -277,7 +301,7 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
             )}
           </Button>
           {workflow.launchUrl && (
-            workflow.inputs.length > 0 ? (
+            hasLaunchInputs ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -304,7 +328,7 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
         </div>
       </CardContent>
 
-      {workflow.launchUrl && workflow.inputs.length > 0 && (
+      {workflow.launchUrl && hasLaunchInputs && (
         <LaunchInputsDialog
           workflow={workflow}
           open={launchDialogOpen}

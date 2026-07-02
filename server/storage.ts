@@ -81,6 +81,7 @@ export const SCHEMA_SQL = `
     category TEXT NOT NULL,
     description TEXT NOT NULL,
     inputs TEXT NOT NULL DEFAULT '[]',
+    optional_inputs TEXT NOT NULL DEFAULT '[]',
     tags TEXT NOT NULL DEFAULT '[]',
     prompt TEXT NOT NULL DEFAULT '',
     launch_url TEXT NOT NULL DEFAULT '',

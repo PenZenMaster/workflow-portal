@@ -25,11 +25,17 @@ type Row = typeof workflows.$inferSelect;
 
 function hydrate(row: Row): Workflow {
   let inputs: string[] = [];
+  let optionalInputs: string[] = [];
   let tags: string[] = [];
   try {
     inputs = JSON.parse(row.inputs || "[]");
   } catch {
     inputs = [];
+  }
+  try {
+    optionalInputs = JSON.parse(row.optionalInputs || "[]");
+  } catch {
+    optionalInputs = [];
   }
   try {
     tags = JSON.parse(row.tags || "[]");
@@ -42,6 +48,7 @@ function hydrate(row: Row): Workflow {
     category: row.category,
     description: row.description,
     inputs,
+    optionalInputs,
     tags,
     prompt: row.prompt,
     launchUrl: row.launchUrl,
@@ -88,6 +95,7 @@ export class WorkflowStore implements IWorkflowStore {
         category: data.category,
         description: data.description,
         inputs: JSON.stringify(data.inputs ?? []),
+        optionalInputs: JSON.stringify(data.optionalInputs ?? []),
         tags: JSON.stringify(data.tags ?? []),
         prompt: data.prompt ?? "",
         launchUrl: data.launchUrl ?? "",
@@ -117,6 +125,7 @@ export class WorkflowStore implements IWorkflowStore {
         category: data.category,
         description: data.description,
         inputs: JSON.stringify(data.inputs ?? []),
+        optionalInputs: JSON.stringify(data.optionalInputs ?? []),
         tags: JSON.stringify(data.tags ?? []),
         prompt: data.prompt ?? "",
         launchUrl: data.launchUrl ?? "",

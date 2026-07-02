@@ -1,10 +1,11 @@
 ## Resume From
 
 Last session: 2026-07-01
-Last commit: see git log (v1.20.0 workflow CSV upload feature)
-Branch: main | Version: v1.20.0 | 642 tests passing
+Last commit: see git log (v1.21.0 optional inputs feature)
+Branch: main | Version: v1.21.0 | 651 tests passing
 Production: All versions through v1.19.0 deployed to pre-production, QA passed
-(2026-07-01). v1.20.0 (workflow CSV upload + AI run) not yet deployed.
+(2026-07-01). v1.20.0 (workflow CSV upload + AI run) and v1.21.0 (optional
+inputs on workflow cards) not yet deployed.
 v1.6.0 verified live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
 confirmed live. v1.6.1 (TD-15 + sentimentStore cross-client leak fix) deployed and
@@ -44,9 +45,12 @@ v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /ad
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Deploy v1.20.0 (workflow CSV upload + AI run) to pre-production; QA with
-   the United Structural Systems Rank Tracker CSV (248 KB, 2,192 rows —
-   fits whole in LLM context, no truncation).
+1. Deploy v1.20.0 + v1.21.0 to pre-production. QA v1.20.0 (workflow CSV
+   upload + AI run) with the United Structural Systems Rank Tracker CSV
+   (248 KB, 2,192 rows — fits whole in LLM context, no truncation).
+   QA v1.21.0 (optional inputs): add optional inputs to a workflow, confirm
+   they render on the card, appear "(optional)" in the Launch dialog after
+   required fields, and fill later <PASTE> tokens (blank = empty text).
 2. Once Groq API access is granted, set GROQ_API_KEY in the pre-production
    .env and re-run a multi-platform collection to confirm the Groq/Llama
    adapter works end-to-end (it is already implemented and seeded as
@@ -57,6 +61,34 @@ Pick up from:
 4. See Tech Debt Register and Backlog below for full priority list.
 
 ---
+
+## Post-Sprint Work This Session (v1.21.0)
+
+- Feature: Optional Inputs section on workflow cards. Optional inputs behave
+  like required ones but are skippable: they render as a second
+  "Optional inputs" list on the card, appear in the Launch dialog after the
+  required fields labeled "(optional)", and their values fill the prompt's
+  <PASTE> tokens after the required values (blank optional values fill as
+  empty text). The launch dialog now also opens when a workflow has only
+  optional inputs.
+  - shared/schema.ts: `workflows.optionalInputs` JSON-array column,
+    `insertWorkflowSchema` array default [], `Workflow` type field.
+    Migration 0012_goofy_jubilee.sql.
+  - server/storage.ts: SCHEMA_SQL gains `optional_inputs`.
+  - server/storage/workflowStore.ts: hydrate/create/update carry the field.
+  - client/src/components/WorkflowCard.tsx: "Optional inputs" bullet list
+    (muted styling); launch-dialog condition now inputs + optionalInputs.
+  - client/src/components/LaunchInputsDialog.tsx: optional fields render
+    after required ones with "(optional)" labels; fill order is
+    [...requiredValues, ...optionalValues].
+  - client/src/components/WorkflowDialog.tsx: "Optional inputs" textarea
+    (one per line) with a hint about <PASTE> token order.
+  - New tests: storage.test.ts (+2), WorkflowCard.test.tsx (+3),
+    LaunchInputsDialog.test.tsx (new, 3), WorkflowDialog.test.tsx (+1).
+  - 651 tests passing (9 new). TDD cycle followed.
+  - Note: "Required" inputs remain unenforced at launch (pre-existing
+    behavior, unchanged) — flagged to user; enforcement is a possible
+    follow-up.
 
 ## Post-Sprint Work This Session (v1.20.0)
 

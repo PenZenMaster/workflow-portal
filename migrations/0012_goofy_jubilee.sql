@@ -1,0 +1,1 @@
+ALTER TABLE `workflows` ADD `optional_inputs` text DEFAULT '[]' NOT NULL;

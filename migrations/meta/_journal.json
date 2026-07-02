@@ -85,6 +85,13 @@
       "when": 1782949844100,
       "tag": "0011_nervous_kronos",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1782954751620,
+      "tag": "0012_goofy_jubilee",
+      "breakpoints": true
     }
   ]
 }

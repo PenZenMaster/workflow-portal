@@ -27,6 +27,7 @@ const BASE_WORKFLOW: Workflow = {
   category: "Reporting",
   description: "Analyze a rank tracker CSV export with AI",
   inputs: [],
+  optionalInputs: [],
   tags: [],
   prompt: "You are an SEO analyst.",
   launchUrl: "",
@@ -107,5 +108,41 @@ describe("WorkflowCard - CSV upload", () => {
   it("disables the run button until a file is selected", () => {
     renderCard(BASE_WORKFLOW);
     expect(screen.getByTestId("button-run-file-7")).toBeDisabled();
+  });
+});
+
+describe("WorkflowCard - optional inputs", () => {
+  it("renders the Optional inputs list when optionalInputs is non-empty", () => {
+    renderCard({
+      ...BASE_WORKFLOW,
+      inputs: ["Website URL"],
+      optionalInputs: ["Competitor URL", "Target keyword"],
+    });
+    expect(screen.getByText("Optional inputs")).toBeInTheDocument();
+    expect(screen.getByTestId("text-optional-input-7-0")).toHaveTextContent(
+      "Competitor URL"
+    );
+    expect(screen.getByTestId("text-optional-input-7-1")).toHaveTextContent(
+      "Target keyword"
+    );
+  });
+
+  it("does not render the Optional inputs section when the list is empty", () => {
+    renderCard({ ...BASE_WORKFLOW, inputs: ["Website URL"] });
+    expect(screen.queryByText("Optional inputs")).not.toBeInTheDocument();
+  });
+
+  it("opens the launch inputs dialog when only optional inputs exist", async () => {
+    const user = userEvent.setup();
+    renderCard({
+      ...BASE_WORKFLOW,
+      launchUrl: "https://www.perplexity.ai/",
+      optionalInputs: ["Competitor URL"],
+    });
+
+    await user.click(screen.getByTestId("button-launch-7"));
+    expect(
+      await screen.findByTestId("button-launch-confirm")
+    ).toBeInTheDocument();
   });
 });

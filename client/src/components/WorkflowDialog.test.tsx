@@ -71,3 +71,23 @@ describe("WorkflowDialog - accepts file upload toggle", () => {
     expect(payload.acceptsFileUpload).toBe(true);
   });
 });
+
+describe("WorkflowDialog - optional inputs", () => {
+  it("splits the optional inputs textarea into an array in the create payload", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.type(screen.getByTestId("input-name"), "Site Audit");
+    await user.type(screen.getByTestId("input-description"), "Full audit");
+    await user.type(
+      screen.getByTestId("input-optional-inputs"),
+      "Competitor URL{enter}Target keyword"
+    );
+    await user.click(screen.getByTestId("button-save"));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const payload = JSON.parse(String(init.body));
+    expect(payload.optionalInputs).toEqual(["Competitor URL", "Target keyword"]);
+  });
+});
