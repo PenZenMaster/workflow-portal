@@ -7,7 +7,16 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, X, Zap } from "lucide-react";
+import {
+  Plus,
+  X,
+  Zap,
+  Pencil,
+  CopyPlus,
+  Archive,
+  ArchiveRestore,
+  Trash2,
+} from "lucide-react";
 
 const STATUS_COLOURS: Record<string, string> = {
   active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
@@ -21,6 +30,10 @@ export default function PromptCollections() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery<{ data: PromptCollection[] }>({
     queryKey: [`/api/clients/${id}/prompt-collections`],
@@ -50,6 +63,68 @@ export default function PromptCollections() {
     },
     onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
   });
+
+  const invalidateList = () =>
+    queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}/prompt-collections`] });
+
+  const updateMutation = useMutation({
+    mutationFn: async (vars: { collectionId: number; name: string; notes?: string }) => {
+      await apiRequest("PATCH", `/api/prompt-collections/${vars.collectionId}`, {
+        name: vars.name,
+        notes: vars.notes,
+      });
+    },
+    onSuccess: () => {
+      invalidateList();
+      setEditingId(null);
+      toast({ title: "Collection updated" });
+    },
+    onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
+  });
+
+  const cloneMutation = useMutation({
+    mutationFn: async (collectionId: number) => {
+      await apiRequest("POST", `/api/prompt-collections/${collectionId}/clone`);
+    },
+    onSuccess: () => {
+      invalidateList();
+      toast({ title: "Collection cloned", description: "The copy was created as a draft." });
+    },
+    onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: async (vars: { collectionId: number; action: "archive" | "unarchive" }) => {
+      await apiRequest("POST", `/api/prompt-collections/${vars.collectionId}/${vars.action}`);
+    },
+    onSuccess: (_data, vars) => {
+      invalidateList();
+      toast({ title: vars.action === "archive" ? "Collection archived" : "Collection restored to draft" });
+    },
+    onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (collectionId: number) => {
+      await apiRequest("DELETE", `/api/prompt-collections/${collectionId}`);
+    },
+    onSuccess: () => {
+      invalidateList();
+      setDeleteConfirmId(null);
+      toast({ title: "Collection deleted" });
+    },
+    onError: (err) => {
+      setDeleteConfirmId(null);
+      toast({ title: "Failed", description: String(err), variant: "destructive" });
+    },
+  });
+
+  const startEdit = (collectionId: number, currentName: string, currentNotes: string | null) => {
+    setEditingId(collectionId);
+    setEditName(currentName);
+    setEditNotes(currentNotes ?? "");
+    setDeleteConfirmId(null);
+  };
 
   const collections = data?.data ?? [];
 
@@ -106,19 +181,140 @@ export default function PromptCollections() {
       ) : (
         <ul className="space-y-3">
           {collections.map((c) => (
-            <li key={c.id} className="border rounded-lg p-4 flex items-center justify-between">
-              <div>
-                <Link href={`/ai/clients/${id}/prompts/${c.id}`}>
-                  <span className="font-medium hover:underline text-primary">{c.name}</span>
-                </Link>
-                <span className={`ml-3 text-xs px-2 py-0.5 rounded ${STATUS_COLOURS[c.status]}`}>{c.status}</span>
-                <span className="ml-2 text-xs text-muted-foreground">v{c.version}</span>
-                {c.notes && <p className="text-sm text-muted-foreground mt-0.5">{c.notes}</p>}
-              </div>
-              {c.status === "draft" && (
-                <Button size="sm" variant="outline" onClick={() => activateMutation.mutate(c.id)} disabled={activateMutation.isPending}>
-                  <Zap className="h-3.5 w-3.5 mr-1" />Activate
-                </Button>
+            <li key={c.id} className="border rounded-lg p-4">
+              {editingId === c.id ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (editName.trim())
+                      updateMutation.mutate({
+                        collectionId: c.id,
+                        name: editName.trim(),
+                        notes: editNotes.trim() || undefined,
+                      });
+                  }}
+                  className="space-y-3"
+                >
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`edit-name-${c.id}`}>Name *</Label>
+                    <Input
+                      id={`edit-name-${c.id}`}
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      required
+                      autoFocus
+                      data-testid={`input-edit-name-${c.id}`}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`edit-notes-${c.id}`}>Notes</Label>
+                    <Input
+                      id={`edit-notes-${c.id}`}
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      data-testid={`input-edit-notes-${c.id}`}
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={updateMutation.isPending || !editName.trim()}
+                      data-testid={`button-save-edit-${c.id}`}
+                    >
+                      {updateMutation.isPending ? "Saving…" : "Save"}
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <Link href={`/ai/clients/${id}/prompts/${c.id}`}>
+                      <span className="font-medium hover:underline text-primary">{c.name}</span>
+                    </Link>
+                    <span className={`ml-3 text-xs px-2 py-0.5 rounded ${STATUS_COLOURS[c.status]}`}>{c.status}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">v{c.version}</span>
+                    {c.notes && <p className="text-sm text-muted-foreground mt-0.5">{c.notes}</p>}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {c.status === "draft" && (
+                      <Button size="sm" variant="outline" onClick={() => activateMutation.mutate(c.id)} disabled={activateMutation.isPending}>
+                        <Zap className="h-3.5 w-3.5 mr-1" />Activate
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      title="Edit name and notes"
+                      onClick={() => startEdit(c.id, c.name, c.notes)}
+                      data-testid={`button-edit-collection-${c.id}`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      title="Clone as a new draft"
+                      onClick={() => cloneMutation.mutate(c.id)}
+                      disabled={cloneMutation.isPending}
+                      data-testid={`button-clone-collection-${c.id}`}
+                    >
+                      <CopyPlus className="h-4 w-4" />
+                    </Button>
+                    {c.status === "archived" ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        title="Restore to draft"
+                        onClick={() => archiveMutation.mutate({ collectionId: c.id, action: "unarchive" })}
+                        disabled={archiveMutation.isPending}
+                        data-testid={`button-unarchive-collection-${c.id}`}
+                      >
+                        <ArchiveRestore className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        title="Archive"
+                        onClick={() => archiveMutation.mutate({ collectionId: c.id, action: "archive" })}
+                        disabled={archiveMutation.isPending}
+                        data-testid={`button-archive-collection-${c.id}`}
+                      >
+                        <Archive className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {deleteConfirmId === c.id ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => deleteMutation.mutate(c.id)}
+                        disabled={deleteMutation.isPending}
+                        data-testid={`button-confirm-delete-${c.id}`}
+                      >
+                        {deleteMutation.isPending ? "Deleting…" : "Confirm delete"}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        title="Delete (blocked if the collection has runs)"
+                        onClick={() => setDeleteConfirmId(c.id)}
+                        data-testid={`button-delete-collection-${c.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
               )}
             </li>
           ))}

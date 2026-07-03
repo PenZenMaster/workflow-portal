@@ -22,6 +22,9 @@ const mockCollectionStore = {
   update: vi.fn(),
   clone: vi.fn(),
   activate: vi.fn(),
+  setStatus: vi.fn(),
+  countRuns: vi.fn(),
+  delete: vi.fn(),
 };
 const mockPromptStore = {
   listByCollection: vi.fn(),
@@ -313,6 +316,84 @@ describe("POST /api/prompt-collections/:id/activate", () => {
       .post("/api/prompt-collections/1/activate");
     expect(res.status).toBe(200);
     expect(res.body.data.status).toBe("active");
+  });
+});
+
+describe("POST /api/prompt-collections/:id/archive", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 200 with the archived collection", async () => {
+    mockCollectionStore.setStatus.mockResolvedValue({ ...SAMPLE_COLLECTION, status: "archived" });
+    const res = await request(buildApp("analyst"))
+      .post("/api/prompt-collections/1/archive");
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("archived");
+    expect(mockCollectionStore.setStatus).toHaveBeenCalledWith(1, "archived");
+  });
+
+  it("returns 404 when the collection does not exist", async () => {
+    mockCollectionStore.setStatus.mockResolvedValue(undefined);
+    const res = await request(buildApp("agency_admin"))
+      .post("/api/prompt-collections/999/archive");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("COLLECTION_NOT_FOUND");
+  });
+
+  it("returns 403 for client_viewer", async () => {
+    const res = await request(buildApp("client_viewer"))
+      .post("/api/prompt-collections/1/archive");
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("POST /api/prompt-collections/:id/unarchive", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 200 with the collection back in draft", async () => {
+    mockCollectionStore.setStatus.mockResolvedValue({ ...SAMPLE_COLLECTION, status: "draft" });
+    const res = await request(buildApp("analyst"))
+      .post("/api/prompt-collections/1/unarchive");
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("draft");
+    expect(mockCollectionStore.setStatus).toHaveBeenCalledWith(1, "draft");
+  });
+});
+
+describe("DELETE /api/prompt-collections/:id", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 204 and deletes when no runs reference the collection", async () => {
+    mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION);
+    mockCollectionStore.countRuns.mockResolvedValue(0);
+    mockCollectionStore.delete.mockResolvedValue(true);
+    const res = await request(buildApp("agency_admin"))
+      .delete("/api/prompt-collections/1");
+    expect(res.status).toBe(204);
+    expect(mockCollectionStore.delete).toHaveBeenCalledWith(1);
+  });
+
+  it("returns 409 COLLECTION_IN_USE when runs reference the collection", async () => {
+    mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION);
+    mockCollectionStore.countRuns.mockResolvedValue(3);
+    const res = await request(buildApp("agency_admin"))
+      .delete("/api/prompt-collections/1");
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("COLLECTION_IN_USE");
+    expect(mockCollectionStore.delete).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when the collection does not exist", async () => {
+    mockCollectionStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("agency_admin"))
+      .delete("/api/prompt-collections/999");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("COLLECTION_NOT_FOUND");
+  });
+
+  it("returns 403 for analyst (delete is admin-only)", async () => {
+    const res = await request(buildApp("analyst"))
+      .delete("/api/prompt-collections/1");
+    expect(res.status).toBe(403);
   });
 });
 

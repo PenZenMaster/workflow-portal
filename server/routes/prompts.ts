@@ -9,9 +9,10 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-09
- * Last Modified Date: 2026-05-09
+ * Last Modified Date: 2026-07-03
  * Comments:
  * - v1.00 Sprint 2 initial implementation
+ * - v1.01 B-18: collection archive/unarchive + guarded DELETE
  */
 
 import type { Express } from "express";
@@ -162,6 +163,56 @@ export function registerPromptRoutes(app: Express): void {
       if (!collection)
         throw new AppError(404, "Collection not found", "COLLECTION_NOT_FOUND");
       ok(res, collection);
+    }
+  );
+
+  app.post(
+    "/api/prompt-collections/:id/archive",
+    requireRole(...EDITOR_ROLES),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+      const collection = await promptCollectionStore.setStatus(id, "archived");
+      if (!collection)
+        throw new AppError(404, "Collection not found", "COLLECTION_NOT_FOUND");
+      ok(res, collection);
+    }
+  );
+
+  app.post(
+    "/api/prompt-collections/:id/unarchive",
+    requireRole(...EDITOR_ROLES),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+      const collection = await promptCollectionStore.setStatus(id, "draft");
+      if (!collection)
+        throw new AppError(404, "Collection not found", "COLLECTION_NOT_FOUND");
+      ok(res, collection);
+    }
+  );
+
+  // Hard delete is admin-only and blocked while runs reference the
+  // collection (mirrors the PLATFORM_IN_USE pattern). Archive instead when
+  // history must be kept.
+  app.delete(
+    "/api/prompt-collections/:id",
+    requireRole(...ADMIN_ROLES),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+      const collection = await promptCollectionStore.get(id);
+      if (!collection)
+        throw new AppError(404, "Collection not found", "COLLECTION_NOT_FOUND");
+      const runCount = await promptCollectionStore.countRuns(id);
+      if (runCount > 0)
+        throw new AppError(
+          409,
+          "Collection has runs referencing it - archive it instead",
+          "COLLECTION_IN_USE"
+        );
+      await promptCollectionStore.delete(id);
+      noContent(res);
     }
   );
 

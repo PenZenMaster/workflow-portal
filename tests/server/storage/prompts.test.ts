@@ -8,6 +8,7 @@ import { PromptStore } from "../../../server/storage/promptStore";
 import { ClientStore } from "../../../server/storage/clientStore";
 import { RunStore } from "../../../server/storage/runStore";
 import { ResponseStore } from "../../../server/storage/responseStore";
+import { ScheduleStore } from "../../../server/storage/scheduleStore";
 
 function makeDb() {
   const sqlite = new Database(":memory:");
@@ -226,6 +227,67 @@ describe("PromptCollectionStore", () => {
 
   it("get returns undefined for unknown id", async () => {
     expect(await store.get(9999)).toBeUndefined();
+  });
+
+  it("setStatus archives a collection and unarchives it back to draft", async () => {
+    const c = await store.create(clientId, { name: "Q1" });
+    const archived = await store.setStatus(c.id, "archived");
+    expect(archived?.status).toBe("archived");
+    const unarchived = await store.setStatus(c.id, "draft");
+    expect(unarchived?.status).toBe("draft");
+  });
+
+  it("setStatus returns undefined for unknown id", async () => {
+    expect(await store.setStatus(9999, "archived")).toBeUndefined();
+  });
+
+  it("countRuns returns the number of runs referencing the collection", async () => {
+    const runStore = new RunStore(db);
+    const c = await store.create(clientId, { name: "Q1" });
+    expect(await store.countRuns(c.id)).toBe(0);
+    await runStore.create({
+      clientId,
+      collectionId: c.id,
+      batchId: "batch-1",
+      totalPrompts: 1,
+      triggeredBy: "manual",
+    });
+    expect(await store.countRuns(c.id)).toBe(1);
+  });
+
+  it("delete removes the collection with its prompts and schedules", async () => {
+    const scheduleStore = new ScheduleStore(db);
+    const c = await store.create(clientId, { name: "Doomed" });
+    await promptStore.create(c.id, SAMPLE_PROMPT);
+    await scheduleStore.create(clientId, {
+      collectionId: c.id,
+      platformIds: [1],
+      cadence: "weekly",
+      hourUtc: 0,
+      enabled: true,
+    });
+
+    const deleted = await store.delete(c.id);
+    expect(deleted).toBe(true);
+    expect(await store.get(c.id)).toBeUndefined();
+    expect(await promptStore.listByCollection(c.id)).toEqual([]);
+    expect(await scheduleStore.listByClient(clientId)).toEqual([]);
+  });
+
+  it("delete returns false for unknown id", async () => {
+    expect(await store.delete(9999)).toBe(false);
+  });
+
+  it("delete does not touch prompts of other collections", async () => {
+    const keep = await store.create(clientId, { name: "Keep" });
+    const drop = await store.create(clientId, { name: "Drop" });
+    await promptStore.create(keep.id, SAMPLE_PROMPT);
+    await promptStore.create(drop.id, { ...SAMPLE_PROMPT, text: "Doomed prompt" });
+
+    await store.delete(drop.id);
+    const keptPrompts = await promptStore.listByCollection(keep.id);
+    expect(keptPrompts).toHaveLength(1);
+    expect(keptPrompts[0].text).toBe("Best SEO agency in Seattle");
   });
 });
 

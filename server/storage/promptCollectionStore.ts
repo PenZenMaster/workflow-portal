@@ -9,14 +9,15 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-09
- * Last Modified Date: 2026-05-09
+ * Last Modified Date: 2026-07-03
  * Comments:
  * - v1.00 Sprint 2 initial implementation
+ * - v1.01 B-18: setStatus (archive/unarchive), countRuns, cascading delete
  */
 
-import { promptCollections, prompts } from "@shared/schema";
+import { promptCollections, prompts, promptRuns, runSchedules } from "@shared/schema";
 import type { PromptCollection, InsertPromptCollection } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -43,6 +44,12 @@ export interface IPromptCollectionStore {
   update(id: number, data: InsertPromptCollection): Promise<PromptCollection | undefined>;
   clone(id: number): Promise<PromptCollection>;
   activate(id: number): Promise<PromptCollection | undefined>;
+  setStatus(
+    id: number,
+    status: "draft" | "archived"
+  ): Promise<PromptCollection | undefined>;
+  countRuns(id: number): Promise<number>;
+  delete(id: number): Promise<boolean>;
 }
 
 export class PromptCollectionStore implements IPromptCollectionStore {
@@ -189,5 +196,44 @@ export class PromptCollectionStore implements IPromptCollectionStore {
       .get();
 
     return row ? hydrate(row) : undefined;
+  }
+
+  // Archive/unarchive transitions only; "active" must go through activate()
+  // so the one-active-per-client invariant holds.
+  async setStatus(
+    id: number,
+    status: "draft" | "archived"
+  ): Promise<PromptCollection | undefined> {
+    const row = this._db
+      .update(promptCollections)
+      .set({ status, updatedAt: Date.now() })
+      .where(eq(promptCollections.id, id))
+      .returning()
+      .get();
+    return row ? hydrate(row) : undefined;
+  }
+
+  async countRuns(id: number): Promise<number> {
+    const row = this._db
+      .select({ value: count() })
+      .from(promptRuns)
+      .where(eq(promptRuns.collectionId, id))
+      .get();
+    return row?.value ?? 0;
+  }
+
+  async delete(id: number): Promise<boolean> {
+    const existing = this._db
+      .select()
+      .from(promptCollections)
+      .where(eq(promptCollections.id, id))
+      .get();
+    if (!existing) return false;
+
+    // The collection's prompts and schedules have no meaning without it.
+    this._db.delete(prompts).where(eq(prompts.collectionId, id)).run();
+    this._db.delete(runSchedules).where(eq(runSchedules.collectionId, id)).run();
+    this._db.delete(promptCollections).where(eq(promptCollections.id, id)).run();
+    return true;
   }
 }
