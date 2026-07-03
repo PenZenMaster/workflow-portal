@@ -1,11 +1,13 @@
 ## Resume From
 
-Last session: 2026-07-03
-Last commit: ca622e7 (v1.22.0 launch-mode plan + persistent launch instructions)
-Branch: main | Version: v1.22.0 | 665 tests passing
+Last session: 2026-07-03 (second session)
+Last commit: 53d4896 (v1.24.0 B-18 prompt collection CRUD)
+Branch: main | Version: v1.24.0 | 697 tests passing
 Production: v1.22.0 deployed and user-confirmed (2026-07-03). This deploy also
 carried v1.20.0 (workflow CSV upload + AI run) and v1.21.0 (optional inputs)
-to production.
+to production. NOT yet deployed: v1.22.1 (GA4 scope guard), v1.23.0 (B-21),
+v1.24.0 (B-18) — archives workflow-portal-v1.22.1/1.23.0/1.24.0.tar.gz are
+ready one level above the repo; deploy the latest (v1.24.0 carries all three).
 v1.6.0 verified live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
 confirmed live. v1.6.1 (TD-15 + sentimentStore cross-client leak fix) deployed and
@@ -45,26 +47,61 @@ v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /ad
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. GBP API access (B-20): user is applying for Google Business Profile API
+1. Deploy v1.24.0 to production (carries v1.22.1 GA4 scope guard, v1.23.0
+   B-21 Run-with-AI inputs, v1.24.0 B-18 collection CRUD), then QA:
+   - GA4 reconnect for camphousecountrylandscaping.com — the 403
+     ACCESS_TOKEN_SCOPE_INSUFFICIENT on Test was diagnosed as the Analytics
+     checkbox being left unticked on Google's granular consent screen.
+     Remedy: myaccount.google.com/permissions -> remove portal access ->
+     reconnect with the checkbox ticked. Post-v1.22.1 the portal rejects
+     scope-less grants at connect time with a clear message.
+   - B-21: Run with AI on a workflow with inputs should open the inputs
+     dialog; unfilled token lines must not reach the model.
+   - B-18: edit/clone/archive/delete actions on the Prompt Collections page
+     (delete is admin-only and 409-blocked while runs reference the
+     collection).
+2. GBP API access (B-20): user is applying for Google Business Profile API
    access (walkthrough given 2026-07-03: GCP project + "Application for Basic
    API Access" contact form; approval shows as quota going 0 -> 300 QPM).
    When approved, build the portal GBP snapshot integration — per-client
    button pulling listing + services + reviews + Q&A via OAuth (reuse the
    GA4 integration pattern). Gotcha: tokens are per-user; United Structural
    Systems lives under a different Google account than the main 27 locations.
-2. QA v1.22.0 on the next real audit run: launch dialog now shows a
+3. QA v1.22.0 on the next real audit run: launch dialog now shows a
    persistent instruction step (credential-labeled workflows always use
    clipboard mode — prompt never enters the URL); the Ranking Audit workflow
    prompt AND the Perplexity skill (seo-rank-and-gbp-growth-planner SKILL.md)
    were both corrected from implicit AND to explicit UNION/OR keyword
    filtering — verify the "Filtered keyword set" section reports per-condition
    match counts and a sane union.
-3. Consider B-21: "Run with AI" sends the stored prompt verbatim — unfilled
-   <PASTE> tokens go to the model alongside the CSV. Either strip token lines
-   or collect the same dialog inputs the Launch flow does.
 4. Still open: Groq API access pending (GROQ_API_KEY for pre-production);
-   backlog B-18, B-17, B-15 v2, B-14. See Tech Debt Register and Backlog
-   below for full priority list.
+   backlog B-17, B-15 v2, B-14. See Tech Debt Register and Backlog below
+   for full priority list.
+
+---
+
+## Post-Sprint Work This Session (v1.22.1 - v1.24.0, 2026-07-03)
+
+- v1.22.1 fix(ga4): exchangeCode() now validates the granted `scope` field
+  from Google's token response and rejects grants missing analytics.readonly
+  with a "tick the Google Analytics checkbox" message. Root cause of the
+  camphousecountrylandscaping.com 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT:
+  Google's granular consent screen lets the user connect without granting
+  Analytics; the portal silently stored the useless token. Troubleshooting
+  entry added to system-documentation.md Section 1B Step 4. 3 new tests
+  (668 passing).
+- v1.23.0 feat (B-21): "Run with AI" collects launch inputs and strips
+  unfilled tokens. Workflows with inputs open LaunchInputsDialog in a new
+  "ai-run" mode before running; run-with-file accepts application/json
+  { csv, inputValues } alongside legacy text/csv; buildCsvRunPrompt fills
+  <PASTE> tokens (blank/missing value = unfilled) then strips any line
+  still containing a token, on both body paths. 10 new tests (678 passing).
+- v1.24.0 feat (B-18): prompt collection CRUD completed. Store gains
+  setStatus/countRuns/delete (delete cascades prompts + run schedules);
+  routes gain POST archive/unarchive (editor roles) and DELETE (admin
+  roles, 409 COLLECTION_IN_USE while runs exist); PromptCollections.tsx
+  gains inline name/notes edit, clone, archive/restore, and delete with
+  inline confirm. 19 new tests (697 passing).
 
 ---
 
@@ -867,22 +904,14 @@ Confirmed decisions:
   token table and fan-out behavior.
 
 ### Medium Priority
-- B-18 Full CRUD UI for Prompt Collections (PromptCollections.tsx /
-  PromptCollectionDetail.tsx). Currently Create/Read/Activate/Clone exist but
-  Update and Delete are incomplete:
-  - Edit: expose a rename/edit-notes UI for an existing collection (backend
-    `PATCH /api/prompt-collections/:id` + `insertPromptCollectionSchema`
-    already support name/notes/status/version — just needs a frontend form,
-    similar in shape to B-13's inline prompt edit).
-  - Delete: no backend route or store method exists for deleting/archiving a
-    prompt collection. Add `DELETE /api/prompt-collections/:id` (or an
-    "archive" status transition, consistent with the existing draft/active/
-    archived `STATUS_COLOURS` already defined in PromptCollections.tsx) plus
-    `PromptCollectionStore.delete()`, with a confirm step and a 409 guard if
-    the collection has runs referencing it (mirroring the PLATFORM_IN_USE
-    pattern from B-11).
-  - Clone: backend `POST /api/prompt-collections/:id/clone` exists but has no
-    UI entry point.
+- B-18 Full CRUD UI for Prompt Collections — **COMPLETE (v1.24.0)**.
+  PromptCollections.tsx now has per-collection actions: inline edit of
+  name/notes (PATCH), clone-as-draft (existing endpoint, new UI), archive/
+  restore (new POST /api/prompt-collections/:id/archive and /unarchive,
+  editor roles), and hard delete (new DELETE /api/prompt-collections/:id,
+  admin roles, inline confirm step, 409 COLLECTION_IN_USE while runs
+  reference the collection; delete cascades the collection's prompts and
+  run schedules).
 - B-17 On /ai/clients/:id/settings/integrations ("Integrations & API Keys"),
   display the client's name underneath the page heading / AI Platform keys
   section so the analyst has confirmation of which client's integrations
@@ -898,10 +927,12 @@ Confirmed decisions:
   approved. Note: OAuth tokens are per-user; some client profiles (e.g.
   United Structural Systems) live under a different Google account and need
   their own connection.
-- B-21 Feature: "Run with AI" (workflow CSV run) sends the stored prompt
-  verbatim, so unfilled <PASTE> tokens reach the model alongside the CSV.
-  Either strip unfilled token lines server-side in buildCsvRunPrompt(), or
-  have the card collect the same inputs as the Launch dialog and fill them.
+- B-21 Feature: "Run with AI" input collection — **COMPLETE (v1.23.0)**.
+  Workflows with inputs open the launch inputs dialog (new "ai-run" mode)
+  before the CSV run; values fill the prompt's <PASTE> tokens server-side
+  (run-with-file accepts application/json { csv, inputValues }); any line
+  whose token is still unfilled is stripped before the prompt reaches the
+  model, on both the JSON and legacy text/csv paths.
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
 - B-06 Session store: session expiry cleanup configuration review
 - B-15 v1 DONE (v1.15.0): Client Run-Readiness badges on /ai/clients (Ready /
