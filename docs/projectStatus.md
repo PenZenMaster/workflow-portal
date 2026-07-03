@@ -3,11 +3,13 @@
 Last session: 2026-07-03 (second session)
 Last commit: 53d4896 (v1.24.0 B-18 prompt collection CRUD)
 Branch: main | Version: v1.24.0 | 697 tests passing
-Production: v1.22.0 deployed and user-confirmed (2026-07-03). This deploy also
-carried v1.20.0 (workflow CSV upload + AI run) and v1.21.0 (optional inputs)
-to production. NOT yet deployed: v1.22.1 (GA4 scope guard), v1.23.0 (B-21),
-v1.24.0 (B-18) — archives workflow-portal-v1.22.1/1.23.0/1.24.0.tar.gz are
-ready one level above the repo; deploy the latest (v1.24.0 carries all three).
+Production: v1.24.0 deployed and user-confirmed (2026-07-03). This deploy
+carried v1.22.1 (GA4 scope guard), v1.23.0 (B-21 Run-with-AI inputs), and
+v1.24.0 (B-18 collection CRUD) live. GA4 reconnect for
+camphousecountrylandscaping.com verified: after removing the portal's access
+at myaccount.google.com/permissions and reconnecting with the Analytics
+checkbox ticked, the integration Test passes (previously 403
+ACCESS_TOKEN_SCOPE_INSUFFICIENT).
 v1.6.0 verified live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
 confirmed live. v1.6.1 (TD-15 + sentimentStore cross-client leak fix) deployed and
@@ -47,14 +49,8 @@ v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /ad
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Deploy v1.24.0 to production (carries v1.22.1 GA4 scope guard, v1.23.0
-   B-21 Run-with-AI inputs, v1.24.0 B-18 collection CRUD), then QA:
-   - GA4 reconnect for camphousecountrylandscaping.com — the 403
-     ACCESS_TOKEN_SCOPE_INSUFFICIENT on Test was diagnosed as the Analytics
-     checkbox being left unticked on Google's granular consent screen.
-     Remedy: myaccount.google.com/permissions -> remove portal access ->
-     reconnect with the checkbox ticked. Post-v1.22.1 the portal rejects
-     scope-less grants at connect time with a clear message.
+1. Remaining v1.24.0 QA on production (deploy + GA4 reconnect already
+   verified 2026-07-03):
    - B-21: Run with AI on a workflow with inputs should open the inputs
      dialog; unfilled token lines must not reach the model.
    - B-18: edit/clone/archive/delete actions on the Prompt Collections page
