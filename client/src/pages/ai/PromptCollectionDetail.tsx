@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link, useLocation } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Prompt, PromptCollection, Platform, GeneratedPromptCandidate, RunSchedule } from "@shared/schema";
 import { PROMPT_CATEGORIES } from "@shared/schema";
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Trash2, Zap, Play, X, Sparkles, Pencil } from "lucide-react";
+import { Breadcrumbs, useClientName } from "@/components/Breadcrumbs";
 
 type Candidate = GeneratedPromptCandidate & { selected: boolean };
 
@@ -38,6 +39,7 @@ function formatCadence(schedule: RunSchedule): string {
 
 export default function PromptCollectionDetail() {
   const { id, collectionId } = useParams<{ id: string; collectionId: string }>();
+  const clientName = useClientName(id);
   const [, navigate] = useLocation();
   const { status: authStatus } = useAuth();
   const { toast } = useToast();
@@ -243,11 +245,15 @@ export default function PromptCollectionDetail() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <div className="mb-6">
-        <Link href={`/ai/clients/${id}/prompts`} className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Collections
-        </Link>
-      </div>
+      <Breadcrumbs
+        items={[
+          { label: "Workflows", href: "/" },
+          { label: "Clients", href: "/ai/clients" },
+          { label: clientName, href: `/ai/clients/${id}` },
+          { label: "Prompt Collections", href: `/ai/clients/${id}/prompts` },
+          { label: collection?.name ?? "Collection" },
+        ]}
+      />
 
       {collection && (
         <div className="mb-6 flex items-start justify-between">

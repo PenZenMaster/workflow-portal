@@ -74,6 +74,22 @@ beforeEach(() => {
       return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
     }
 
+    if (url === "/api/clients/4") {
+      const body = {
+        data: {
+          id: 4,
+          name: "Camp House Country Landscaping",
+          primaryDomain: "camphousecountrylandscaping.com",
+          geographies: [],
+          exclusions: [],
+          ownerUserId: null,
+          createdAt: 0,
+          updatedAt: 0,
+        },
+      };
+      return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
+    }
+
     if (url === PROPERTIES_URL) {
       return { ok: true, status: 200, json: async () => propertiesResponse, text: async () => JSON.stringify(propertiesResponse) } as Response;
     }
@@ -141,6 +157,26 @@ describe("Integrations — GA4 property picker", () => {
 
     expect(screen.queryByRole("combobox", { name: /GA4 Property/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Set property ID" })).toBeInTheDocument();
+  });
+});
+
+describe("Integrations — breadcrumbs (B-17)", () => {
+  it("shows the client name in the breadcrumb trail linking back to the client", async () => {
+    renderIntegrations();
+
+    const clientCrumb = await screen.findByRole("link", {
+      name: "Camp House Country Landscaping",
+    });
+    expect(clientCrumb).toHaveAttribute("href", "/ai/clients/4");
+
+    const current = screen.getByText("Integrations & API Keys", {
+      selector: "[aria-current='page']",
+    });
+    expect(current).toBeInTheDocument();
+
+    expect(
+      screen.queryByRole("link", { name: /Back to Client/i })
+    ).not.toBeInTheDocument();
   });
 });
 

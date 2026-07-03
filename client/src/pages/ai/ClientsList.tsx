@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, X, AlertCircle } from "lucide-react";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 export default function ClientsList() {
   const [, navigate] = useLocation();
@@ -65,11 +66,9 @@ export default function ClientsList() {
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
-      <div className="mb-6">
-        <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Workflows
-        </Link>
-      </div>
+      <Breadcrumbs
+        items={[{ label: "Workflows", href: "/" }, { label: "Clients" }]}
+      />
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Clients</h1>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { PromptRun, ResponseRaw } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, CheckCircle2, RotateCcw } from "lucide-react";
 import { isReparseComplete, reparseProgressLabel, type ReparseStatus } from "./reparseStatus";
+import { Breadcrumbs, useClientName } from "@/components/Breadcrumbs";
 
 const TERMINAL = new Set(["complete", "partial", "failed"]);
 
@@ -39,6 +40,7 @@ export default function RunDetail() {
   const reparseDone = !!reparseStatus && isReparseComplete(reparseStatus);
   const reparseRefreshedRef = useRef<number | null>(null);
   const clientId = data?.data.run.clientId;
+  const clientName = useClientName(clientId);
 
   useEffect(() => {
     if (!reparseDone || reparseSince === null) return;
@@ -91,11 +93,15 @@ export default function RunDetail() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <div className="mb-6">
-        <Link href={`/ai/clients/${run.clientId}/runs`} className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Runs
-        </Link>
-      </div>
+      <Breadcrumbs
+        items={[
+          { label: "Workflows", href: "/" },
+          { label: "Clients", href: "/ai/clients" },
+          { label: clientName, href: `/ai/clients/${run.clientId}` },
+          { label: "Runs", href: `/ai/clients/${run.clientId}/runs` },
+          { label: `Run #${run.id}` },
+        ]}
+      />
 
       <div className="flex items-start justify-between mb-6">
         <div>

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
 import type { Platform } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
@@ -10,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Cpu, Trash2 } from "lucide-react";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
 
@@ -68,11 +68,9 @@ export default function Platforms() {
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
-      <div className="mb-6">
-        <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Workflows
-        </Link>
-      </div>
+      <Breadcrumbs
+        items={[{ label: "Workflows", href: "/" }, { label: "AI Platforms" }]}
+      />
 
       <h1 className="text-2xl font-bold flex items-center gap-2">
         <Cpu className="h-6 w-6 text-primary" />

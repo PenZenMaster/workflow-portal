@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Trash2, ChevronDown, ChevronRight, X, AlertCircle } from "lucide-react";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { OverviewSection } from "./sections/OverviewSection";
 import { MentionsSection } from "./sections/MentionsSection";
 import { SoVSection } from "./sections/SoVSection";
@@ -210,11 +211,13 @@ export default function ClientDetail() {
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
-      <div className="mb-6">
-        <Link href="/ai/clients" className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Clients
-        </Link>
-      </div>
+      <Breadcrumbs
+        items={[
+          { label: "Workflows", href: "/" },
+          { label: "Clients", href: "/ai/clients" },
+          { label: client.name },
+        ]}
+      />
 
       <h1 className="text-2xl font-bold mb-1">{client.name}</h1>
       <p className="text-muted-foreground mb-6">{client.primaryDomain}</p>

@@ -17,6 +17,7 @@ import {
   ArchiveRestore,
   Trash2,
 } from "lucide-react";
+import { Breadcrumbs, useClientName } from "@/components/Breadcrumbs";
 
 const STATUS_COLOURS: Record<string, string> = {
   active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
@@ -26,6 +27,7 @@ const STATUS_COLOURS: Record<string, string> = {
 
 export default function PromptCollections() {
   const { id } = useParams<{ id: string }>();
+  const clientName = useClientName(id);
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -132,11 +134,14 @@ export default function PromptCollections() {
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
-      <div className="mb-6">
-        <Link href={`/ai/clients/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Client
-        </Link>
-      </div>
+      <Breadcrumbs
+        items={[
+          { label: "Workflows", href: "/" },
+          { label: "Clients", href: "/ai/clients" },
+          { label: clientName, href: `/ai/clients/${id}` },
+          { label: "Prompt Collections" },
+        ]}
+      />
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Prompt Collections</h1>

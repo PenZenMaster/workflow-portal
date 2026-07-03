@@ -1,9 +1,11 @@
-import { useParams, Link } from "wouter";
+import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import type { ResponseSentiment } from "@shared/schema";
+import { Breadcrumbs, useClientName } from "@/components/Breadcrumbs";
 
 export default function ReviewQueue() {
   const { id } = useParams<{ id: string }>();
+  const clientName = useClientName(id);
 
   const { data, isLoading } = useQuery<{ data: ResponseSentiment[] }>({
     queryKey: [`/api/clients/${id}/sentiment/review-queue`],
@@ -16,11 +18,14 @@ export default function ReviewQueue() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <div className="mb-6">
-        <Link href={`/ai/clients/${id}/sentiment`} className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Sentiment
-        </Link>
-      </div>
+      <Breadcrumbs
+        items={[
+          { label: "Workflows", href: "/" },
+          { label: "Clients", href: "/ai/clients" },
+          { label: clientName, href: `/ai/clients/${id}` },
+          { label: "Sentiment Review Queue" },
+        ]}
+      />
 
       <h1 className="text-2xl font-bold mb-6">
         Review Queue

@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Play } from "lucide-react";
+import { Breadcrumbs, useClientName } from "@/components/Breadcrumbs";
 
 const STATUS_COLOURS: Record<string, string> = {
   queued: "bg-muted text-muted-foreground",
@@ -20,6 +21,7 @@ const TERMINAL = new Set(["complete", "partial", "failed"]);
 
 export default function RunsList() {
   const { id } = useParams<{ id: string }>();
+  const clientName = useClientName(id);
   const { status: authStatus } = useAuth();
   const { toast } = useToast();
   const [showRunForm, setShowRunForm] = useState(false);
@@ -82,11 +84,14 @@ export default function RunsList() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <div className="mb-6">
-        <Link href={`/ai/clients/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Client
-        </Link>
-      </div>
+      <Breadcrumbs
+        items={[
+          { label: "Workflows", href: "/" },
+          { label: "Clients", href: "/ai/clients" },
+          { label: clientName, href: `/ai/clients/${id}` },
+          { label: "Runs" },
+        ]}
+      />
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Runs</h1>

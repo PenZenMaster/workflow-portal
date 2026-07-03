@@ -99,19 +99,21 @@ describe("ClientsList — readiness badges", () => {
   });
 });
 
-describe("ClientsList — Back to Workflows positioning", () => {
-  it("places Back to Workflows in its own row above the Clients heading, not beside New Client", async () => {
+describe("ClientsList — breadcrumbs", () => {
+  it("renders a breadcrumb trail (Workflows link + Clients as current page) instead of a Back link", async () => {
     renderClientsList();
 
-    const backLink = await screen.findByRole("link", { name: /Back to Workflows/i });
-    const heading = screen.getByRole("heading", { name: "Clients" });
+    const nav = await screen.findByRole("navigation", { name: /breadcrumb/i });
+    expect(nav).toBeInTheDocument();
 
-    // Back link must come before the Clients heading in document order.
+    const workflows = screen.getByRole("link", { name: "Workflows" });
+    expect(workflows).toHaveAttribute("href", "/");
+
+    const current = screen.getByText("Clients", { selector: "[aria-current='page']" });
+    expect(current).toBeInTheDocument();
+
     expect(
-      backLink.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-
-    // Back link must not share a row with the heading/New Client button.
-    expect(backLink.parentElement).not.toBe(heading.parentElement);
+      screen.queryByRole("link", { name: /Back to Workflows/i })
+    ).not.toBeInTheDocument();
   });
 });

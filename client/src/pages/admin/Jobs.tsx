@@ -14,13 +14,13 @@
  * - v1.00 Job runner monitoring feature initial implementation
  */
 
-import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Job, JobStatus } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Activity, AlertTriangle, RotateCcw, XCircle } from "lucide-react";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 interface JobsResponse {
   jobs: Job[];
@@ -121,11 +121,9 @@ export default function Jobs() {
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
-      <div className="mb-6">
-        <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Workflows
-        </Link>
-      </div>
+      <Breadcrumbs
+        items={[{ label: "Workflows", href: "/" }, { label: "Job Queue" }]}
+      />
 
       <div className="flex items-center justify-between mb-6">
         <div>

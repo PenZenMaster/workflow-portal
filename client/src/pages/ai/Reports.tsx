@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { ReportExport } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Download, Plus, X } from "lucide-react";
+import { Breadcrumbs, useClientName } from "@/components/Breadcrumbs";
 
 const STATUS_STYLE: Record<string, string> = {
   queued: "bg-muted text-muted-foreground",
@@ -33,6 +34,7 @@ function thirtyDaysAgoIso() {
 
 export default function Reports() {
   const { id } = useParams<{ id: string }>();
+  const clientName = useClientName(id);
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [kind, setKind] = useState<"csv-executive" | "csv-analyst" | "csv-mentions">("csv-executive");
@@ -71,11 +73,14 @@ export default function Reports() {
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
-      <div className="mb-6">
-        <Link href={`/ai/clients/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
-          Back to Client
-        </Link>
-      </div>
+      <Breadcrumbs
+        items={[
+          { label: "Workflows", href: "/" },
+          { label: "Clients", href: "/ai/clients" },
+          { label: clientName, href: `/ai/clients/${id}` },
+          { label: "Reports & Exports" },
+        ]}
+      />
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Reports &amp; Exports</h1>
