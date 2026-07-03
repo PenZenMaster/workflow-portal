@@ -1,8 +1,10 @@
 ## Resume From
 
 Last session: 2026-07-03 (second session)
-Last commit: 53d4896 (v1.24.0 B-18 prompt collection CRUD)
-Branch: main | Version: v1.24.0 | 697 tests passing
+Last commit: cf04fe8 (v1.25.0 breadcrumb navigation)
+Branch: main | Version: v1.25.0 | 701 tests passing
+NOT yet deployed: v1.25.0 (breadcrumbs) — archive
+workflow-portal-v1.25.0.tar.gz ready one level above the repo.
 Production: v1.24.0 deployed and user-confirmed (2026-07-03). This deploy
 carried v1.22.1 (GA4 scope guard), v1.23.0 (B-21 Run-with-AI inputs), and
 v1.24.0 (B-18 collection CRUD) live. GA4 reconnect for
@@ -98,6 +100,13 @@ Pick up from:
   roles, 409 COLLECTION_IN_USE while runs exist); PromptCollections.tsx
   gains inline name/notes edit, clone, archive/restore, and delete with
   inline confirm. 19 new tests (697 passing).
+- v1.25.0 feat (UI, closes B-17): breadcrumb navigation. New shared
+  client/src/components/Breadcrumbs.tsx (Breadcrumbs component +
+  useClientName hook) replaces the ad-hoc "Back to X" links on all 12
+  AI-module and admin pages with a clickable trail that always shows the
+  client being worked on (user request: "which client am I on when I'm on
+  Integrations & API Keys"). Also fixed the dead "Back to Sentiment" link
+  on ReviewQueue (target route was removed in v1.4.0). 701 tests passing.
 
 ---
 
@@ -908,10 +917,10 @@ Confirmed decisions:
   admin roles, inline confirm step, 409 COLLECTION_IN_USE while runs
   reference the collection; delete cascades the collection's prompts and
   run schedules).
-- B-17 On /ai/clients/:id/settings/integrations ("Integrations & API Keys"),
-  display the client's name underneath the page heading / AI Platform keys
-  section so the analyst has confirmation of which client's integrations
-  they are viewing/editing.
+- B-17 Client-name indicator on Integrations & API Keys — **COMPLETE
+  (v1.25.0)**, superseded by the breadcrumb navigation feature: every
+  client-scoped page now shows Workflows > Clients > {client name} > {page}
+  as a clickable trail.
 - B-20 Feature: GBP snapshot integration. Once Google Business Profile API
   access is approved (application in progress 2026-07-03), add a per-client
   "GBP snapshot" action that OAuth-connects (reuse the GA4 integration
