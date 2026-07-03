@@ -9,17 +9,24 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-09
- * Last Modified Date: 2026-07-01
+ * Last Modified Date: 2026-07-03
  * Comments:
  * - v1.00 Carved out of server/routes.ts for Sprint 0 route/storage split
  * - v1.01 Added POST /api/workflows/:id/run-with-file (CSV upload feature)
+ * - v1.02 B-21: run-with-file accepts JSON { csv, inputValues }
  */
 
 import express, { type Express } from "express";
+import { z } from "zod";
 import { storage } from "../storage";
 import { insertWorkflowSchema } from "@shared/schema";
 import { requireAuth } from "../auth";
 import { runWorkflowWithCsv, MAX_CSV_BYTES } from "../services/workflowFileRun";
+
+const runWithFileJsonSchema = z.object({
+  csv: z.string(),
+  inputValues: z.array(z.string()).default([]),
+});
 
 export function registerWorkflowRoutes(app: Express): void {
   app.get("/api/workflows", requireAuth, async (_req, res) => {
@@ -68,13 +75,17 @@ export function registerWorkflowRoutes(app: Express): void {
     res.json({ ok: true });
   });
 
-  // CSV upload + AI run. The body is the raw CSV text (Content-Type:
-  // text/csv), which bypasses the app-wide JSON parser and its 100kb limit.
+  // CSV upload + AI run. Two body formats are accepted, both mounted
+  // route-level to bypass the app-wide JSON parser and its 100kb limit:
+  // - text/csv (legacy): the raw CSV text, no input values.
+  // - application/json (B-21): { csv, inputValues } so the workflow's
+  //   <PASTE> tokens can be filled before the prompt is sent to the model.
   // The file content is never written to disk.
   app.post(
     "/api/workflows/:id/run-with-file",
     requireAuth,
     express.text({ type: ["text/csv", "text/plain"], limit: MAX_CSV_BYTES }),
+    express.json({ limit: MAX_CSV_BYTES }),
     async (req, res) => {
       const id = Number(req.params.id);
       if (Number.isNaN(id)) {
@@ -92,7 +103,23 @@ export function registerWorkflowRoutes(app: Express): void {
         });
       }
 
-      const csvText = typeof req.body === "string" ? req.body : "";
+      let csvText = "";
+      let inputValues: string[] = [];
+      if (typeof req.body === "string") {
+        csvText = req.body;
+      } else {
+        const parsed = runWithFileJsonSchema.safeParse(req.body);
+        if (!parsed.success) {
+          return res.status(400).json({
+            error: "Validation failed",
+            code: "VALIDATION_ERROR",
+            details: parsed.error.flatten(),
+          });
+        }
+        csvText = parsed.data.csv;
+        inputValues = parsed.data.inputValues;
+      }
+
       if (csvText.trim().length === 0) {
         return res.status(400).json({
           error: "CSV file is empty",
@@ -106,7 +133,8 @@ export function registerWorkflowRoutes(app: Express): void {
       const response = await runWorkflowWithCsv(
         workflow.prompt,
         csvText,
-        filename
+        filename,
+        inputValues
       );
       res.json({
         data: {

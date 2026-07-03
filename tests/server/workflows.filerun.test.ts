@@ -12,6 +12,7 @@
  * Last Modified Date: 2026-07-01
  * Comments:
  * - v1.00 Initial tests (workflow CSV upload feature, v1.20.0)
+ * - v1.01 B-21: JSON body variant with inputValues; token-line stripping
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -165,5 +166,74 @@ describe("POST /api/workflows/:id/run-with-file", () => {
     expect(sentPrompt).toContain(WORKFLOW.prompt);
     expect(sentPrompt).toContain("foundation repair,3");
     expect(sentPrompt).toContain("ranks-jun-2026.csv");
+  });
+
+  it("accepts a JSON body with inputValues and fills the prompt's <PASTE> tokens", async () => {
+    mockStorage.getWorkflow.mockResolvedValue({
+      ...WORKFLOW,
+      inputs: ["Client Name", "Domain"],
+      prompt: "Client Name: <PASTE>\nDomain: <PASTE>\nAnalyze the export.",
+    });
+    const run = vi.fn().mockResolvedValue({
+      text: "ok",
+      summaryBlock: null,
+      citations: [],
+      modelVariant: "gpt-test",
+      latencyMs: 1,
+      rawPayload: {},
+    });
+    mockGetAdapter.mockImplementation((slug: string) =>
+      slug === "openai" ? { id: "openai", run } : undefined
+    );
+
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/workflows/1/run-with-file?filename=ranks.csv")
+      .set("Content-Type", "application/json")
+      .send({ csv: CSV, inputValues: ["Acme Foundation Repair", "acme.com"] });
+
+    expect(res.status).toBe(200);
+    const sentPrompt = run.mock.calls[0][0] as string;
+    expect(sentPrompt).toContain("Client Name: Acme Foundation Repair");
+    expect(sentPrompt).toContain("Domain: acme.com");
+    expect(sentPrompt).toContain("foundation repair,3");
+    expect(sentPrompt).not.toContain("<PASTE>");
+  });
+
+  it("returns 400 EMPTY_FILE for a JSON body with a blank csv field", async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/workflows/1/run-with-file")
+      .set("Content-Type", "application/json")
+      .send({ csv: "  \n ", inputValues: [] });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("EMPTY_FILE");
+  });
+
+  it("strips unfilled token lines on the legacy text/csv path", async () => {
+    mockStorage.getWorkflow.mockResolvedValue({
+      ...WORKFLOW,
+      prompt: "Client Name: <PASTE>\nAnalyze the export.",
+    });
+    const run = vi.fn().mockResolvedValue({
+      text: "ok",
+      summaryBlock: null,
+      citations: [],
+      modelVariant: "gpt-test",
+      latencyMs: 1,
+      rawPayload: {},
+    });
+    mockGetAdapter.mockImplementation((slug: string) =>
+      slug === "openai" ? { id: "openai", run } : undefined
+    );
+
+    const app = buildApp();
+    const res = await postCsv(app, "1", CSV);
+
+    expect(res.status).toBe(200);
+    const sentPrompt = run.mock.calls[0][0] as string;
+    expect(sentPrompt).not.toContain("<PASTE>");
+    expect(sentPrompt).not.toContain("Client Name:");
+    expect(sentPrompt).toContain("Analyze the export.");
   });
 });

@@ -41,12 +41,24 @@ const CATEGORY_COLORS: Record<string, string> = {
 export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props) {
   const [copied, setCopied] = useState(false);
   const [launchDialogOpen, setLaunchDialogOpen] = useState(false);
+  const [runDialogOpen, setRunDialogOpen] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [aiRunning, setAiRunning] = useState(false);
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleRunWithFile = async () => {
+  // Workflows with launch inputs collect them in the dialog first so their
+  // values can fill the prompt's <PASTE> tokens server-side (B-21).
+  const handleRunWithFile = () => {
+    if (!csvFile) return;
+    if (workflow.inputs.length + workflow.optionalInputs.length > 0) {
+      setRunDialogOpen(true);
+      return;
+    }
+    void executeRun();
+  };
+
+  const executeRun = async (inputValues?: string[]) => {
     if (!csvFile) return;
     setAiRunning(true);
     try {
@@ -54,12 +66,22 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
       const url =
         `/api/workflows/${workflow.id}/run-with-file` +
         `?filename=${encodeURIComponent(csvFile.name)}`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "text/csv" },
-        body: text,
-        credentials: "include",
-      });
+      const res = await fetch(
+        url,
+        inputValues
+          ? {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ csv: text, inputValues }),
+              credentials: "include",
+            }
+          : {
+              method: "POST",
+              headers: { "Content-Type": "text/csv" },
+              body: text,
+              credentials: "include",
+            }
+      );
       if (!res.ok) {
         const err = (await res.json().catch(() => null)) as
           | { error?: string }
@@ -333,6 +355,16 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
           workflow={workflow}
           open={launchDialogOpen}
           onOpenChange={setLaunchDialogOpen}
+        />
+      )}
+
+      {workflow.acceptsFileUpload && hasLaunchInputs && (
+        <LaunchInputsDialog
+          workflow={workflow}
+          open={runDialogOpen}
+          onOpenChange={setRunDialogOpen}
+          mode="ai-run"
+          onRun={(values) => void executeRun(values)}
         />
       )}
     </Card>

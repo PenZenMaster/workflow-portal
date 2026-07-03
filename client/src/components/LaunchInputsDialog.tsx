@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ExternalLink, ClipboardCheck } from "lucide-react";
+import { ExternalLink, ClipboardCheck, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { fillPrompt, getLaunchPlan, type LaunchMode } from "@/lib/launchUtils";
 
@@ -19,6 +19,11 @@ type Props = {
   workflow: Workflow;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  // "launch" (default) opens the workflow's launch URL with the filled
+  // prompt; "ai-run" only collects the input values and hands them to onRun
+  // (used by the Run with AI CSV flow - B-21).
+  mode?: "launch" | "ai-run";
+  onRun?: (values: string[]) => void;
 };
 
 type LaunchedState = {
@@ -26,7 +31,13 @@ type LaunchedState = {
   copied: boolean;
 };
 
-export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
+export function LaunchInputsDialog({
+  workflow,
+  open,
+  onOpenChange,
+  mode = "launch",
+  onRun,
+}: Props) {
   const [values, setValues] = useState<string[]>([]);
   const [optionalValues, setOptionalValues] = useState<string[]>([]);
   const [launched, setLaunched] = useState<LaunchedState | null>(null);
@@ -59,6 +70,11 @@ export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
   // Required values fill the prompt's <PASTE> tokens first, then optional
   // values; a blank optional value fills its token as empty text.
   const allValues = [...values, ...optionalValues];
+
+  const handleRunConfirm = () => {
+    onRun?.(allValues);
+    onOpenChange(false);
+  };
 
   const handleLaunch = async () => {
     const filled = fillPrompt(workflow.prompt, allValues);
@@ -124,9 +140,11 @@ export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
         <DialogHeader>
           <DialogTitle>{workflow.name}</DialogTitle>
           <DialogDescription>
-            {launched
-              ? "One more step to start the session."
-              : "Fill in the required inputs. The completed prompt will be copied to your clipboard when you launch."}
+            {mode === "ai-run"
+              ? "Fill in the inputs, then run the workflow against your CSV file."
+              : launched
+                ? "One more step to start the session."
+                : "Fill in the required inputs. The completed prompt will be copied to your clipboard when you launch."}
           </DialogDescription>
         </DialogHeader>
 
@@ -173,7 +191,17 @@ export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
         )}
 
         <DialogFooter className="gap-2 sm:gap-2">
-          {launched ? (
+          {mode === "ai-run" ? (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleRunConfirm} data-testid="button-run-confirm">
+                <FileUp className="h-4 w-4 mr-1.5" />
+                Run with AI
+              </Button>
+            </>
+          ) : launched ? (
             <>
               <Button
                 variant="outline"

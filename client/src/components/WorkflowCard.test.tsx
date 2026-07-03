@@ -12,6 +12,7 @@
  * Last Modified Date: 2026-07-01
  * Comments:
  * - v1.00 Initial tests (workflow CSV upload feature, v1.20.0)
+ * - v1.01 B-21: Run with AI collects launch inputs before running
  */
 
 import "@testing-library/jest-dom/vitest";
@@ -108,6 +109,59 @@ describe("WorkflowCard - CSV upload", () => {
   it("disables the run button until a file is selected", () => {
     renderCard(BASE_WORKFLOW);
     expect(screen.getByTestId("button-run-file-7")).toBeDisabled();
+  });
+
+  it("opens the inputs dialog instead of running when the workflow has inputs", async () => {
+    const user = userEvent.setup();
+    renderCard({ ...BASE_WORKFLOW, inputs: ["Client Name"] });
+
+    const csv = "Keyword,Rank\nfoundation repair,3\n";
+    const file = new File([csv], "ranks.csv", { type: "text/csv" });
+
+    await user.upload(screen.getByTestId("input-file-7"), file);
+    await user.click(screen.getByTestId("button-run-file-7"));
+
+    expect(await screen.findByTestId("button-run-confirm")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("POSTs JSON with the collected inputValues after the dialog is confirmed", async () => {
+    const user = userEvent.setup();
+    renderCard({
+      ...BASE_WORKFLOW,
+      inputs: ["Client Name"],
+      optionalInputs: ["Target keyword"],
+    });
+
+    const csv = "Keyword,Rank\nfoundation repair,3\n";
+    const file = new File([csv], "ranks.csv", { type: "text/csv" });
+
+    await user.upload(screen.getByTestId("input-file-7"), file);
+    await user.click(screen.getByTestId("button-run-file-7"));
+
+    await user.type(
+      await screen.findByTestId("launch-input-0"),
+      "Acme Foundation Repair"
+    );
+    await user.click(screen.getByTestId("button-run-confirm"));
+
+    expect(
+      await screen.findByText(/Local pack rankings are strong/)
+    ).toBeInTheDocument();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/api/workflows/7/run-with-file");
+    expect(url).toContain("filename=ranks.csv");
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBe(
+      "application/json"
+    );
+    const body = JSON.parse(init.body as string) as {
+      csv: string;
+      inputValues: string[];
+    };
+    expect(body.csv).toBe(csv);
+    expect(body.inputValues).toEqual(["Acme Foundation Repair", ""]);
   });
 });
 

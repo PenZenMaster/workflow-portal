@@ -12,6 +12,7 @@
  * Last Modified Date: 2026-07-01
  * Comments:
  * - v1.00 Initial tests (workflow CSV upload feature, v1.20.0)
+ * - v1.01 B-21: input values fill <PASTE> tokens; unfilled token lines stripped
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -56,6 +57,42 @@ describe("buildCsvRunPrompt", () => {
     const prompt = buildCsvRunPrompt("Analyze.", CSV, "ranks-jun-2026.csv");
     expect(prompt).toContain("ranks-jun-2026.csv");
   });
+
+  it("fills <PASTE> tokens in order from inputValues", () => {
+    const template = "Client Name: <PASTE>\nDomain: <PASTE>\nAnalyze the export.";
+    const prompt = buildCsvRunPrompt(template, CSV, undefined, [
+      "Acme Foundation Repair",
+      "acmefoundation.com",
+    ]);
+    expect(prompt).toContain("Client Name: Acme Foundation Repair");
+    expect(prompt).toContain("Domain: acmefoundation.com");
+    expect(prompt).not.toContain("<PASTE>");
+  });
+
+  it("strips lines whose <PASTE> token was left unfilled", () => {
+    const template = "Client Name: <PASTE>\nGBP URL: <PASTE>\nAnalyze the export.";
+    const prompt = buildCsvRunPrompt(template, CSV, undefined, ["Acme"]);
+    expect(prompt).toContain("Client Name: Acme");
+    expect(prompt).not.toContain("GBP URL:");
+    expect(prompt).toContain("Analyze the export.");
+    expect(prompt).not.toContain("<PASTE>");
+  });
+
+  it("treats a blank input value as unfilled and strips its line", () => {
+    const template = "Client Name: <PASTE>\nGBP URL: <PASTE>\nAnalyze.";
+    const prompt = buildCsvRunPrompt(template, CSV, undefined, ["Acme", "   "]);
+    expect(prompt).toContain("Client Name: Acme");
+    expect(prompt).not.toContain("GBP URL:");
+    expect(prompt).not.toContain("<PASTE>");
+  });
+
+  it("strips all token lines when no inputValues are provided", () => {
+    const template = "Client Name: <PASTE>\nDomain: <PASTE>\nAnalyze the export.";
+    const prompt = buildCsvRunPrompt(template, CSV);
+    expect(prompt).not.toContain("<PASTE>");
+    expect(prompt).not.toContain("Client Name:");
+    expect(prompt).toContain("Analyze the export.");
+  });
 });
 
 describe("runWorkflowWithCsv", () => {
@@ -94,5 +131,27 @@ describe("runWorkflowWithCsv", () => {
     expect(sentPrompt).toContain("ranks.csv");
     expect(result.text).toBe("Rankings look strong in local pack.");
     expect(result.modelVariant).toBe("gpt-test");
+  });
+
+  it("passes inputValues through to the built prompt", async () => {
+    const run = vi.fn().mockResolvedValue({
+      text: "ok",
+      summaryBlock: null,
+      citations: [],
+      modelVariant: "gpt-test",
+      latencyMs: 1,
+      rawPayload: {},
+    });
+    mockGetAdapter.mockImplementation((slug: string) =>
+      slug === "openai" ? { id: "openai", run } : undefined
+    );
+
+    await runWorkflowWithCsv("Client: <PASTE>\nAnalyze.", CSV, undefined, [
+      "Acme Foundation Repair",
+    ]);
+
+    const sentPrompt = run.mock.calls[0][0] as string;
+    expect(sentPrompt).toContain("Client: Acme Foundation Repair");
+    expect(sentPrompt).not.toContain("<PASTE>");
   });
 });
