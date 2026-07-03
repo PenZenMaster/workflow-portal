@@ -1,11 +1,11 @@
 ## Resume From
 
-Last session: 2026-07-01
-Last commit: see git log (v1.21.0 optional inputs feature)
-Branch: main | Version: v1.21.0 | 651 tests passing
-Production: All versions through v1.19.0 deployed to pre-production, QA passed
-(2026-07-01). v1.20.0 (workflow CSV upload + AI run) and v1.21.0 (optional
-inputs on workflow cards) not yet deployed.
+Last session: 2026-07-03
+Last commit: ca622e7 (v1.22.0 launch-mode plan + persistent launch instructions)
+Branch: main | Version: v1.22.0 | 665 tests passing
+Production: v1.22.0 deployed and user-confirmed (2026-07-03). This deploy also
+carried v1.20.0 (workflow CSV upload + AI run) and v1.21.0 (optional inputs)
+to production.
 v1.6.0 verified live: Salvo Metal Works AI Share of Voice now reads 88.5% (previously 153%) after
 re-parsing runs 6-8 and the aggregate-snapshot-daily job completing. TD-14 fix
 confirmed live. v1.6.1 (TD-15 + sentimentStore cross-client leak fix) deployed and
@@ -45,22 +45,65 @@ v1.3.0 deploy follow-ups (brand_aliases backfill, Salvo runs 6 & 7 re-parse, /ad
 health check) — all completed during v1.3.0 QA.
 
 Pick up from:
-1. Deploy v1.20.0 + v1.21.0 to pre-production. QA v1.20.0 (workflow CSV
-   upload + AI run) with the United Structural Systems Rank Tracker CSV
-   (248 KB, 2,192 rows — fits whole in LLM context, no truncation).
-   QA v1.21.0 (optional inputs): add optional inputs to a workflow, confirm
-   they render on the card, appear "(optional)" in the Launch dialog after
-   required fields, and fill later <PASTE> tokens (blank = empty text).
-2. Once Groq API access is granted, set GROQ_API_KEY in the pre-production
-   .env and re-run a multi-platform collection to confirm the Groq/Llama
-   adapter works end-to-end (it is already implemented and seeded as
-   "Llama via Groq" — server/adapters/groq.ts).
-3. Next backlog items: B-18 (prompt collection Edit/Delete/Clone UI),
-   B-17 (client name on Integrations page), B-15 v2 (guided onboarding wizard),
-   B-14 (app version in footer).
-4. See Tech Debt Register and Backlog below for full priority list.
+1. GBP API access (B-20): user is applying for Google Business Profile API
+   access (walkthrough given 2026-07-03: GCP project + "Application for Basic
+   API Access" contact form; approval shows as quota going 0 -> 300 QPM).
+   When approved, build the portal GBP snapshot integration — per-client
+   button pulling listing + services + reviews + Q&A via OAuth (reuse the
+   GA4 integration pattern). Gotcha: tokens are per-user; United Structural
+   Systems lives under a different Google account than the main 27 locations.
+2. QA v1.22.0 on the next real audit run: launch dialog now shows a
+   persistent instruction step (credential-labeled workflows always use
+   clipboard mode — prompt never enters the URL); the Ranking Audit workflow
+   prompt AND the Perplexity skill (seo-rank-and-gbp-growth-planner SKILL.md)
+   were both corrected from implicit AND to explicit UNION/OR keyword
+   filtering — verify the "Filtered keyword set" section reports per-condition
+   match counts and a sane union.
+3. Consider B-21: "Run with AI" sends the stored prompt verbatim — unfilled
+   <PASTE> tokens go to the model alongside the CSV. Either strip token lines
+   or collect the same dialog inputs the Launch flow does.
+4. Still open: Groq API access pending (GROQ_API_KEY for pre-production);
+   backlog B-18, B-17, B-15 v2, B-14. See Tech Debt Register and Backlog
+   below for full priority list.
 
 ---
+
+## Post-Sprint Work This Session (v1.22.0, 2026-07-02 - 2026-07-03)
+
+- Fix/Feature: launch-mode plan with persistent post-launch instructions
+  (commit ca622e7). Root cause of "Start Audit just opens
+  perplexity.ai/computer": Perplexity /computer?q= prefills the input but
+  never auto-submits (verified live; only /search auto-submits), and prompts
+  over the 1800-char encoded URL cap silently fell back to a transient toast.
+  - client/src/lib/launchUtils.ts: new getLaunchPlan() (auto-submit only for
+    /search, prefill for other Perplexity paths, clipboard otherwise) and
+    hasSensitiveInputLabel() (password/token/secret/api-key input labels force
+    clipboard mode so prompts never travel in URLs).
+  - client/src/components/LaunchInputsDialog.tsx: transient toast replaced
+    with a persistent in-dialog instruction step (paste or press-Enter
+    guidance, Copy prompt + Done buttons).
+  - TDD: 13 new tests written first; 665 total passing. Deployed to
+    production and user-confirmed.
+- Production data fixes (no code; applied via authenticated /api/workflows):
+  - Workflow 20 renamed "Ranking Audit and Improvement Suite", absorbing
+    duplicate workflow 21's richer description and "Start Audit" label;
+    workflow 21 deleted (portal now 20 workflows). Prompt rewritten with 14
+    <PASTE> tokens (7 required + 7 optional inputs) — previously it had zero
+    tokens, so all user-entered launch inputs were silently discarded.
+  - Keyword filter corrected from implicit AND to explicit UNION/OR
+    (Tag = Root Keyword OR # of Searches > 10000 after cleaning) in the
+    workflow prompt AND in the Perplexity skill
+    seo-rank-and-gbp-growth-planner SKILL.md (4 places, edited via the
+    skill editor's Monaco instance). Both now require reporting
+    per-condition match counts in the "Filtered keyword set" section.
+- Research (structured GBP snapshot for audits): Google Takeout's GBP export
+  is an undocumented internal dump — per-location data.json is the Business
+  Information API Location resource, plus reviews.json / placeQa.json and
+  media files (bulk of the 2GB). User's export covers 27 locations but NOT
+  United Structural Systems (managed under a different Google account).
+  Instant scoped alternative: business.google.com/locations > select profile
+  > Actions > Download > Businesses (spreadsheet; includes secondary
+  categories but not services/Q&A). Long-term fix: B-20 GBP API integration.
 
 ## Post-Sprint Work This Session (v1.21.0)
 
@@ -844,6 +887,21 @@ Confirmed decisions:
   display the client's name underneath the page heading / AI Platform keys
   section so the analyst has confirmation of which client's integrations
   they are viewing/editing.
+- B-20 Feature: GBP snapshot integration. Once Google Business Profile API
+  access is approved (application in progress 2026-07-03), add a per-client
+  "GBP snapshot" action that OAuth-connects (reuse the GA4 integration
+  pattern), calls the Business Information API (locations.get: categories,
+  serviceItems, regularHours, attributes, serviceArea, profile) plus the
+  legacy v4.9 reviews endpoint and Q&A API, and produces the structured
+  snapshot JSON the "Ranking Audit and Improvement Suite" workflow expects.
+  Approval check: Business Profile API quota 0 QPM = pending, 300 QPM =
+  approved. Note: OAuth tokens are per-user; some client profiles (e.g.
+  United Structural Systems) live under a different Google account and need
+  their own connection.
+- B-21 Feature: "Run with AI" (workflow CSV run) sends the stored prompt
+  verbatim, so unfilled <PASTE> tokens reach the model alongside the CSV.
+  Either strip unfilled token lines server-side in buildCsvRunPrompt(), or
+  have the card collect the same inputs as the Launch dialog and fill them.
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
 - B-06 Session store: session expiry cleanup configuration review
 - B-15 v1 DONE (v1.15.0): Client Run-Readiness badges on /ai/clients (Ready /
