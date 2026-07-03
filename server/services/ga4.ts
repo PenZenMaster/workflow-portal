@@ -22,10 +22,11 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-10
- * Last Modified Date: 2026-05-10
+ * Last Modified Date: 2026-07-03
  * Comments:
  * - v1.00 Sprint 7 initial implementation (service account)
  * - v2.00 Refactored to OAuth 2.0 — service accounts not supported by GA4
+ * - v2.01 exchangeCode validates granted scopes (granular-consent guard)
  */
 
 import crypto from "node:crypto";
@@ -174,7 +175,23 @@ export async function exchangeCode(code: string): Promise<OAuthTokens> {
     access_token: string;
     refresh_token?: string;
     expires_in: number;
+    scope?: string;
   };
+
+  // Google's granular consent screen lets the user leave the Analytics
+  // permission unchecked; the code exchange still succeeds but every GA4
+  // API call will 403 with ACCESS_TOKEN_SCOPE_INSUFFICIENT. Fail fast here
+  // instead of storing a connection that can never work.
+  if (
+    typeof tokenData.scope === "string" &&
+    !tokenData.scope.includes("https://www.googleapis.com/auth/analytics.readonly")
+  ) {
+    throw new Error(
+      "Google Analytics access was not granted. When reconnecting, make sure " +
+        'the "See and download your Google Analytics data" checkbox is ticked ' +
+        "on the Google consent screen, then try again."
+    );
+  }
 
   if (!tokenData.refresh_token) {
     throw new Error(

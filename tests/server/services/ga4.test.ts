@@ -3,6 +3,7 @@ import {
   filterAiSearchRows,
   AI_SEARCH_REFERRERS,
   listAccountProperties,
+  exchangeCode,
 } from "../../../server/services/ga4";
 
 interface SessionRow {
@@ -199,6 +200,65 @@ describe("listAccountProperties — GA4 Admin API", () => {
       mockFetch([{ status: 403, body: { error: "Admin API not enabled" } }])
     );
     await expect(listAccountProperties(VALID_CONFIG, vi.fn())).rejects.toThrow(/GA4 Admin API error \(403\)/);
+  });
+
+  it("throws a checkbox-hint error when the granted scopes lack analytics.readonly", async () => {
+    // Google's granular consent screen lets the user uncheck the Analytics
+    // permission; the code exchange still succeeds but the token is useless.
+    vi.stubGlobal(
+      "fetch",
+      mockFetch([
+        {
+          status: 200,
+          body: {
+            access_token: "scopeless-token",
+            refresh_token: "refresh",
+            expires_in: 3600,
+            scope: "https://www.googleapis.com/auth/userinfo.email openid",
+          },
+        },
+      ])
+    );
+    await expect(exchangeCode("auth-code")).rejects.toThrow(
+      /Google Analytics/
+    );
+  });
+
+  it("returns tokens when the granted scopes include analytics.readonly", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch([
+        {
+          status: 200,
+          body: {
+            access_token: "good-token",
+            refresh_token: "refresh",
+            expires_in: 3600,
+            scope:
+              "https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/userinfo.email",
+          },
+        },
+        { status: 200, body: { email: "user@example.com" } },
+      ])
+    );
+    const tokens = await exchangeCode("auth-code");
+    expect(tokens.accessToken).toBe("good-token");
+    expect(tokens.connectedEmail).toBe("user@example.com");
+  });
+
+  it("tolerates a token response without a scope field", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch([
+        {
+          status: 200,
+          body: { access_token: "t", refresh_token: "r", expires_in: 3600 },
+        },
+        { status: 200, body: { email: "user@example.com" } },
+      ])
+    );
+    const tokens = await exchangeCode("auth-code");
+    expect(tokens.accessToken).toBe("t");
   });
 
   it("refreshes the access token when expired before calling the Admin API", async () => {

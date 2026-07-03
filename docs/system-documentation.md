@@ -135,6 +135,17 @@ Client page → ⚙ Integrations → Connect Google Analytics
 >    retry — no portal restart or re-authentication is required.
 > This is the picker's designed fallback behavior, not a portal bug.
 
+> **Troubleshooting — Test fails with `403` / `ACCESS_TOKEN_SCOPE_INSUFFICIENT`:**
+> The connected Google account granted the sign-in without ticking the
+> **"See and download your Google Analytics data"** checkbox on Google's
+> granular consent screen, so the stored token has no Analytics scope.
+> Fix: go to `https://myaccount.google.com/permissions`, remove the portal's
+> access, then click "Connect Google Analytics" again and make sure the
+> Analytics checkbox is ticked before pressing Continue.
+> Since v1.22.1 the portal rejects such a connection at connect time with the
+> message "Google Analytics access was not granted", so this error should only
+> appear on connections made before v1.22.1.
+
 **Step 5 — Create a prompt collection**
 Client page → Prompt Collections → New collection
 - Give it a descriptive name (e.g. "Q2 2026 Local SEO Audit")
