@@ -11,9 +11,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ClipboardCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { fillPrompt, buildPerplexityLaunchUrl } from "@/lib/launchUtils";
+import { fillPrompt, getLaunchPlan, type LaunchMode } from "@/lib/launchUtils";
 
 type Props = {
   workflow: Workflow;
@@ -21,15 +21,22 @@ type Props = {
   onOpenChange: (open: boolean) => void;
 };
 
+type LaunchedState = {
+  mode: Exclude<LaunchMode, "auto-submit">;
+  copied: boolean;
+};
+
 export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
   const [values, setValues] = useState<string[]>([]);
   const [optionalValues, setOptionalValues] = useState<string[]>([]);
+  const [launched, setLaunched] = useState<LaunchedState | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
       setValues(workflow.inputs.map(() => ""));
       setOptionalValues(workflow.optionalInputs.map(() => ""));
+      setLaunched(null);
     }
   }, [open, workflow.inputs, workflow.optionalInputs]);
 
@@ -55,28 +62,12 @@ export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
 
   const handleLaunch = async () => {
     const filled = fillPrompt(workflow.prompt, allValues);
+    const plan = getLaunchPlan(workflow.launchUrl, filled, [
+      ...workflow.inputs,
+      ...workflow.optionalInputs,
+    ]);
 
-    // Try the Perplexity prefilled-search URL first — it auto-submits.
-    const directUrl = buildPerplexityLaunchUrl(workflow.launchUrl, filled);
-
-    if (directUrl) {
-      // Best path: open Perplexity with prompt prefilled and submitted.
-      // Still copy to clipboard as a safety net.
-      try {
-        await navigator.clipboard.writeText(filled);
-      } catch {
-        // non-fatal
-      }
-      window.open(directUrl, "_blank", "noopener,noreferrer");
-      toast({
-        title: "Launched in Perplexity",
-        description: "Your prompt was prefilled in a new tab.",
-      });
-      onOpenChange(false);
-      return;
-    }
-
-    // Fallback: copy to clipboard, open the launch URL, instruct paste.
+    // Copy in every mode as a safety net; clipboard mode depends on it.
     let copied = false;
     try {
       await navigator.clipboard.writeText(filled);
@@ -84,30 +75,29 @@ export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
     } catch {
       copied = false;
     }
-    window.open(workflow.launchUrl, "_blank", "noopener,noreferrer");
 
-    if (copied) {
+    window.open(plan.url, "_blank", "noopener,noreferrer");
+
+    if (plan.mode === "auto-submit") {
       toast({
-        title: "Prompt copied to clipboard",
-        description: `Switch to the new tab and press Ctrl+V, then Enter to start the ${
-          workflow.launchLabel || "AI"
-        } session.`,
+        title: "Launched in Perplexity",
+        description: "Your prompt was submitted in a new tab.",
       });
-    } else {
-      toast({
-        title: "Couldn't copy automatically",
-        description:
-          "Tab opened, but clipboard access was blocked. Reopen this dialog and use the Copy button below.",
-        variant: "destructive",
-      });
+      onOpenChange(false);
+      return;
     }
-    onOpenChange(false);
+
+    // Prefill and clipboard launches need a manual step in the new tab, so
+    // keep the dialog open with persistent instructions instead of relying
+    // on a transient toast.
+    setLaunched({ mode: plan.mode, copied });
   };
 
   const handleCopyOnly = async () => {
     const filled = fillPrompt(workflow.prompt, allValues);
     try {
       await navigator.clipboard.writeText(filled);
+      setLaunched((prev) => (prev ? { ...prev, copied: true } : prev));
       toast({
         title: "Prompt copied",
         description: "Paste it into your AI tool to start.",
@@ -121,17 +111,34 @@ export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
     }
   };
 
+  const instructions =
+    launched?.mode === "prefill"
+      ? "Your prompt is prefilled in the new tab. Switch to it and press Enter to start."
+      : launched?.copied
+        ? "Your prompt was copied to the clipboard. In the new tab, click the input box, press Ctrl+V, then press Enter to start."
+        : "Clipboard access was blocked, so the prompt could not be copied automatically. Use the Copy prompt button below, then paste it in the new tab (Ctrl+V) and press Enter.";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{workflow.name}</DialogTitle>
           <DialogDescription>
-            Fill in the required inputs. The completed prompt will be copied to
-            your clipboard when you launch.
+            {launched
+              ? "One more step to start the session."
+              : "Fill in the required inputs. The completed prompt will be copied to your clipboard when you launch."}
           </DialogDescription>
         </DialogHeader>
 
+        {launched ? (
+          <div
+            className="flex items-start gap-3 rounded-md border border-card-border bg-muted/40 p-4 my-2"
+            data-testid="launch-instructions"
+          >
+            <ClipboardCheck className="h-5 w-5 mt-0.5 shrink-0 text-primary" />
+            <p className="text-sm leading-relaxed">{instructions}</p>
+          </div>
+        ) : (
         <div className="space-y-4 py-2">
           {workflow.inputs.map((label, i) => (
             <div key={i} className="space-y-1.5">
@@ -163,22 +170,43 @@ export function LaunchInputsDialog({ workflow, open, onOpenChange }: Props) {
             </div>
           ))}
         </div>
+        )}
 
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleCopyOnly}
-            data-testid="button-launch-copy"
-          >
-            Copy prompt
-          </Button>
-          <Button onClick={handleLaunch} data-testid="button-launch-confirm">
-            <ExternalLink className="h-4 w-4 mr-1.5" />
-            {workflow.launchLabel || "Launch"}
-          </Button>
+          {launched ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={handleCopyOnly}
+                data-testid="button-launch-copy"
+              >
+                Copy prompt
+              </Button>
+              <Button
+                onClick={() => onOpenChange(false)}
+                data-testid="button-launch-done"
+              >
+                Done
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleCopyOnly}
+                data-testid="button-launch-copy"
+              >
+                Copy prompt
+              </Button>
+              <Button onClick={handleLaunch} data-testid="button-launch-confirm">
+                <ExternalLink className="h-4 w-4 mr-1.5" />
+                {workflow.launchLabel || "Launch"}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

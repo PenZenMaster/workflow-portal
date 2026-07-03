@@ -3,6 +3,8 @@ import {
   fillPrompt,
   isPerplexityHost,
   buildPerplexityLaunchUrl,
+  hasSensitiveInputLabel,
+  getLaunchPlan,
 } from "./launchUtils";
 
 describe("fillPrompt", () => {
@@ -98,5 +100,73 @@ describe("buildPerplexityLaunchUrl", () => {
   it("appends the prompt as the q parameter", () => {
     const url = buildPerplexityLaunchUrl(PPLX, "test prompt");
     expect(new URL(url!).searchParams.get("q")).toBe("test prompt");
+  });
+});
+
+describe("hasSensitiveInputLabel", () => {
+  it("flags password labels", () => {
+    expect(hasSensitiveInputLabel(["WP App Password"])).toBe(true);
+  });
+
+  it("flags API key labels", () => {
+    expect(hasSensitiveInputLabel(["Website URL", "API Key"])).toBe(true);
+  });
+
+  it("flags token and secret labels", () => {
+    expect(hasSensitiveInputLabel(["Access Token"])).toBe(true);
+    expect(hasSensitiveInputLabel(["Client Secret"])).toBe(true);
+  });
+
+  it("does not flag ordinary labels", () => {
+    expect(
+      hasSensitiveInputLabel(["Website URL", "Business name", "GBP link"])
+    ).toBe(false);
+  });
+
+  it("returns false for an empty list", () => {
+    expect(hasSensitiveInputLabel([])).toBe(false);
+  });
+});
+
+describe("getLaunchPlan", () => {
+  const PPLX_ROOT = "https://www.perplexity.ai/";
+  const PPLX_COMPUTER = "https://www.perplexity.ai/computer";
+
+  it("auto-submits via /search for the Perplexity homepage", () => {
+    const plan = getLaunchPlan(PPLX_ROOT, "hello world", ["Website URL"]);
+    expect(plan.mode).toBe("auto-submit");
+    expect(plan.url).toContain("/search");
+    expect(new URL(plan.url).searchParams.get("q")).toBe("hello world");
+  });
+
+  it("prefills without auto-submit for the /computer path", () => {
+    const plan = getLaunchPlan(PPLX_COMPUTER, "hello world", ["Website URL"]);
+    expect(plan.mode).toBe("prefill");
+    expect(plan.url).toContain("/computer");
+    expect(new URL(plan.url).searchParams.get("q")).toBe("hello world");
+  });
+
+  it("falls back to clipboard when the encoded prompt is too long", () => {
+    const plan = getLaunchPlan(PPLX_COMPUTER, "a".repeat(1900), [
+      "Website URL",
+    ]);
+    expect(plan.mode).toBe("clipboard");
+    expect(plan.url).toBe(PPLX_COMPUTER);
+  });
+
+  it("never puts the prompt in the URL when an input label is a credential", () => {
+    const plan = getLaunchPlan(PPLX_COMPUTER, "prompt with secret123", [
+      "Website URL",
+      "WP App Password",
+    ]);
+    expect(plan.mode).toBe("clipboard");
+    expect(plan.url).toBe(PPLX_COMPUTER);
+    expect(plan.url).not.toContain("secret123");
+  });
+
+  it("uses clipboard mode for non-Perplexity URLs", () => {
+    const plan = getLaunchPlan("https://claude.ai/", "hello", []);
+    expect(plan.mode).toBe("clipboard");
+    expect(plan.url).toBe("https://claude.ai/");
   });
 });
