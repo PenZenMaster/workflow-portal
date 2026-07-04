@@ -18,6 +18,8 @@ export const workflows = sqliteTable("workflows", {
   launchLabel: text("launch_label").notNull().default(""),
   pinned: integer("pinned").notNull().default(0),
   acceptsFileUpload: integer("accepts_file_upload").notNull().default(0),
+  // Adapter slug for "Run with AI"; null = first configured adapter
+  aiAdapterSlug: text("ai_adapter_slug"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -30,6 +32,7 @@ export const insertWorkflowSchema = createInsertSchema(workflows)
     tags: z.array(z.string()).default([]),
     pinned: z.boolean().default(false),
     acceptsFileUpload: z.boolean().default(false),
+    aiAdapterSlug: z.string().nullable().default(null),
     name: z.string().min(1, "Name is required"),
     category: z.string().min(1, "Category is required"),
     description: z.string().min(1, "Description is required"),
@@ -54,6 +57,7 @@ export type Workflow = {
   launchLabel: string;
   pinned: boolean;
   acceptsFileUpload: boolean;
+  aiAdapterSlug: string | null;
   createdAt: number;
   updatedAt: number;
 };

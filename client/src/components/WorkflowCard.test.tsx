@@ -35,6 +35,7 @@ const BASE_WORKFLOW: Workflow = {
   launchLabel: "",
   pinned: false,
   acceptsFileUpload: true,
+  aiAdapterSlug: null,
   createdAt: 1,
   updatedAt: 1,
 };

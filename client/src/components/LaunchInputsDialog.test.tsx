@@ -39,6 +39,7 @@ const WORKFLOW: Workflow = {
   launchLabel: "Launch in Claude",
   pinned: false,
   acceptsFileUpload: false,
+  aiAdapterSlug: null,
   createdAt: 1,
   updatedAt: 1,
 };

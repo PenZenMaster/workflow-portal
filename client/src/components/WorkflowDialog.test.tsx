@@ -18,27 +18,47 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { getQueryFn } from "@/lib/queryClient";
+import type { Workflow } from "@shared/schema";
 import { WorkflowDialog } from "./WorkflowDialog";
+
+const PLATFORMS = [
+  { id: 1, slug: "perplexity", displayName: "Perplexity", enabled: true, config: {} },
+  { id: 2, slug: "anthropic", displayName: "Claude (Anthropic)", enabled: true, config: {} },
+];
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  fetchMock = vi.fn(async () => ({
-    ok: true,
-    status: 201,
-    json: async () => ({ id: 1 }),
-    text: async () => "",
-  }) as Response);
+  fetchMock = vi.fn(async (url: string) => {
+    if (url === "/api/platforms") {
+      const body = { data: PLATFORMS };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => body,
+        text: async () => JSON.stringify(body),
+      } as Response;
+    }
+    return {
+      ok: true,
+      status: 201,
+      json: async () => ({ id: 1 }),
+      text: async () => "",
+    } as Response;
+  });
   vi.stubGlobal("fetch", fetchMock);
 });
 
-function renderDialog() {
+function renderDialog(editing: Workflow | null = null) {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: {
+      queries: { queryFn: getQueryFn({ on401: "throw" }), retry: false },
+    },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <WorkflowDialog open={true} onOpenChange={vi.fn()} editing={null} />
+      <WorkflowDialog open={true} onOpenChange={vi.fn()} editing={editing} />
     </QueryClientProvider>
   );
 }
@@ -63,12 +83,89 @@ describe("WorkflowDialog - accepts file upload toggle", () => {
     await user.click(screen.getByTestId("switch-accepts-file"));
     await user.click(screen.getByTestId("button-save"));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit | undefined)?.method === "POST"
+      );
+      expect(post).toBeDefined();
+    });
+    const [url, init] = fetchMock.mock.calls.find(
+      ([, init]) => (init as RequestInit | undefined)?.method === "POST"
+    ) as [string, RequestInit];
     expect(url).toBe("/api/workflows");
-    expect(init.method).toBe("POST");
     const payload = JSON.parse(String(init.body));
     expect(payload.acceptsFileUpload).toBe(true);
+  });
+});
+
+describe("WorkflowDialog - AI model selection (B-22)", () => {
+  it("shows the AI model select only when Accept CSV upload is on", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    expect(screen.queryByTestId("select-ai-adapter")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("switch-accepts-file"));
+    expect(await screen.findByTestId("select-ai-adapter")).toBeInTheDocument();
+  });
+
+  it("defaults aiAdapterSlug to null in the create payload", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.type(screen.getByTestId("input-name"), "Rank Tracker Analysis");
+    await user.type(screen.getByTestId("input-description"), "Analyze CSV");
+    await user.click(screen.getByTestId("switch-accepts-file"));
+    await user.click(screen.getByTestId("button-save"));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit | undefined)?.method === "POST"
+      );
+      expect(post).toBeDefined();
+    });
+    const post = fetchMock.mock.calls.find(
+      ([, init]) => (init as RequestInit | undefined)?.method === "POST"
+    )!;
+    const payload = JSON.parse(String((post[1] as RequestInit).body));
+    expect(payload.aiAdapterSlug).toBeNull();
+  });
+
+  it("preserves an existing aiAdapterSlug when editing and saving", async () => {
+    const user = userEvent.setup();
+    const editing: Workflow = {
+      id: 7,
+      name: "Rank Tracker Analysis",
+      category: "Reporting",
+      description: "Analyze CSV",
+      inputs: [],
+      optionalInputs: [],
+      tags: [],
+      prompt: "",
+      launchUrl: "",
+      launchLabel: "",
+      pinned: false,
+      acceptsFileUpload: true,
+      aiAdapterSlug: "anthropic",
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    renderDialog(editing);
+
+    expect(await screen.findByTestId("select-ai-adapter")).toBeInTheDocument();
+    await user.click(screen.getByTestId("button-save"));
+
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit | undefined)?.method === "PUT"
+      );
+      expect(put).toBeDefined();
+    });
+    const put = fetchMock.mock.calls.find(
+      ([, init]) => (init as RequestInit | undefined)?.method === "PUT"
+    )!;
+    const payload = JSON.parse(String((put[1] as RequestInit).body));
+    expect(payload.aiAdapterSlug).toBe("anthropic");
   });
 });
 
@@ -85,8 +182,15 @@ describe("WorkflowDialog - optional inputs", () => {
     );
     await user.click(screen.getByTestId("button-save"));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit | undefined)?.method === "POST"
+      );
+      expect(post).toBeDefined();
+    });
+    const [, init] = fetchMock.mock.calls.find(
+      ([, init]) => (init as RequestInit | undefined)?.method === "POST"
+    ) as [string, RequestInit];
     const payload = JSON.parse(String(init.body));
     expect(payload.optionalInputs).toEqual(["Competitor URL", "Target keyword"]);
   });

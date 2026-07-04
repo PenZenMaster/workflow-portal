@@ -210,6 +210,33 @@ describe("POST /api/workflows/:id/run-with-file", () => {
     expect(res.body.code).toBe("EMPTY_FILE");
   });
 
+  it("runs on the workflow's configured adapter when aiAdapterSlug is set", async () => {
+    mockStorage.getWorkflow.mockResolvedValue({
+      ...WORKFLOW,
+      aiAdapterSlug: "anthropic",
+    });
+    const anthropicRun = vi.fn().mockResolvedValue({
+      text: "claude response",
+      summaryBlock: null,
+      citations: [],
+      modelVariant: "claude-test",
+      latencyMs: 1,
+      rawPayload: {},
+    });
+    mockGetAdapter.mockImplementation((slug: string) => {
+      if (slug === "anthropic") return { id: "anthropic", run: anthropicRun };
+      if (slug === "openai") return { id: "openai", run: vi.fn() };
+      return undefined;
+    });
+
+    const app = buildApp();
+    const res = await postCsv(app, "1", CSV);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.modelVariant).toBe("claude-test");
+    expect(anthropicRun).toHaveBeenCalledTimes(1);
+  });
+
   it("strips unfilled token lines on the legacy text/csv path", async () => {
     mockStorage.getWorkflow.mockResolvedValue({
       ...WORKFLOW,

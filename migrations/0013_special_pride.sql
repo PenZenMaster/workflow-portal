@@ -1,0 +1,1 @@
+ALTER TABLE `workflows` ADD `ai_adapter_slug` text;

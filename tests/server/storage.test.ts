@@ -102,6 +102,26 @@ describe("DatabaseStorage — workflows", () => {
     expect(created.acceptsFileUpload).toBe(false);
   });
 
+  it("defaults aiAdapterSlug to null and round-trips a value on create and update", async () => {
+    const created = await storage.createWorkflow(SAMPLE);
+    expect(created.aiAdapterSlug).toBeNull();
+
+    const withSlug = await storage.createWorkflow({
+      ...SAMPLE,
+      aiAdapterSlug: "anthropic",
+    });
+    expect(withSlug.aiAdapterSlug).toBe("anthropic");
+
+    const fetched = await storage.getWorkflow(withSlug.id);
+    expect(fetched?.aiAdapterSlug).toBe("anthropic");
+
+    const cleared = await storage.updateWorkflow(withSlug.id, {
+      ...SAMPLE,
+      aiAdapterSlug: null,
+    });
+    expect(cleared?.aiAdapterSlug).toBeNull();
+  });
+
   it("persists acceptsFileUpload=true on create and can toggle it off on update", async () => {
     const created = await storage.createWorkflow({
       ...SAMPLE,

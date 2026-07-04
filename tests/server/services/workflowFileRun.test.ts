@@ -154,4 +154,40 @@ describe("runWorkflowWithCsv", () => {
     expect(sentPrompt).toContain("Client: Acme Foundation Repair");
     expect(sentPrompt).not.toContain("<PASTE>");
   });
+
+  it("uses the workflow's adapter slug when provided instead of the default order", async () => {
+    const anthropicRun = vi.fn().mockResolvedValue({
+      text: "claude says hi",
+      summaryBlock: null,
+      citations: [],
+      modelVariant: "claude-test",
+      latencyMs: 1,
+      rawPayload: {},
+    });
+    const openaiRun = vi.fn();
+    mockGetAdapter.mockImplementation((slug: string) => {
+      if (slug === "anthropic") return { id: "anthropic", run: anthropicRun };
+      if (slug === "openai") return { id: "openai", run: openaiRun };
+      return undefined;
+    });
+
+    const result = await runWorkflowWithCsv("Analyze.", CSV, undefined, [], "anthropic");
+
+    expect(anthropicRun).toHaveBeenCalledTimes(1);
+    expect(openaiRun).not.toHaveBeenCalled();
+    expect(result.modelVariant).toBe("claude-test");
+  });
+
+  it("throws 503 ADAPTER_NOT_CONFIGURED when the chosen adapter has no API key", async () => {
+    mockGetAdapter.mockImplementation((slug: string) =>
+      slug === "openai" ? { id: "openai", run: vi.fn() } : undefined
+    );
+
+    await expect(
+      runWorkflowWithCsv("Analyze.", CSV, undefined, [], "gemini")
+    ).rejects.toMatchObject({
+      statusCode: 503,
+      code: "ADAPTER_NOT_CONFIGURED",
+    });
+  });
 });

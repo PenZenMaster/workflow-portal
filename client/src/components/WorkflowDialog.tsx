@@ -30,9 +30,9 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { CATEGORIES } from "@shared/schema";
-import type { InsertWorkflow, Workflow } from "@shared/schema";
+import type { InsertWorkflow, Workflow, Platform } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 
@@ -54,6 +54,7 @@ type FormValues = {
   launchLabel: string;
   pinned: boolean;
   acceptsFileUpload: boolean;
+  aiAdapterSlug: string;
 };
 
 // The form keeps inputs/tags as raw text and we split on submit.
@@ -69,6 +70,8 @@ const localSchema = z.object({
   launchLabel: z.string().default(""),
   pinned: z.boolean().default(false),
   acceptsFileUpload: z.boolean().default(false),
+  // "" = default (first configured adapter)
+  aiAdapterSlug: z.string().default(""),
 });
 
 export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
@@ -87,8 +90,16 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
       launchLabel: "",
       pinned: false,
       acceptsFileUpload: false,
+      aiAdapterSlug: "",
     },
   });
+
+  const platformsQuery = useQuery<{ data: Platform[] }>({
+    queryKey: ["/api/platforms"],
+    enabled: open,
+  });
+  const platforms = platformsQuery.data?.data ?? [];
+  const acceptsFile = form.watch("acceptsFileUpload");
 
   useEffect(() => {
     if (open) {
@@ -105,6 +116,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
           launchLabel: editing.launchLabel,
           pinned: editing.pinned,
           acceptsFileUpload: editing.acceptsFileUpload,
+          aiAdapterSlug: editing.aiAdapterSlug ?? "",
         });
       } else {
         form.reset({
@@ -119,6 +131,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
           launchLabel: "",
           pinned: false,
           acceptsFileUpload: false,
+          aiAdapterSlug: "",
         });
       }
     }
@@ -147,6 +160,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
         launchLabel: values.launchLabel.trim(),
         pinned: values.pinned,
         acceptsFileUpload: values.acceptsFileUpload,
+        aiAdapterSlug: values.aiAdapterSlug ? values.aiAdapterSlug : null,
       };
       if (editing) {
         return apiRequest("PUT", `/api/workflows/${editing.id}`, payload);
@@ -279,12 +293,49 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
                   </FormControl>
                   <FormDescription>
                     Shows an upload + Run with AI action on the workflow card.
-                    The CSV is sent to the first configured AI platform along
-                    with this workflow's prompt.
+                    The CSV is sent to the AI model below along with this
+                    workflow's prompt.
                   </FormDescription>
                 </FormItem>
               )}
             />
+
+            {acceptsFile && (
+              <FormField
+                control={form.control}
+                name="aiAdapterSlug"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>AI model for Run with AI</FormLabel>
+                    <Select
+                      onValueChange={(v) => field.onChange(v === "default" ? "" : v)}
+                      value={field.value || "default"}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-ai-adapter">
+                          <SelectValue placeholder="Default (first configured)" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="default">
+                          Default (first configured)
+                        </SelectItem>
+                        {platforms.map((p) => (
+                          <SelectItem key={p.slug} value={p.slug}>
+                            {p.displayName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Which AI platform executes this workflow's CSV runs. The
+                      platform's API key must be configured or runs will fail
+                      with a clear error.
+                    </FormDescription>
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}

@@ -92,6 +92,13 @@
       "when": 1782954751620,
       "tag": "0012_goofy_jubilee",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1783123802944,
+      "tag": "0013_special_pride",
+      "breakpoints": true
     }
   ]
 }

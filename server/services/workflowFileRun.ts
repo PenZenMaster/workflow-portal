@@ -16,9 +16,12 @@
  * Comments:
  * - v1.00 Initial implementation (workflow CSV upload feature, v1.20.0)
  * - v1.01 B-21: inputValues fill <PASTE> tokens; unfilled token lines stripped
+ * - v1.02 B-22: optional per-workflow adapter slug overrides the default order
  */
 
 import type { RawResponse } from "../adapters/types";
+import { getAdapter } from "../adapters/registry";
+import { AppError } from "../errors";
 import { pickGenerationAdapter } from "./promptGenerator";
 
 export const MAX_CSV_BYTES = 5 * 1024 * 1024;
@@ -77,8 +80,21 @@ export async function runWorkflowWithCsv(
   workflowPrompt: string,
   csvText: string,
   filename?: string,
-  inputValues: string[] = []
+  inputValues: string[] = [],
+  adapterSlug?: string | null
 ): Promise<RawResponse> {
-  const adapter = pickGenerationAdapter();
+  let adapter;
+  if (adapterSlug) {
+    adapter = getAdapter(adapterSlug);
+    if (!adapter) {
+      throw new AppError(
+        503,
+        `The AI platform configured for this workflow ("${adapterSlug}") has no API key set`,
+        "ADAPTER_NOT_CONFIGURED"
+      );
+    }
+  } else {
+    adapter = pickGenerationAdapter();
+  }
   return adapter.run(buildCsvRunPrompt(workflowPrompt, csvText, filename, inputValues));
 }

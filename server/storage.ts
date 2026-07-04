@@ -88,6 +88,7 @@ export const SCHEMA_SQL = `
     launch_label TEXT NOT NULL DEFAULT '',
     pinned INTEGER NOT NULL DEFAULT 0,
     accepts_file_upload INTEGER NOT NULL DEFAULT 0,
+    ai_adapter_slug TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );

@@ -134,7 +134,8 @@ export function registerWorkflowRoutes(app: Express): void {
         workflow.prompt,
         csvText,
         filename,
-        inputValues
+        inputValues,
+        workflow.aiAdapterSlug
       );
       res.json({
         data: {
