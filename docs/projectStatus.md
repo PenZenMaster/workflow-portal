@@ -1,10 +1,15 @@
 ## Resume From
 
-Last session: 2026-07-03 (second session)
-Last commit: cf04fe8 (v1.25.0 breadcrumb navigation)
-Branch: main | Version: v1.25.0 | 701 tests passing
-NOT yet deployed: v1.25.0 (breadcrumbs) — archive
-workflow-portal-v1.25.0.tar.gz ready one level above the repo.
+Last session: 2026-07-04
+Last commit: fd2bc55 (v1.27.0 launch-input persistence)
+Branch: main | Version: v1.27.0 | 721 tests passing
+NOT yet deployed: v1.25.0 (breadcrumbs), v1.26.0 (B-22 per-workflow AI
+model), v1.27.0 (B-23 input persistence) — deploy
+workflow-portal-v1.27.0.tar.gz (carries all three; includes migrations
+0013 + 0014).
+Data task pending: paste the methodology block from
+docs/ranking-audit-ai-run-methodology.md into workflow 20's prompt (above
+the <PASTE> token lines) so Run with AI follows the skill's rules.
 Production: v1.24.0 deployed and user-confirmed (2026-07-03). This deploy
 carried v1.22.1 (GA4 scope guard), v1.23.0 (B-21 Run-with-AI inputs), and
 v1.24.0 (B-18 collection CRUD) live. GA4 reconnect for
@@ -100,6 +105,20 @@ Pick up from:
   roles, 409 COLLECTION_IN_USE while runs exist); PromptCollections.tsx
   gains inline name/notes edit, clone, archive/restore, and delete with
   inline confirm. 19 new tests (697 passing).
+- v1.26.0 feat (B-22): per-workflow AI model for Run with AI.
+  workflows.aiAdapterSlug column (migration 0013_special_pride.sql);
+  runWorkflowWithCsv honors it (503 ADAPTER_NOT_CONFIGURED if the chosen
+  platform has no key); WorkflowDialog "AI model for Run with AI" select
+  shown when Accept CSV upload is on. Root cause of "generic suggestions"
+  from Run with AI: it never executes the Perplexity skill - it is a plain
+  API call to the first configured adapter; pair with the methodology block
+  in docs/ranking-audit-ai-run-methodology.md. 7 new tests (708 passing).
+- v1.27.0 feat (B-23): shared launch-input persistence. New
+  workflow_input_values table (migration 0014_cute_iron_patriot.sql),
+  WorkflowInputValueStore, GET/PUT /api/workflows/:id/input-values;
+  LaunchInputsDialog prefills saved values on open and persists non-blank
+  values on Launch / Run with AI. Values shared across users. 13 new tests
+  (721 passing).
 - v1.25.0 feat (UI, closes B-17): breadcrumb navigation. New shared
   client/src/components/Breadcrumbs.tsx (Breadcrumbs component +
   useClientName hook) replaces the ad-hoc "Back to X" links on all 12
@@ -938,21 +957,17 @@ Confirmed decisions:
   (run-with-file accepts application/json { csv, inputValues }); any line
   whose token is still unfilled is stripped before the prompt reaches the
   model, on both the JSON and legacy text/csv paths.
-- B-22 Feature: per-workflow AI model selection for "Run with AI". Today
-  runWorkflowWithCsv always uses the first configured adapter in the fixed
-  order openai > anthropic > gemini > perplexity (promptGenerator.ts), so
-  audits run on a generic chat model with no web grounding. Add
-  `workflows.aiAdapterSlug` (nullable; null = current default order), a
-  model dropdown in WorkflowDialog, and honor the choice in run-with-file
-  (clear error if the chosen adapter has no API key configured). Pairs with
-  docs/ranking-audit-ai-run-methodology.md (methodology block that must be
-  pasted into workflow 20's prompt so API runs follow the skill's rules).
-- B-23 Feature: launch-input persistence. Values like Project Knowledge
-  Store, RankMath REST Bridge Base URL, Service Area, Core Services, and
-  Target Competitors rarely change between runs but must be re-typed every
-  launch. Store last-used values server-side per workflow + input label
-  (shared across users/machines); LaunchInputsDialog prefills them and
-  updates them on every Launch / Run with AI.
+- B-22 Feature: per-workflow AI model selection for "Run with AI" —
+  **COMPLETE (v1.26.0)**. `workflows.aiAdapterSlug` (null = default order
+  openai > anthropic > gemini > perplexity), WorkflowDialog model select,
+  503 ADAPTER_NOT_CONFIGURED when the chosen platform has no API key.
+  Pairs with docs/ranking-audit-ai-run-methodology.md (block to paste into
+  workflow 20's prompt so API runs follow the skill's rules).
+- B-23 Feature: launch-input persistence — **COMPLETE (v1.27.0)**.
+  Last-used values stored server-side per workflow + input label
+  (workflow_input_values), shared across users/machines;
+  LaunchInputsDialog prefills them on open and updates non-blank values on
+  every Launch / Run with AI.
 - B-24 Feature: tooltips for operators who weren't involved in building the
   tool. Add shadcn Tooltip explanations to launch-dialog input fields
   (what each value is, where to find it, example), workflow card action
