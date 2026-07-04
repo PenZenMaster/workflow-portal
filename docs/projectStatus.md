@@ -1,15 +1,27 @@
 ## Resume From
 
 Last session: 2026-07-04
-Last commit: fd2bc55 (v1.27.0 launch-input persistence)
+Last commit: 328aecc (shutdown checkpoint)
 Branch: main | Version: v1.27.0 | 721 tests passing
-NOT yet deployed: v1.25.0 (breadcrumbs), v1.26.0 (B-22 per-workflow AI
-model), v1.27.0 (B-23 input persistence) — deploy
-workflow-portal-v1.27.0.tar.gz (carries all three; includes migrations
-0013 + 0014).
-Data task pending: paste the methodology block from
-docs/ranking-audit-ai-run-methodology.md into workflow 20's prompt (above
-the <PASTE> token lines) so Run with AI follows the skill's rules.
+Deploy in progress at shutdown: user deploying
+workflow-portal-v1.27.0.tar.gz (carries v1.25.0 breadcrumbs, v1.26.0 B-22
+per-workflow AI model, v1.27.0 B-23 input persistence; includes migrations
+0013 + 0014) — deployment result not yet confirmed.
+
+Next session priorities:
+1. Confirm the v1.27.0 deploy + QA: breadcrumbs show the client name on
+   every client-scoped page; Run with AI opens the inputs dialog and
+   prefills remembered values on the second run; workflow AI-model select
+   saves. Then paste the methodology block from
+   docs/ranking-audit-ai-run-methodology.md into workflow 20's prompt
+   (above the <PASTE> lines) and set its AI model; re-test Run with AI for
+   less generic output.
+2. B-20 GBP API: check approval (Business Profile API quota 0 -> 300 QPM);
+   when granted, build the per-client GBP snapshot integration (reuse GA4
+   OAuth pattern; United Structural Systems is under a different Google
+   account).
+3. Next backlog candidates: B-24 tooltips, B-25 in-app Help, B-15 v2
+   onboarding wizard, B-14 version footer. Groq API access still pending.
 Production: v1.24.0 deployed and user-confirmed (2026-07-03). This deploy
 carried v1.22.1 (GA4 scope guard), v1.23.0 (B-21 Run-with-AI inputs), and
 v1.24.0 (B-18 collection CRUD) live. GA4 reconnect for
