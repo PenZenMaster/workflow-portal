@@ -938,6 +938,31 @@ Confirmed decisions:
   (run-with-file accepts application/json { csv, inputValues }); any line
   whose token is still unfilled is stripped before the prompt reaches the
   model, on both the JSON and legacy text/csv paths.
+- B-22 Feature: per-workflow AI model selection for "Run with AI". Today
+  runWorkflowWithCsv always uses the first configured adapter in the fixed
+  order openai > anthropic > gemini > perplexity (promptGenerator.ts), so
+  audits run on a generic chat model with no web grounding. Add
+  `workflows.aiAdapterSlug` (nullable; null = current default order), a
+  model dropdown in WorkflowDialog, and honor the choice in run-with-file
+  (clear error if the chosen adapter has no API key configured). Pairs with
+  docs/ranking-audit-ai-run-methodology.md (methodology block that must be
+  pasted into workflow 20's prompt so API runs follow the skill's rules).
+- B-23 Feature: launch-input persistence. Values like Project Knowledge
+  Store, RankMath REST Bridge Base URL, Service Area, Core Services, and
+  Target Competitors rarely change between runs but must be re-typed every
+  launch. Store last-used values server-side per workflow + input label
+  (shared across users/machines); LaunchInputsDialog prefills them and
+  updates them on every Launch / Run with AI.
+- B-24 Feature: tooltips for operators who weren't involved in building the
+  tool. Add shadcn Tooltip explanations to launch-dialog input fields
+  (what each value is, where to find it, example), workflow card action
+  icons, and the AI Visibility setup controls (brands, aliases, prompt
+  categories).
+- B-25 Feature: in-app Help / system documentation. Surface
+  docs/system-documentation.md (and the workflow methodology docs) inside
+  the portal - a /help route with rendered markdown, section navigation,
+  and a Help link in the top nav - so operators don't need repo access to
+  read setup and troubleshooting guides.
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
 - B-06 Session store: session expiry cleanup configuration review
 - B-15 v1 DONE (v1.15.0): Client Run-Readiness badges on /ai/clients (Ready /
