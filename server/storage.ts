@@ -24,6 +24,7 @@ import { ExportStore } from "./storage/exportStore";
 import { ShareTokenStore } from "./storage/shareTokenStore";
 import { IntegrationStore } from "./storage/integrationStore";
 import { JobStore } from "./storage/jobStore";
+import { WorkflowInputValueStore } from "./storage/workflowInputValueStore";
 
 export type { IWorkflowStore } from "./storage/workflowStore";
 export type { IUserStore } from "./storage/userStore";
@@ -69,6 +70,8 @@ export { ExportStore } from "./storage/exportStore";
 export { ShareTokenStore } from "./storage/shareTokenStore";
 export { IntegrationStore } from "./storage/integrationStore";
 export { JobStore } from "./storage/jobStore";
+export { WorkflowInputValueStore } from "./storage/workflowInputValueStore";
+export type { IWorkflowInputValueStore } from "./storage/workflowInputValueStore";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
 
@@ -91,6 +94,13 @@ export const SCHEMA_SQL = `
     ai_adapter_slug TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS workflow_input_values (
+    workflow_id INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (workflow_id, label)
   );
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -425,3 +435,4 @@ export const exportStore = new ExportStore(db);
 export const shareTokenStore = new ShareTokenStore(db);
 export const integrationStore = new IntegrationStore(db);
 export const jobStore = new JobStore(db);
+export const workflowInputValueStore = new WorkflowInputValueStore(db);

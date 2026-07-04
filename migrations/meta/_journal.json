@@ -99,6 +99,13 @@
       "when": 1783123802944,
       "tag": "0013_special_pride",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1783124769534,
+      "tag": "0014_cute_iron_patriot",
+      "breakpoints": true
     }
   ]
 }

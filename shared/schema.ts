@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, primaryKey } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -22,6 +22,26 @@ export const workflows = sqliteTable("workflows", {
   aiAdapterSlug: text("ai_adapter_slug"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
+});
+
+// Last-used launch input values, shared across users (B-23). One row per
+// workflow + input label; the label is the join key because workflow inputs
+// are stored as free-text label lists, not entities.
+export const workflowInputValues = sqliteTable(
+  "workflow_input_values",
+  {
+    workflowId: integer("workflow_id").notNull(),
+    label: text("label").notNull(),
+    value: text("value").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.workflowId, t.label] }),
+  })
+);
+
+export const saveInputValuesSchema = z.object({
+  values: z.record(z.string()),
 });
 
 export const insertWorkflowSchema = createInsertSchema(workflows)

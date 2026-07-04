@@ -123,7 +123,10 @@ describe("WorkflowCard - CSV upload", () => {
     await user.click(screen.getByTestId("button-run-file-7"));
 
     expect(await screen.findByTestId("button-run-confirm")).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
+    const runCalls = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes("run-with-file")
+    );
+    expect(runCalls).toHaveLength(0);
   });
 
   it("POSTs JSON with the collected inputValues after the dialog is confirmed", async () => {
@@ -150,8 +153,11 @@ describe("WorkflowCard - CSV upload", () => {
       await screen.findByText(/Local pack rankings are strong/)
     ).toBeInTheDocument();
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const runCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes("run-with-file")
+    );
+    expect(runCall).toBeDefined();
+    const [url, init] = runCall as [string, RequestInit];
     expect(url).toContain("/api/workflows/7/run-with-file");
     expect(url).toContain("filename=ranks.csv");
     expect((init.headers as Record<string, string>)["Content-Type"]).toBe(

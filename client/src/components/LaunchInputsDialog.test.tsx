@@ -21,7 +21,7 @@
 
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LaunchInputsDialog } from "./LaunchInputsDialog";
 import type { Workflow } from "@shared/schema";
@@ -45,9 +45,31 @@ const WORKFLOW: Workflow = {
 };
 
 let writeTextMock: ReturnType<typeof vi.fn>;
+let savedValuesResponse: Record<string, string>;
+let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   writeTextMock = vi.fn().mockResolvedValue(undefined);
+  savedValuesResponse = {};
+  fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    const method = init?.method ?? "GET";
+    if (method === "GET" && String(url).endsWith("/input-values")) {
+      const body = { data: savedValuesResponse };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => body,
+        text: async () => JSON.stringify(body),
+      } as Response;
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: {} }),
+      text: async () => "{}",
+    } as Response;
+  });
+  vi.stubGlobal("fetch", fetchMock);
 });
 
 // userEvent.setup() installs its own clipboard stub, so the spy must be
@@ -102,6 +124,51 @@ describe("LaunchInputsDialog - optional inputs", () => {
     expect(writeTextMock).toHaveBeenCalledWith(
       "Audit https://uss.com and compare against ."
     );
+  });
+});
+
+describe("LaunchInputsDialog - saved input values (B-23)", () => {
+  it("prefills inputs from the saved values endpoint on open", async () => {
+    savedValuesResponse = {
+      "Website URL": "https://saved-client.com",
+      "Competitor URL": "https://saved-rival.com",
+    };
+    renderDialog();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("launch-input-0")).toHaveValue(
+        "https://saved-client.com"
+      );
+    });
+    expect(screen.getByTestId("launch-optional-input-0")).toHaveValue(
+      "https://saved-rival.com"
+    );
+  });
+
+  it("PUTs the entered values to the input-values endpoint on launch", async () => {
+    const openSpy = vi.fn().mockReturnValue(null);
+    vi.stubGlobal("open", openSpy);
+    const user = setupUser();
+    renderDialog();
+
+    await user.type(screen.getByTestId("launch-input-0"), "https://typed.com");
+    await user.click(screen.getByTestId("button-launch-confirm"));
+
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit | undefined)?.method === "PUT"
+      );
+      expect(put).toBeDefined();
+    });
+    const put = fetchMock.mock.calls.find(
+      ([, init]) => (init as RequestInit | undefined)?.method === "PUT"
+    )!;
+    expect(String(put[0])).toBe("/api/workflows/3/input-values");
+    const body = JSON.parse(String((put[1] as RequestInit).body)) as {
+      values: Record<string, string>;
+    };
+    expect(body.values).toEqual({ "Website URL": "https://typed.com" });
+    vi.unstubAllGlobals();
   });
 });
 

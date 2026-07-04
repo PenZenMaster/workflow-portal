@@ -28,7 +28,10 @@ const mockStorage = {
   updateWorkflow: vi.fn(),
   deleteWorkflow: vi.fn(),
 };
-vi.mock("../../server/storage", () => ({ storage: mockStorage }));
+vi.mock("../../server/storage", () => ({
+  storage: mockStorage,
+  workflowInputValueStore: { getByWorkflow: vi.fn(), upsertMany: vi.fn() },
+}));
 
 const mockGetAdapter = vi.fn();
 vi.mock("../../server/adapters/registry", () => ({

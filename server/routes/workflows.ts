@@ -18,8 +18,8 @@
 
 import express, { type Express } from "express";
 import { z } from "zod";
-import { storage } from "../storage";
-import { insertWorkflowSchema } from "@shared/schema";
+import { storage, workflowInputValueStore } from "../storage";
+import { insertWorkflowSchema, saveInputValuesSchema } from "@shared/schema";
 import { requireAuth } from "../auth";
 import { runWorkflowWithCsv, MAX_CSV_BYTES } from "../services/workflowFileRun";
 
@@ -73,6 +73,32 @@ export function registerWorkflowRoutes(app: Express): void {
     const ok = await storage.deleteWorkflow(id);
     if (!ok) return res.status(404).json({ error: "Not found" });
     res.json({ ok: true });
+  });
+
+  // Last-used launch input values (B-23), shared across users so
+  // rarely-changing inputs are prefilled on the next launch.
+  app.get("/api/workflows/:id/input-values", requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+    const workflow = await storage.getWorkflow(id);
+    if (!workflow) return res.status(404).json({ error: "Not found" });
+    const values = await workflowInputValueStore.getByWorkflow(id);
+    res.json({ data: values });
+  });
+
+  app.put("/api/workflows/:id/input-values", requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+    const parsed = saveInputValuesSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res
+        .status(400)
+        .json({ error: "Validation failed", details: parsed.error.flatten() });
+    }
+    const workflow = await storage.getWorkflow(id);
+    if (!workflow) return res.status(404).json({ error: "Not found" });
+    await workflowInputValueStore.upsertMany(id, parsed.data.values);
+    res.json({ data: parsed.data.values });
   });
 
   // CSV upload + AI run. Two body formats are accepted, both mounted

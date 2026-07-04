@@ -51,6 +51,47 @@ export function LaunchInputsDialog({
     }
   }, [open, workflow.inputs, workflow.optionalInputs]);
 
+  // Prefill from the shared last-used values (B-23). Only fills fields the
+  // user has not already typed into, so a slow response never clobbers input.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetch(`/api/workflows/${workflow.id}/input-values`, { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { data?: Record<string, string> } | null) => {
+        if (cancelled || !json?.data) return;
+        const saved = json.data;
+        setValues((prev) =>
+          workflow.inputs.map((label, i) => prev[i] || saved[label] || "")
+        );
+        setOptionalValues((prev) =>
+          workflow.optionalInputs.map((label, i) => prev[i] || saved[label] || "")
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, workflow.id, workflow.inputs, workflow.optionalInputs]);
+
+  // Remember non-blank values for the next launch (fire-and-forget).
+  const persistValues = () => {
+    const map: Record<string, string> = {};
+    workflow.inputs.forEach((label, i) => {
+      if ((values[i] ?? "").trim()) map[label] = values[i];
+    });
+    workflow.optionalInputs.forEach((label, i) => {
+      if ((optionalValues[i] ?? "").trim()) map[label] = optionalValues[i];
+    });
+    if (Object.keys(map).length === 0) return;
+    fetch(`/api/workflows/${workflow.id}/input-values`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ values: map }),
+      credentials: "include",
+    }).catch(() => {});
+  };
+
   const setValue = (index: number, value: string) => {
     setValues((prev) => {
       const next = [...prev];
@@ -72,11 +113,13 @@ export function LaunchInputsDialog({
   const allValues = [...values, ...optionalValues];
 
   const handleRunConfirm = () => {
+    persistValues();
     onRun?.(allValues);
     onOpenChange(false);
   };
 
   const handleLaunch = async () => {
+    persistValues();
     const filled = fillPrompt(workflow.prompt, allValues);
     const plan = getLaunchPlan(workflow.launchUrl, filled, [
       ...workflow.inputs,
