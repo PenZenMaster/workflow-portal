@@ -1,26 +1,32 @@
 ## Resume From
 
-Last session: 2026-07-04
-Last commit: 328aecc (shutdown checkpoint)
-Branch: main | Version: v1.27.0 | 721 tests passing
-Deploy in progress at shutdown: user deploying
-workflow-portal-v1.27.0.tar.gz (carries v1.25.0 breadcrumbs, v1.26.0 B-22
-per-workflow AI model, v1.27.0 B-23 input persistence; includes migrations
-0013 + 0014) — deployment result not yet confirmed.
+Last session: 2026-07-07
+Branch: main | Version: v1.28.0 | 738 tests passing
+v1.27.0 deployed to production and QA passed (2026-07-07). v1.28.0
+(Lights-Out Factory Phase 1 foundations: Factory Job Contract v1 +
+factory_jobs table, migration 0015) is code-complete — package + deploy
+pending. No user-visible UI change in v1.28.0.
 
 Next session priorities:
-1. Confirm the v1.27.0 deploy + QA: breadcrumbs show the client name on
-   every client-scoped page; Run with AI opens the inputs dialog and
-   prefills remembered values on the second run; workflow AI-model select
-   saves. Then paste the methodology block from
+1. Deploy v1.28.0 (routine cycle; migration 0015 creates factory_jobs).
+   Continue Lights-Out Factory Phase 1 (docs/lights-out-seo-factory.md
+   Section 14): production manifest schema, QA severity definitions,
+   output/logging conventions. Open design decisions: run factory jobs as
+   new kinds on the existing server/jobs runner (recommended), and define
+   the client production-contract fields the portal DB is still missing
+   (brand voice, NAP, GBP ids, deployment targets, factory approval state).
+2. Workflow 20 follow-up (carried over): paste the methodology block from
    docs/ranking-audit-ai-run-methodology.md into workflow 20's prompt
    (above the <PASTE> lines) and set its AI model; re-test Run with AI for
    less generic output.
-2. B-20 GBP API: check approval (Business Profile API quota 0 -> 300 QPM);
-   when granted, build the per-client GBP snapshot integration (reuse GA4
-   OAuth pattern; United Structural Systems is under a different Google
-   account).
-3. Next backlog candidates: B-24 tooltips, B-25 in-app Help, B-15 v2
+3. B-20 GBP API: Business Profile APIs were NOT yet enabled in the GCP
+   project (quota page showed "No quotas available" on 2026-07-07). Enable
+   My Business Account Management + Business Information (+ Q&A) APIs in
+   the project named on the access application, then check quota: 0 QPM =
+   approval pending, 300 QPM = granted. When granted, build the per-client
+   GBP snapshot integration (reuse GA4 OAuth pattern; United Structural
+   Systems is under a different Google account).
+4. Next backlog candidates: B-24 tooltips, B-25 in-app Help, B-15 v2
    onboarding wizard, B-14 version footer. Groq API access still pending.
 Production: v1.24.0 deployed and user-confirmed (2026-07-03). This deploy
 carried v1.22.1 (GA4 scope guard), v1.23.0 (B-21 Run-with-AI inputs), and
@@ -92,6 +98,35 @@ Pick up from:
 4. Still open: Groq API access pending (GROQ_API_KEY for pre-production);
    backlog B-17, B-15 v2, B-14. See Tech Debt Register and Backlog below
    for full priority list.
+
+---
+
+## Post-Sprint Work This Session (v1.28.0, 2026-07-07)
+
+- feat(factory): Lights-Out SEO Factory Phase 1 foundations. New design doc
+  docs/lights-out-seo-factory.md (production-cell architecture, approval
+  gates, phased build sequence). Decision recorded in Section 3: the portal
+  database is the single source of truth for client production
+  configuration; YAML is import/export serialization only, validated by the
+  same schema.
+  - shared/factory/job-contract.ts: Factory Job Contract v1 as a zod schema
+    (contractVersion literal "1.0", jobId, integer clientId = portal client
+    row id, dot-namespaced jobType, priority enum low/normal/high, ISO-8601
+    createdAt, input record, execution dryRun/approvalRequired flags).
+    validateFactoryJob() type guard derives from the schema (replaces an
+    unsound hand-rolled predicate from initial scaffolding).
+  - shared/schema.ts: factory_jobs table + FACTORY_JOB_STATUSES (queued,
+    awaiting_approval, running, qa_failed, done, failed, cancelled) +
+    FactoryJobRecord type. Migration 0015_motionless_rachel_grey.sql.
+  - server/storage.ts: SCHEMA_SQL gains factory_jobs.
+  - server/storage/factoryJobStore.ts (new): create() from a validated
+    contract (status queued, or awaiting_approval when the contract requires
+    approval; unique jobId enforced), getByJobId(), list() with
+    clientId/status/limit filters newest-first, updateStatus() with
+    lastError.
+  - TDD: tests/server/factory/job-contract.test.ts (11) and
+    tests/server/storage/factoryJobs.test.ts (6) written first and confirmed
+    failing for the right reasons. 738 tests passing (17 new).
 
 ---
 

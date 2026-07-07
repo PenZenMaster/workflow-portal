@@ -846,6 +846,52 @@ export type Job = {
   updatedAt: number;
 };
 
+// --- Factory (Lights-Out SEO Factory) --------------------------------------
+
+export const factoryJobs = sqliteTable("factory_jobs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  jobId: text("job_id").notNull().unique(),
+  clientId: integer("client_id").notNull(),
+  contractVersion: text("contract_version").notNull(),
+  jobType: text("job_type").notNull(),
+  priority: text("priority").notNull().default("normal"),
+  // JSON object: the contract's input payload
+  input: text("input").notNull().default("{}"),
+  dryRun: integer("dry_run").notNull().default(0),
+  approvalRequired: integer("approval_required").notNull().default(0),
+  status: text("status").notNull().default("queued"),
+  lastError: text("last_error"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const FACTORY_JOB_STATUSES = [
+  "queued",
+  "awaiting_approval",
+  "running",
+  "qa_failed",
+  "done",
+  "failed",
+  "cancelled",
+] as const;
+export type FactoryJobStatus = (typeof FACTORY_JOB_STATUSES)[number];
+
+export type FactoryJobRecord = {
+  id: number;
+  jobId: string;
+  clientId: number;
+  contractVersion: string;
+  jobType: string;
+  priority: string;
+  input: Record<string, unknown>;
+  dryRun: boolean;
+  approvalRequired: boolean;
+  status: FactoryJobStatus;
+  lastError: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
 // --- Constants -------------------------------------------------------------
 
 export const CATEGORIES = [

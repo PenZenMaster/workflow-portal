@@ -336,6 +336,21 @@ export const SCHEMA_SQL = `
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS factory_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id TEXT NOT NULL UNIQUE,
+    client_id INTEGER NOT NULL,
+    contract_version TEXT NOT NULL,
+    job_type TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'normal',
+    input TEXT NOT NULL DEFAULT '{}',
+    dry_run INTEGER NOT NULL DEFAULT 0,
+    approval_required INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'queued',
+    last_error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
 `;
 
 const rawPath = process.env.DATA_DB_PATH || "data.db";
