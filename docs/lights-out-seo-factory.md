@@ -35,7 +35,7 @@ The goal is:
 
 ---
 
-# 2. The Core Factory Model
+## 2. The Core Factory Model
 
 The factory should be treated as an industrial production system rather than a collection of AI agents.
 
@@ -91,15 +91,17 @@ It is not the factory.
 
 ---
 
-# 3. The Foundational Principle: The Client YAML Production Contract
+## 3. The Foundational Principle: The Database-Backed Production Contract
 
-The central design decision is that every client should have one canonical machine-readable configuration file.
+The central design decision is that the portal database is the single source of truth for every client's production configuration.
 
-The preferred format is YAML.
+The production contract is defined as a versioned, machine-validated schema (zod, in `shared/factory/`), and every factory system reads client facts from the portal database — never from ad-hoc files or agent memory.
 
-This YAML becomes the production contract between every factory system.
+**Decision (2026-07-07):** an earlier draft of this document made a standalone client YAML file the canonical contract. That role now belongs to the portal database. YAML remains supported only as an import/export serialization — a client configuration can be imported into the database or exported from it, and both directions are validated by the same zod contract schema.
 
-Example conceptual structure:
+The portal already owns much of the contract today: clients, brands and aliases, competitors, geographies, and analytics integrations (GA4). Factory contract fields reference those rows rather than restating them. Only genuinely new production facts (brand voice, NAP, GBP identifiers, deployment targets, factory approval state) are added as new tables or columns, each arriving with a migration.
+
+Example conceptual structure (shown as YAML for readability; this is the shape of an export, not a canonical file):
 
 ```yaml
 client:
@@ -177,21 +179,19 @@ factory:
   qa_profile:
 ```
 
-The YAML should be:
+The production contract must be:
 
-* version controlled
-* validated before production
-* human readable
-* machine readable
-* portable between tools
-* auditable
-* extensible
+* stored in the portal database as the single source of truth
+* validated by the shared zod contract schema before production
+* auditable (row timestamps plus versioned migrations)
+* exportable to and importable from YAML for portability and human review
+* extensible only through schema migrations
 
 No agent should invent core business facts when those facts belong in the production contract.
 
 ---
 
-# 4. Factory Architecture
+## 4. Factory Architecture
 
 The factory should be built as six connected layers.
 
@@ -201,7 +201,7 @@ This contains the authoritative information about the client.
 
 Sources can include:
 
-* client YAML
+* client production contract (portal database)
 * website crawl data
 * Google Business Profile data
 * Search Console
@@ -288,9 +288,9 @@ The output is a **production manifest**.
 
 ---
 
-# 5. The Production Manifest
+## 5. The Production Manifest
 
-The YAML defines the client.
+The production contract defines the client.
 
 The production manifest defines the work.
 
@@ -341,7 +341,7 @@ This is where the factory starts becoming measurable.
 
 ---
 
-# 6. Production Cells
+## 6. Production Cells
 
 Rather than building one giant autonomous agent, the factory should consist of specialized production cells.
 
@@ -560,7 +560,7 @@ The stronger future model is creating a distributed, entity-consistent evidence 
 
 ---
 
-# 7. The Factory Orchestrator
+## 7. The Factory Orchestrator
 
 The orchestrator controls the entire production process.
 
@@ -568,7 +568,7 @@ It should not itself perform every task.
 
 Its job is to:
 
-* read the client YAML
+* read the client configuration from the portal database
 * validate configuration
 * create jobs
 * assign jobs to production cells
@@ -583,7 +583,7 @@ Its job is to:
 Conceptually:
 
 ```text
-CLIENT YAML
+CLIENT CONFIG (PORTAL DB)
      |
      v
 VALIDATOR
@@ -622,7 +622,7 @@ A production job should never disappear because an AI conversation ended.
 
 ---
 
-# 8. Human Approval Gates
+## 8. Human Approval Gates
 
 Lights-out production does not mean blind publishing.
 
@@ -688,7 +688,7 @@ Red jobs stop.
 
 ---
 
-# 9. QA Must Be a Separate System
+## 9. QA Must Be a Separate System
 
 The system that creates an asset should not be the only system responsible for validating it.
 
@@ -749,7 +749,7 @@ Check:
 
 ---
 
-# 10. Reporting and ETL Factory
+## 10. Reporting and ETL Factory
 
 The reporting system is another factory production line.
 
@@ -812,7 +812,7 @@ It becomes an input to production.
 
 ---
 
-# 11. The Feedback Loop
+## 11. The Feedback Loop
 
 This is the part that turns automation into a real factory.
 
@@ -872,7 +872,7 @@ Eventually, low-risk work classes can run automatically.
 
 ---
 
-# 12. The LightAgency Operating Model
+## 12. The LightAgency Operating Model
 
 The agency should eventually operate through three levels.
 
@@ -926,13 +926,13 @@ into:
 
 ---
 
-# 13. Recommended Technical Architecture
+## 13. Recommended Technical Architecture
 
 The practical architecture should be modular.
 
 ```text
 CLIENT CONFIGURATION
-YAML / DATABASE
+PORTAL DATABASE (YAML import/export)
         |
         v
 VALIDATION ENGINE
@@ -980,7 +980,7 @@ CONTENT CELL     SCHEMA CELL   ENTITY CELL
 
 ---
 
-# 14. Build Sequence
+## 14. Build Sequence
 
 Trying to automate everything simultaneously would create a giant brittle system.
 
@@ -990,10 +990,11 @@ The correct approach is to build working factory cells and then connect them.
 
 Build:
 
-* canonical client YAML schema
-* YAML validator
+* canonical client production-contract schema in the portal database (Drizzle + zod)
+* Factory Job Contract v1 validator — DONE 2026-07-07 (`shared/factory/job-contract.ts`)
+* production job persistence — DONE 2026-07-07 (`factory_jobs` table + `FactoryJobStore`)
+* job status definitions — DONE 2026-07-07 (`FACTORY_JOB_STATUSES` in `shared/schema.ts`)
 * production manifest schema
-* job status definitions
 * QA severity definitions
 * standard output folders
 * production logging conventions
@@ -1135,7 +1136,7 @@ This is the safest path toward lights-out production.
 
 ---
 
-# 15. Factory KPIs
+## 15. Factory KPIs
 
 The factory itself needs operational measurements.
 
@@ -1187,7 +1188,7 @@ It is:
 
 ---
 
-# 16. What the 2027 LightAgency Should Look Like
+## 16. What the 2027 LightAgency Should Look Like
 
 A mature workflow could look like this:
 
@@ -1225,7 +1226,7 @@ The machine role becomes:
 
 ---
 
-# 17. The North Star
+## 17. The North Star
 
 The final LightAgency factory should work like this:
 
