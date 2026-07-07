@@ -36,6 +36,9 @@ function hydrate(row: Row): FactoryJobRecord {
     approvalRequired: row.approvalRequired === 1,
     status: row.status as FactoryJobStatus,
     lastError: row.lastError,
+    output: row.output ? (JSON.parse(row.output) as Record<string, unknown>) : null,
+    approvedBy: row.approvedBy,
+    approvedAt: row.approvedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -49,12 +52,18 @@ export interface FactoryJobListFilter {
 
 export interface IFactoryJobStore {
   create(contract: FactoryJob): Promise<FactoryJobRecord>;
+  get(id: number): Promise<FactoryJobRecord | undefined>;
   getByJobId(jobId: string): Promise<FactoryJobRecord | undefined>;
   list(filter?: FactoryJobListFilter): Promise<FactoryJobRecord[]>;
   updateStatus(
     id: number,
     status: FactoryJobStatus,
     lastError?: string
+  ): Promise<FactoryJobRecord | undefined>;
+  approve(id: number, userId: number): Promise<FactoryJobRecord | undefined>;
+  setOutput(
+    id: number,
+    output: Record<string, unknown>
   ): Promise<FactoryJobRecord | undefined>;
 }
 
@@ -84,6 +93,15 @@ export class FactoryJobStore implements IFactoryJobStore {
       .returning()
       .get();
     return hydrate(row);
+  }
+
+  async get(id: number): Promise<FactoryJobRecord | undefined> {
+    const row = this._db
+      .select()
+      .from(factoryJobs)
+      .where(eq(factoryJobs.id, id))
+      .get();
+    return row ? hydrate(row) : undefined;
   }
 
   async getByJobId(jobId: string): Promise<FactoryJobRecord | undefined> {
@@ -137,6 +155,53 @@ export class FactoryJobStore implements IFactoryJobStore {
       .set({
         status,
         lastError: lastError ?? null,
+        updatedAt: Date.now(),
+      })
+      .where(eq(factoryJobs.id, id))
+      .returning()
+      .get();
+    return hydrate(row);
+  }
+
+  async approve(
+    id: number,
+    userId: number
+  ): Promise<FactoryJobRecord | undefined> {
+    const existing = this._db
+      .select()
+      .from(factoryJobs)
+      .where(eq(factoryJobs.id, id))
+      .get();
+    if (!existing) return undefined;
+    const now = Date.now();
+    const row = this._db
+      .update(factoryJobs)
+      .set({
+        status: "queued",
+        approvedBy: userId,
+        approvedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(factoryJobs.id, id))
+      .returning()
+      .get();
+    return hydrate(row);
+  }
+
+  async setOutput(
+    id: number,
+    output: Record<string, unknown>
+  ): Promise<FactoryJobRecord | undefined> {
+    const existing = this._db
+      .select()
+      .from(factoryJobs)
+      .where(eq(factoryJobs.id, id))
+      .get();
+    if (!existing) return undefined;
+    const row = this._db
+      .update(factoryJobs)
+      .set({
+        output: JSON.stringify(output),
         updatedAt: Date.now(),
       })
       .where(eq(factoryJobs.id, id))

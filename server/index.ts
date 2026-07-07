@@ -10,6 +10,10 @@ import { db } from "./storage";
 import { registerRoutes } from "./routes";
 import { jobRunner } from "./jobs/runner";
 import { registerJobHandlers } from "./jobs/handlers";
+import { registerFactoryJobHandlers } from "./jobs/factory";
+import { createReportingMonthlyPipelineCell } from "./services/factory/reportingCell";
+import { integrationStore } from "./storage";
+import { Ga4Service } from "./services/ga4";
 import { serveStatic } from "./static";
 import { createServer } from "node:http";
 import { configureSession } from "./auth";
@@ -76,6 +80,12 @@ app.use((req, res, next) => {
 
   // Register job kinds then start the background runner.
   registerJobHandlers(jobRunner);
+  registerFactoryJobHandlers(jobRunner, [
+    createReportingMonthlyPipelineCell({
+      integrationStore,
+      ga4: new Ga4Service(),
+    }),
+  ]);
   jobRunner.start(db);
   // Bootstrap the recurring schedule-tick job if one isn't already queued/running.
   jobRunner.seedRecurring("schedule-tick");

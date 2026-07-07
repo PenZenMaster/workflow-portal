@@ -1,20 +1,30 @@
 ## Resume From
 
 Last session: 2026-07-07
-Branch: main | Version: v1.28.0 | 738 tests passing
-v1.27.0 deployed to production and QA passed (2026-07-07). v1.28.0
-(Lights-Out Factory Phase 1 foundations: Factory Job Contract v1 +
-factory_jobs table, migration 0015) is code-complete — package + deploy
-pending. No user-visible UI change in v1.28.0.
+Branch: main | Version: v1.29.0 | 768 tests passing
+v1.28.0 deployed to production and confirmed working (2026-07-07). v1.29.0
+(Factory Slice 1: intake routes + factory-run dispatcher + reporting cell,
+migration 0016) is code-complete — package + deploy pending. No UI change;
+the factory API is admin-only (POST/GET /api/factory/jobs,
+POST /api/factory/jobs/:id/approve).
+
+Factory decisions locked 2026-07-07: (1) factory jobs execute on the
+existing job runner as "factory-run" jobs (factory_jobs = domain record);
+(2) contract fields use hybrid storage (normalized tables for queryable
+facts, JSON for descriptive config); (3) first production cell =
+reporting/ETL pipeline.
 
 Next session priorities:
-1. Deploy v1.28.0 (routine cycle; migration 0015 creates factory_jobs).
-   Continue Lights-Out Factory Phase 1 (docs/lights-out-seo-factory.md
-   Section 14): production manifest schema, QA severity definitions,
-   output/logging conventions. Open design decisions: run factory jobs as
-   new kinds on the existing server/jobs runner (recommended), and define
-   the client production-contract fields the portal DB is still missing
-   (brand voice, NAP, GBP ids, deployment targets, factory approval state).
+1. Deploy v1.29.0 (migration 0016 adds output/approval columns). QA on
+   production: POST /api/factory/jobs with a reporting.monthly-pipeline
+   contract for a GA4-connected client (dryRun true first, then false);
+   verify GET /api/factory/jobs shows done with an aiTraffic output, and
+   the approval hold/release flow works.
+2. Factory Slice 2: Search Console integration (reuse GA4 OAuth pattern,
+   webmasters.readonly scope) + hybrid-storage analytics fields (GSC
+   property, Bing, reporting Sheet, Looker refs); extend the reporting
+   cell. Also still open from Phase 1: production manifest schema, QA
+   severity definitions.
 2. Workflow 20 follow-up (carried over): paste the methodology block from
    docs/ranking-audit-ai-run-methodology.md into workflow 20's prompt
    (above the <PASTE> lines) and set its AI model; re-test Run with AI for
@@ -98,6 +108,39 @@ Pick up from:
 4. Still open: Groq API access pending (GROQ_API_KEY for pre-production);
    backlog B-17, B-15 v2, B-14. See Tech Debt Register and Backlog below
    for full priority list.
+
+---
+
+## Post-Sprint Work This Session (v1.29.0, 2026-07-07)
+
+- feat(factory): Slice 1 — factory job intake + execution wiring, first
+  production cell. Decisions recorded in the design doc: existing job
+  runner executes factory jobs; reporting/ETL is the first cell.
+  - shared/schema.ts: factory_jobs gains output (JSON), approved_by,
+    approved_at. Migration 0016_fair_carnage.sql.
+  - server/storage/factoryJobStore.ts: get(), approve(id, userId) (audit
+    fields + release to queued), setOutput().
+  - server/routes/factory.ts (new): POST /api/factory/jobs (validates the
+    contract with factoryJobSchema — 400 INVALID_CONTRACT with zod details,
+    404 CLIENT_NOT_FOUND, 409 DUPLICATE_JOB_ID; enqueues factory-run unless
+    the contract requires approval), POST /api/factory/jobs/:id/approve
+    (409 NOT_AWAITING_APPROVAL; records approver, enqueues), GET
+    /api/factory/jobs (clientId/status/limit filters). Admin roles only.
+  - server/jobs/factory.ts (new): factory-run dispatcher — loads the
+    factory job, skips held/terminal statuses, routes to the production
+    cell registered for its jobType, writes running/done/failed + output
+    back; cell errors rethrow so the runner's retry/backoff applies.
+  - server/services/factory/reportingCell.ts (new): reporting.monthly-
+    pipeline cell — validates periodStart/periodEnd input, requires a GA4
+    integration, dry run returns config checks without extracting, real
+    run returns the AI-traffic summary (sessions, engagement,
+    pages/session, conversion rate, referrers) via Ga4Service with OAuth
+    token refresh persisted.
+  - server/index.ts registers the dispatcher with the reporting cell;
+    server/routes/index.ts registers the factory routes.
+  - TDD throughout: 30 new tests (4 store, 12 routes, 7 dispatcher, 7 cell
+    on top of v1.28.0's 17), each suite confirmed failing before
+    implementation. 768 tests passing.
 
 ---
 

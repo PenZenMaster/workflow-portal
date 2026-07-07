@@ -861,6 +861,10 @@ export const factoryJobs = sqliteTable("factory_jobs", {
   approvalRequired: integer("approval_required").notNull().default(0),
   status: text("status").notNull().default("queued"),
   lastError: text("last_error"),
+  // JSON object: the producing cell's result, null until the job completes
+  output: text("output"),
+  approvedBy: integer("approved_by"),
+  approvedAt: integer("approved_at"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -888,6 +892,9 @@ export type FactoryJobRecord = {
   approvalRequired: boolean;
   status: FactoryJobStatus;
   lastError: string | null;
+  output: Record<string, unknown> | null;
+  approvedBy: number | null;
+  approvedAt: number | null;
   createdAt: number;
   updatedAt: number;
 };
