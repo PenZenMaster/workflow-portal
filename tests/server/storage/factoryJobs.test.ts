@@ -96,6 +96,46 @@ describe("FactoryJobStore", () => {
     expect(awaiting.map((job) => job.jobId)).toEqual(["job_b"]);
   });
 
+  it("hydrates output and approval audit fields as null on create", async () => {
+    const record = await store.create(makeContract());
+    expect(record.output).toBeNull();
+    expect(record.approvedBy).toBeNull();
+    expect(record.approvedAt).toBeNull();
+  });
+
+  it("gets a job by numeric id and returns undefined when unknown", async () => {
+    const record = await store.create(makeContract());
+    const found = await store.get(record.id);
+    expect(found?.jobId).toBe("job_01JXYZ");
+    expect(await store.get(9999)).toBeUndefined();
+  });
+
+  it("approve releases an awaiting_approval job to queued with audit fields", async () => {
+    const record = await store.create(
+      makeContract({ execution: { dryRun: false, approvalRequired: true } })
+    );
+    expect(record.status).toBe("awaiting_approval");
+
+    const approved = await store.approve(record.id, 7);
+    expect(approved?.status).toBe("queued");
+    expect(approved?.approvedBy).toBe(7);
+    expect(approved?.approvedAt).toBeGreaterThan(0);
+
+    expect(await store.approve(9999, 7)).toBeUndefined();
+  });
+
+  it("setOutput stores a JSON result readable on the next get", async () => {
+    const record = await store.create(makeContract());
+    const output = { period: { start: "2026-06-01", end: "2026-06-30" }, sessions: 42 };
+    const updated = await store.setOutput(record.id, output);
+    expect(updated?.output).toEqual(output);
+
+    const reread = await store.get(record.id);
+    expect(reread?.output).toEqual(output);
+
+    expect(await store.setOutput(9999, output)).toBeUndefined();
+  });
+
   it("updates status and records the last error", async () => {
     const record = await store.create(makeContract());
     const failed = await store.updateStatus(record.id, "failed", "boom");

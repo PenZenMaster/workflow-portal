@@ -25,6 +25,7 @@ import { ShareTokenStore } from "./storage/shareTokenStore";
 import { IntegrationStore } from "./storage/integrationStore";
 import { JobStore } from "./storage/jobStore";
 import { WorkflowInputValueStore } from "./storage/workflowInputValueStore";
+import { FactoryJobStore } from "./storage/factoryJobStore";
 
 export type { IWorkflowStore } from "./storage/workflowStore";
 export type { IUserStore } from "./storage/userStore";
@@ -72,6 +73,8 @@ export { IntegrationStore } from "./storage/integrationStore";
 export { JobStore } from "./storage/jobStore";
 export { WorkflowInputValueStore } from "./storage/workflowInputValueStore";
 export type { IWorkflowInputValueStore } from "./storage/workflowInputValueStore";
+export { FactoryJobStore } from "./storage/factoryJobStore";
+export type { IFactoryJobStore, FactoryJobListFilter } from "./storage/factoryJobStore";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
 
@@ -348,6 +351,9 @@ export const SCHEMA_SQL = `
     approval_required INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'queued',
     last_error TEXT,
+    output TEXT,
+    approved_by INTEGER,
+    approved_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
@@ -451,3 +457,4 @@ export const shareTokenStore = new ShareTokenStore(db);
 export const integrationStore = new IntegrationStore(db);
 export const jobStore = new JobStore(db);
 export const workflowInputValueStore = new WorkflowInputValueStore(db);
+export const factoryJobStore = new FactoryJobStore(db);

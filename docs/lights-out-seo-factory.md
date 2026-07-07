@@ -620,6 +620,15 @@ The orchestrator needs persistent job state.
 
 A production job should never disappear because an AI conversation ended.
 
+**Decision (2026-07-07):** factory jobs execute on the portal's existing
+background job runner rather than a new queue. The `factory_jobs` table is
+the domain record (contract, approval state, lifecycle); execution rides the
+runner as a `factory-run` job carrying `{ factoryJobId }`. The dispatcher
+(`server/jobs/factory.ts`) routes each job to the production cell registered
+for its `jobType` and writes status and output back to the factory record.
+This mirrors the portal's prompt-run pattern and inherits retries, orphan
+rescue, health monitoring, and the /admin/jobs UI for free.
+
 ---
 
 ## 8. Human Approval Gates
@@ -770,6 +779,13 @@ Determine exactly what should be measured.
 Automate collection where APIs are available.
 
 Keep manual steps only where required by desktop-only systems such as SEO PowerSuite.
+
+**Progress (2026-07-07):** the reporting production cell exists
+(`server/services/factory/reportingCell.ts`, job type
+`reporting.monthly-pipeline`). It validates the contract's reporting period,
+checks GA4 integration availability (dry run), and extracts the AI-search
+traffic summary for the period. Search Console, Bing, rank data, and report
+artifact generation arrive in later slices.
 
 ---
 

@@ -31,6 +31,7 @@ import { registerIntegrationRoutes } from "./integrations";
 import { registerOAuthRoutes } from "./oauth";
 import { registerUserRoutes } from "./users";
 import { registerJobRoutes } from "./jobs";
+import { registerFactoryRoutes } from "./factory";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -53,6 +54,7 @@ export async function registerRoutes(
   registerOAuthRoutes(app);
   registerUserRoutes(app);
   registerJobRoutes(app);
+  registerFactoryRoutes(app);
 
   return httpServer;
 }
