@@ -45,39 +45,37 @@ facts, JSON for descriptive config); (3) first production cell =
 reporting/ETL pipeline.
 
 Also this session: B-26 collapse + pagination SHIPPED as v1.30.0 (see
-Post-Sprint Work below). Archive was scoped OUT with the user: mention
-rows are deleted and recreated on every re-parse
-(mentionStore.deleteByResponse + bulkCreate in the parse-response
-handler), so an archived flag on response_mentions would be silently
-wiped — revisit only with response-level archiving or a separate
-hidden-matches table if the need returns. v1.30.0 packaged; NOT yet
-deployed to production.
+Post-Sprint Work below), DEPLOYED to production and QA PASSED
+(2026-07-08). Archive was scoped OUT with the user: mention rows are
+deleted and recreated on every re-parse (mentionStore.deleteByResponse +
+bulkCreate in the parse-response handler), so an archived flag on
+response_mentions would be silently wiped — revisit only with
+response-level archiving or a separate hidden-matches table if the need
+returns.
 
 Next session priorities:
-1. Deploy v1.30.0 (routine cPanel cycle) and QA the Mentions section on a
-   client with >20 mentions (Show more / Show less / count label).
-2. TD-17: make the runner leave unknown job kinds queued (with delay)
+1. TD-17: make the runner leave unknown job kinds queued (with delay)
    instead of hard-failing them — removes the mixed-version deploy race.
-3. Factory Slice 2: Search Console integration (reuse GA4 OAuth pattern,
+2. Factory Slice 2: Search Console integration (reuse GA4 OAuth pattern,
    webmasters.readonly scope) + hybrid-storage analytics fields (GSC
    property, Bing, reporting Sheet, Looker refs); extend the reporting
    cell. Also still open from Phase 1: production manifest schema, QA
    severity definitions.
-4. Workflow 20 follow-up (carried over): paste the methodology block from
+3. Workflow 20 follow-up (carried over): paste the methodology block from
    docs/ranking-audit-ai-run-methodology.md into workflow 20's prompt
    (above the <PASTE> lines) and set its AI model; re-test Run with AI for
    less generic output.
-5. B-20 GBP API: Business Profile APIs were NOT yet enabled in the GCP
+4. B-20 GBP API: Business Profile APIs were NOT yet enabled in the GCP
    project (quota page showed "No quotas available" on 2026-07-07). Enable
    My Business Account Management + Business Information (+ Q&A) APIs in
    the project named on the access application, then check quota: 0 QPM =
    approval pending, 300 QPM = granted. When granted, build the per-client
    GBP snapshot integration (reuse GA4 OAuth pattern; United Structural
    Systems is under a different Google account).
-6. TD-19 (when convenient): finish local ssh-agent setup so Claude can
+5. TD-19 (when convenient): finish local ssh-agent setup so Claude can
    reach the production DB non-interactively (see Session 2026-07-08 note
    above for the exact commands).
-7. Next backlog candidates: B-24 tooltips, B-25 in-app Help, B-15 v2
+6. Next backlog candidates: B-24 tooltips, B-25 in-app Help, B-15 v2
    onboarding wizard, B-14 version footer. Groq API access still pending.
 Production: v1.24.0 deployed and user-confirmed (2026-07-03). This deploy
 carried v1.22.1 (GA4 scope guard), v1.23.0 (B-21 Run-with-AI inputs), and
