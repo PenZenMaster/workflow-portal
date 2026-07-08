@@ -3,36 +3,24 @@
 Last session: 2026-07-08
 Branch: main | Version: v1.29.0 | 768 tests passing
 
-Session 2026-07-08 (investigation only, no code changes): TD-18 sweep
-scoped. Findings:
-- Clicking Test is NOT sufficient for TD-18 — Test only exercises the
-  stored refresh token; it does not replace it. The fix is a full
-  Reconnect (Connect Google Analytics again). Confirmed
-  server/services/ga4.ts uses access_type=offline + prompt=consent, so
-  every reconnect mints a brand-new refresh token under the published
-  app. Procedure per client: Reconnect (tick the Analytics checkbox),
-  confirm property ID still set, then Test to verify.
-- Provisional affected list (from the stale 2026-06-12 prod.data.db
-  snapshot; definitive list needs the live DB): Camphouse Country
-  Landscaping (id 1, reconnected 2026-07-03 which STILL predates the
-  07-07 publish), Rank Rocket Co (id 2, token from 2026-05-20), Salvo
-  Metal Works (id 4, token from 2026-05-21). Known gap: client 9's GA4
-  integration (used in factory QA) and anything connected 06-12..07-07
-  is missing from the snapshot.
-- Open question: Rank Rocket / Salvo tokens are 6-7 weeks old yet worked
-  through 07-07 QA — the 7-day Testing expiry may not have bitten
-  (refresh-on-use behavior?). Test each before assuming dead; Reconnect
-  regardless.
-- Blocker: non-interactive SSH to production fails — the local
-  ~/.ssh/workflow-portal key is offered but not in the server's
-  authorized_keys (password auth only). One-time fix (user runs
-  interactively, types password once):
-  bash -c "cat ~/.ssh/workflow-portal.pub | ssh
-  fullmetaljacket@69.72.136.208 'mkdir -p ~/.ssh && cat >>
-  ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600
-  ~/.ssh/authorized_keys'"
-  Then pull the definitive list from ~/persistent/data.db (integrations
-  WHERE kind='ga4', check json refreshToken + updated_at).
+Session 2026-07-08: TD-18 sweep COMPLETE (docs-only session, no code
+changes). Every client with a GA4 integration was disconnected and
+reconnected via the portal UI under the published (2026-07-07) OAuth app,
+Analytics checkbox ticked, and every integration Test passes. The
+definitive live-DB list was never needed — the sweep covered all
+GA4-connected clients. Note: because integrations were disconnected
+first, property IDs had to be re-selected; all confirmed working via
+Test.
+SSH follow-up logged as TD-19: the server side is DONE — the local
+workflow-portal public key is now in the server's authorized_keys and
+the server accepts it ("Server accepts key" in ssh -v). Non-interactive
+auth still fails locally only because the private key is
+passphrase-protected and the Windows ssh-agent service is
+Stopped/Disabled. One-time fix in an ADMIN PowerShell:
+  Set-Service ssh-agent -StartupType Automatic; Start-Service ssh-agent
+  ssh-add "$env:USERPROFILE\.ssh\workflow-portal"   (type passphrase once)
+Alternative (no admin): ssh-keygen -p -f "$env:USERPROFILE\.ssh\workflow-portal"
+(strip passphrase — key then sits unencrypted on disk).
 v1.29.0 (Factory Slice 1: intake routes + factory-run dispatcher +
 reporting cell, migration 0016) deployed to production and QA PASSED
 (2026-07-07, client 9): dry run checks ok; real run aiTraffic matched the
@@ -57,29 +45,30 @@ facts, JSON for descriptive config); (3) first production cell =
 reporting/ETL pipeline.
 
 Next session priorities:
-1. TD-18 sweep (HIGH, time-sensitive): reconnect GA4 on every client
-   connected before 2026-07-07 before its Testing-era token expires.
-2. B-26 (user request): Mentions view collapse/pagination/archive — scope
+1. B-26 (user request): Mentions view collapse/pagination/archive — scope
    the combination with the user before building.
-3. TD-17: make the runner leave unknown job kinds queued (with delay)
+2. TD-17: make the runner leave unknown job kinds queued (with delay)
    instead of hard-failing them — removes the mixed-version deploy race.
-4. Factory Slice 2: Search Console integration (reuse GA4 OAuth pattern,
+3. Factory Slice 2: Search Console integration (reuse GA4 OAuth pattern,
    webmasters.readonly scope) + hybrid-storage analytics fields (GSC
    property, Bing, reporting Sheet, Looker refs); extend the reporting
    cell. Also still open from Phase 1: production manifest schema, QA
    severity definitions.
-2. Workflow 20 follow-up (carried over): paste the methodology block from
+4. Workflow 20 follow-up (carried over): paste the methodology block from
    docs/ranking-audit-ai-run-methodology.md into workflow 20's prompt
    (above the <PASTE> lines) and set its AI model; re-test Run with AI for
    less generic output.
-3. B-20 GBP API: Business Profile APIs were NOT yet enabled in the GCP
+5. B-20 GBP API: Business Profile APIs were NOT yet enabled in the GCP
    project (quota page showed "No quotas available" on 2026-07-07). Enable
    My Business Account Management + Business Information (+ Q&A) APIs in
    the project named on the access application, then check quota: 0 QPM =
    approval pending, 300 QPM = granted. When granted, build the per-client
    GBP snapshot integration (reuse GA4 OAuth pattern; United Structural
    Systems is under a different Google account).
-4. Next backlog candidates: B-24 tooltips, B-25 in-app Help, B-15 v2
+6. TD-19 (when convenient): finish local ssh-agent setup so Claude can
+   reach the production DB non-interactively (see Session 2026-07-08 note
+   above for the exact commands).
+7. Next backlog candidates: B-24 tooltips, B-25 in-app Help, B-15 v2
    onboarding wizard, B-14 version footer. Groq API access still pending.
 Production: v1.24.0 deployed and user-confirmed (2026-07-03). This deploy
 carried v1.22.1 (GA4 scope guard), v1.23.0 (B-21 Run-with-AI inputs), and
@@ -992,7 +981,8 @@ Confirmed decisions:
 | TD-15 | Medium | Done | citationStore.listByClient, sentimentStore.listByClient, and sentimentStore.getReviewQueue all ignored their clientId parameter and returned the full response_citations / response_sentiment tables across all clients (same pattern fixed for mentionStore in v1.4.2). Fixed in v1.6.1 by joining responses_raw -> prompt_runs and filtering by client_id; feeds Citation Sources, Sentiment, and Recommendations sections on ClientDetail. | server/storage/citationStore.ts, server/storage/sentimentStore.ts |
 | TD-16 | Medium | Open | Stale lsnode worker processes can survive a cPanel "Restart" of the Node app, causing env-var drift: a worker started before an env var was added/changed keeps its old `process.env` snapshot (registry.ts builds `_adapters` once at module load), so jobs claimed by that worker fail even though the env var is correctly set for new workers. Observed after adding `OPENAI_API_KEY` — 3/10 prompt-run jobs failed with "No adapter configured for platform: openai" while 7/10 (handled by the new worker) succeeded. RECURRED during v1.29.0 QA (2026-07-07): a 3.5-day-old worker (predating v1.28.0) survived BOTH a cPanel Restart AND a full Stop/Start and kept failing factory-run jobs with "No handler registered". Only an SSH `kill <pid>` removed it. Severity raised Low->Medium: every deploy must now include the SSH `ps -eo pid,etime,cmd \| grep -i node` check + kill of old PIDs. | ops/cPanel deployment |
 | TD-17 | Medium | Open | JobRunner hard-fails jobs with unknown kinds ("No handler registered for kind: X") instead of leaving them queued. During mixed-version deploy windows (or with a TD-16 stale worker), an old worker that doesn't know a new job kind permanently fails jobs a newer worker could process; the no-handler path also ignores attempts/maxAttempts. Fix: treat unknown kind as "not mine" — skip and leave queued with a nextRunAt delay, or requeue with backoff, so a capable worker can claim it. | server/jobs/runner.ts (tick, no-handler branch) |
-| TD-18 | High | Open | All GA4 refresh tokens minted before 2026-07-07 will expire and fail with invalid_grant: the Google OAuth consent screen (project 551074775331) was in "Testing" publishing status, which caps refresh-token life at 7 days. Published to "In production" on 2026-07-07 (new tokens now long-lived), but tokens issued under Testing keep their 7-day clock — every client GA4 integration connected before that date needs a one-time Reconnect (Integrations page, tick the Analytics checkbox) before its token dies. Sweep all GA4-connected clients; done when each client's Test passes on a post-2026-07-07 connection. | ops/Google Cloud OAuth; client Integrations |
+| TD-18 | High | Done | All GA4 refresh tokens minted before 2026-07-07 would expire with invalid_grant: the Google OAuth consent screen (project 551074775331) was in "Testing" publishing status, which caps refresh-token life at 7 days. Published to "In production" on 2026-07-07 (new tokens long-lived), but Testing-era tokens kept their 7-day clock. RESOLVED 2026-07-08: every GA4-connected client was disconnected and reconnected via the portal UI under the published app (Analytics checkbox ticked, property IDs re-selected) and every integration Test passes on a post-publish connection. | ops/Google Cloud OAuth; client Integrations |
+| TD-19 | Low | Open | No non-interactive SSH access to production from the dev machine. Server side FIXED 2026-07-08: the local ~/.ssh/workflow-portal public key is in authorized_keys and the server accepts it. Remaining local blocker: the private key is passphrase-protected and the Windows ssh-agent service is Stopped/Disabled, so BatchMode auth fails at the signing step. Fix (admin PowerShell): Set-Service ssh-agent -StartupType Automatic; Start-Service ssh-agent; then ssh-add the key once. Until fixed, live-DB questions require interactive password SSH by the user. | ops/local dev environment |
 
 ---
 
