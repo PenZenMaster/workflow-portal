@@ -87,14 +87,48 @@ describe("JobRunner", () => {
     expect(getJob(sqlite, jobId).status).toBe("done");
   });
 
-  it("marks failed and records the error when no handler is registered", async () => {
+  it("leaves an unknown-kind job queued with a delayed next_run_at instead of failing it", async () => {
     const jobId = insertJob(sqlite, { kind: "unknown-kind" });
+    const before = Date.now();
+
+    await runner.tick();
+
+    const job = getJob(sqlite, jobId);
+    expect(job.status).toBe("queued");
+    expect(job.attempts).toBe(0);
+    expect(job.locked_until).toBeNull();
+    expect(job.next_run_at).toBeGreaterThanOrEqual(before + 60_000);
+    expect(job.last_error).toContain("No handler registered");
+  });
+
+  it("fails an unknown-kind job once it is older than the 24h grace window", async () => {
+    const jobId = insertJob(sqlite, { kind: "unknown-kind" });
+    sqlite
+      .prepare("UPDATE jobs SET created_at = ? WHERE id = ?")
+      .run(Date.now() - 25 * 60 * 60 * 1000, jobId);
 
     await runner.tick();
 
     const job = getJob(sqlite, jobId);
     expect(job.status).toBe("failed");
-    expect(job.last_error).toContain("No handler registered");
+    expect(job.last_error).toContain("no handler appeared within");
+  });
+
+  it("processes a previously unknown-kind job once a handler is registered", async () => {
+    const jobId = insertJob(sqlite, { kind: "late-kind" });
+
+    await runner.tick(); // no handler yet — requeued with delay
+
+    const handler = vi.fn().mockResolvedValue(undefined);
+    runner.register({ kind: "late-kind", handle: handler });
+    sqlite
+      .prepare("UPDATE jobs SET next_run_at = ? WHERE id = ?")
+      .run(Date.now() - 1000, jobId); // fast-forward past the requeue delay
+
+    await runner.tick();
+
+    expect(handler).toHaveBeenCalledOnce();
+    expect(getJob(sqlite, jobId).status).toBe("done");
   });
 
   it("increments attempts and requeues when handler throws and attempts < max_attempts", async () => {

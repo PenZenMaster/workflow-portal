@@ -1,7 +1,7 @@
 ## Resume From
 
 Last session: 2026-07-08
-Branch: main | Version: v1.30.0 | 775 tests passing
+Branch: main | Version: v1.30.1 | 777 tests passing
 
 Session 2026-07-08: TD-18 sweep COMPLETE (docs-only session, no code
 changes). Every client with a GA4 integration was disconnected and
@@ -53,9 +53,16 @@ response_mentions would be silently wiped — revisit only with
 response-level archiving or a separate hidden-matches table if the need
 returns.
 
+TD-17 also FIXED this session (v1.30.1, packaged, NOT yet deployed):
+unknown-kind jobs now requeue with a 60s delay instead of hard-failing,
+with a 24h grace window before terminal failure (capped variant chosen
+by user — no eternal requeue loops for typo'd or retired kinds).
+
 Next session priorities:
-1. TD-17: make the runner leave unknown job kinds queued (with delay)
-   instead of hard-failing them — removes the mixed-version deploy race.
+1. Deploy v1.30.1 (carries the TD-17 runner fix; v1.30.0 already live).
+   QA: none needed beyond smoke — behavior only changes during
+   mixed-version windows. Remember the TD-16 stale-worker check on
+   restart (ps -eo pid,etime,cmd | grep -i node; kill old PIDs).
 2. Factory Slice 2: Search Console integration (reuse GA4 OAuth pattern,
    webmasters.readonly scope) + hybrid-storage analytics fields (GSC
    property, Bing, reporting Sheet, Looker refs); extend the reporting
@@ -147,6 +154,30 @@ Pick up from:
 4. Still open: Groq API access pending (GROQ_API_KEY for pre-production);
    backlog B-17, B-15 v2, B-14. See Tech Debt Register and Backlog below
    for full priority list.
+
+---
+
+## Post-Sprint Work This Session (v1.30.1, 2026-07-08)
+
+- fix(jobs): TD-17 — unknown job kinds no longer hard-fail.
+  - server/jobs/runner.ts (tick, no-handler branch): a claimed job whose
+    kind has no handler in this worker is released back to queued with
+    nextRunAt += 60s (UNKNOWN_KIND_RETRY_MS) and lastError "No handler
+    registered for kind: X", so a capable worker (newer deploy, or the
+    healthy sibling of a TD-16 stale worker) can claim it. If the job is
+    still unknown 24h after created_at (UNKNOWN_KIND_MAX_AGE_MS), it
+    fails terminally with "no handler appeared within 24h of creation" —
+    covers typo'd/retired kinds without eternal requeue.
+  - attempts is NOT incremented on the unknown-kind path: it means
+    "handler executed and threw", and with maxAttempts=3 + 60s delay an
+    attempts-based cap would fire in ~3 minutes, shorter than a normal
+    deploy window (the observed TD-16 zombie lived 3.5 days).
+  - Startup-order path ruled out during scoping: server/index.ts
+    registers all handlers before jobRunner.start(db), so a single
+    healthy process never ticks before its handlers exist.
+  - TDD: existing no-handler test rewritten to the new contract + 2 new
+    tests (24h-cap failure; late-registered handler picks the job up),
+    confirmed failing first. 777 tests passing.
 
 ---
 
@@ -1013,7 +1044,7 @@ Confirmed decisions:
 | TD-14 | Medium | Done | Salvo (clientId=4) run 6: 8/10 responses had a client-owned citation but zero client-brand mentions detected (all_brand_mentions=0). Root cause: brand_aliases for brand_id=4 was empty in production (v1.2.8 backfill never reached live data.db). Fixed (data-only) by adding the "Salvo Metal Works" alias via portal UI and re-parsing runs 6-8; verified live in v1.6.0 (AI SoV now 88.5%, down from an impossible 153%). | server/services/parser.ts |
 | TD-15 | Medium | Done | citationStore.listByClient, sentimentStore.listByClient, and sentimentStore.getReviewQueue all ignored their clientId parameter and returned the full response_citations / response_sentiment tables across all clients (same pattern fixed for mentionStore in v1.4.2). Fixed in v1.6.1 by joining responses_raw -> prompt_runs and filtering by client_id; feeds Citation Sources, Sentiment, and Recommendations sections on ClientDetail. | server/storage/citationStore.ts, server/storage/sentimentStore.ts |
 | TD-16 | Medium | Open | Stale lsnode worker processes can survive a cPanel "Restart" of the Node app, causing env-var drift: a worker started before an env var was added/changed keeps its old `process.env` snapshot (registry.ts builds `_adapters` once at module load), so jobs claimed by that worker fail even though the env var is correctly set for new workers. Observed after adding `OPENAI_API_KEY` — 3/10 prompt-run jobs failed with "No adapter configured for platform: openai" while 7/10 (handled by the new worker) succeeded. RECURRED during v1.29.0 QA (2026-07-07): a 3.5-day-old worker (predating v1.28.0) survived BOTH a cPanel Restart AND a full Stop/Start and kept failing factory-run jobs with "No handler registered". Only an SSH `kill <pid>` removed it. Severity raised Low->Medium: every deploy must now include the SSH `ps -eo pid,etime,cmd \| grep -i node` check + kill of old PIDs. | ops/cPanel deployment |
-| TD-17 | Medium | Open | JobRunner hard-fails jobs with unknown kinds ("No handler registered for kind: X") instead of leaving them queued. During mixed-version deploy windows (or with a TD-16 stale worker), an old worker that doesn't know a new job kind permanently fails jobs a newer worker could process; the no-handler path also ignores attempts/maxAttempts. Fix: treat unknown kind as "not mine" — skip and leave queued with a nextRunAt delay, or requeue with backoff, so a capable worker can claim it. | server/jobs/runner.ts (tick, no-handler branch) |
+| TD-17 | Medium | Done | JobRunner hard-failed jobs with unknown kinds ("No handler registered for kind: X") instead of leaving them queued, so during mixed-version deploy windows (or with a TD-16 stale worker) an old worker permanently failed jobs a newer worker could process. FIXED in v1.30.1: unknown-kind jobs are released back to queued with a 60s nextRunAt delay and a descriptive lastError so a capable worker can claim them; if no capable worker claims the job within 24h of creation (UNKNOWN_KIND_MAX_AGE_MS — covers typo'd or retired kinds), it fails terminally with "no handler appeared within 24h". attempts is deliberately not incremented (it means "handler executed and threw"). | server/jobs/runner.ts (tick, no-handler branch) |
 | TD-18 | High | Done | All GA4 refresh tokens minted before 2026-07-07 would expire with invalid_grant: the Google OAuth consent screen (project 551074775331) was in "Testing" publishing status, which caps refresh-token life at 7 days. Published to "In production" on 2026-07-07 (new tokens long-lived), but Testing-era tokens kept their 7-day clock. RESOLVED 2026-07-08: every GA4-connected client was disconnected and reconnected via the portal UI under the published app (Analytics checkbox ticked, property IDs re-selected) and every integration Test passes on a post-publish connection. | ops/Google Cloud OAuth; client Integrations |
 | TD-19 | Low | Open | No non-interactive SSH access to production from the dev machine. Server side FIXED 2026-07-08: the local ~/.ssh/workflow-portal public key is in authorized_keys and the server accepts it. Remaining local blocker: the private key is passphrase-protected and the Windows ssh-agent service is Stopped/Disabled, so BatchMode auth fails at the signing step. Fix (admin PowerShell): Set-Service ssh-agent -StartupType Automatic; Start-Service ssh-agent; then ssh-add the key once. Until fixed, live-DB questions require interactive password SSH by the user. | ops/local dev environment |
 

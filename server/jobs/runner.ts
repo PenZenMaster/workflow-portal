@@ -10,9 +10,12 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-09
- * Last Modified Date: 2026-05-09
+ * Last Modified Date: 2026-07-08
  * Comments:
  * - v1.00 Initial implementation for Sprint 0
+ * - v1.01 TD-17: unknown job kinds are requeued with a delay (another
+ *   worker may know the kind during mixed-version deploy windows) and
+ *   only fail after a 24h grace window with no capable worker
  */
 
 import { jobs } from "@shared/schema";
@@ -23,6 +26,14 @@ import { logger } from "../logger";
 type DrizzleDb = ReturnType<typeof drizzle>;
 
 const LOCK_TTL_MS = 5 * 60 * 1000; // 5-minute lock window per job
+
+// TD-17: a job whose kind has no handler in THIS worker may still be known to
+// another worker (mixed-version deploy window, stale TD-16 worker), so it is
+// released back to the queue with this delay rather than failed.
+const UNKNOWN_KIND_RETRY_MS = 60_000;
+// If no capable worker has claimed it this long after creation, the kind is
+// presumed dead (typo, retired kind) and the job fails terminally.
+const UNKNOWN_KIND_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 export interface JobHandler {
   kind: string;
@@ -153,15 +164,37 @@ export class JobRunner {
 
       const handler = this.handlers.get(job.kind);
       if (!handler) {
-        db.update(jobs)
-          .set({
-            status: "failed",
-            lastError: `No handler registered for kind: ${job.kind}`,
-            updatedAt: Date.now(),
-          })
-          .where(eq(jobs.id, job.id))
-          .run();
-        logger.warn("job skipped — no handler", { jobId: job.id, kind: job.kind });
+        const graceExpired = Date.now() - job.createdAt >= UNKNOWN_KIND_MAX_AGE_MS;
+        if (graceExpired) {
+          db.update(jobs)
+            .set({
+              status: "failed",
+              lockedUntil: null,
+              lastError: `No handler registered for kind: ${job.kind} — no handler appeared within ${UNKNOWN_KIND_MAX_AGE_MS / 3_600_000}h of creation`,
+              updatedAt: Date.now(),
+            })
+            .where(eq(jobs.id, job.id))
+            .run();
+          logger.warn("job failed — unknown kind outlived grace window", {
+            jobId: job.id,
+            kind: job.kind,
+          });
+        } else {
+          db.update(jobs)
+            .set({
+              status: "queued",
+              lockedUntil: null,
+              lastError: `No handler registered for kind: ${job.kind}`,
+              nextRunAt: Date.now() + UNKNOWN_KIND_RETRY_MS,
+              updatedAt: Date.now(),
+            })
+            .where(eq(jobs.id, job.id))
+            .run();
+          logger.warn("job requeued — no handler in this worker", {
+            jobId: job.id,
+            kind: job.kind,
+          });
+        }
         continue;
       }
 
