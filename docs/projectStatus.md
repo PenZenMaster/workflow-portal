@@ -1,7 +1,38 @@
 ## Resume From
 
-Last session: 2026-07-07
+Last session: 2026-07-08
 Branch: main | Version: v1.29.0 | 768 tests passing
+
+Session 2026-07-08 (investigation only, no code changes): TD-18 sweep
+scoped. Findings:
+- Clicking Test is NOT sufficient for TD-18 — Test only exercises the
+  stored refresh token; it does not replace it. The fix is a full
+  Reconnect (Connect Google Analytics again). Confirmed
+  server/services/ga4.ts uses access_type=offline + prompt=consent, so
+  every reconnect mints a brand-new refresh token under the published
+  app. Procedure per client: Reconnect (tick the Analytics checkbox),
+  confirm property ID still set, then Test to verify.
+- Provisional affected list (from the stale 2026-06-12 prod.data.db
+  snapshot; definitive list needs the live DB): Camphouse Country
+  Landscaping (id 1, reconnected 2026-07-03 which STILL predates the
+  07-07 publish), Rank Rocket Co (id 2, token from 2026-05-20), Salvo
+  Metal Works (id 4, token from 2026-05-21). Known gap: client 9's GA4
+  integration (used in factory QA) and anything connected 06-12..07-07
+  is missing from the snapshot.
+- Open question: Rank Rocket / Salvo tokens are 6-7 weeks old yet worked
+  through 07-07 QA — the 7-day Testing expiry may not have bitten
+  (refresh-on-use behavior?). Test each before assuming dead; Reconnect
+  regardless.
+- Blocker: non-interactive SSH to production fails — the local
+  ~/.ssh/workflow-portal key is offered but not in the server's
+  authorized_keys (password auth only). One-time fix (user runs
+  interactively, types password once):
+  bash -c "cat ~/.ssh/workflow-portal.pub | ssh
+  fullmetaljacket@69.72.136.208 'mkdir -p ~/.ssh && cat >>
+  ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600
+  ~/.ssh/authorized_keys'"
+  Then pull the definitive list from ~/persistent/data.db (integrations
+  WHERE kind='ga4', check json refreshToken + updated_at).
 v1.29.0 (Factory Slice 1: intake routes + factory-run dispatcher +
 reporting cell, migration 0016) deployed to production and QA PASSED
 (2026-07-07, client 9): dry run checks ok; real run aiTraffic matched the
