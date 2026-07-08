@@ -80,6 +80,51 @@ describe("MentionStore", () => {
     expect(list).toHaveLength(1);
     expect(list[0].matchedText).toBe("Acme");
   });
+
+  it("listByClient returns mentions newest first and honors limit/offset", async () => {
+    const db = makeDb();
+    const mentions = new MentionStore(db);
+    const runStore = new RunStore(db);
+    const responseStore = new ResponseStore(db);
+
+    const run = await runStore.create({
+      clientId: 1, collectionId: 10, batchId: "batch-a", totalPrompts: 1, triggeredBy: "manual",
+    });
+    const resp = await responseStore.create({ runId: run.id, promptId: 100, platformId: 1, queryText: "q" });
+    const m1 = await mentions.create({ responseId: resp.id, brandId: 1, matchedText: "First", matchType: "exact", section: "body", confidence: 1 });
+    const m2 = await mentions.create({ responseId: resp.id, brandId: 1, matchedText: "Second", matchType: "exact", section: "body", confidence: 1 });
+    const m3 = await mentions.create({ responseId: resp.id, brandId: 1, matchedText: "Third", matchType: "exact", section: "body", confidence: 1 });
+
+    const all = await mentions.listByClient(1);
+    expect(all.map((m) => m.id)).toEqual([m3.id, m2.id, m1.id]);
+
+    const page = await mentions.listByClient(1, { limit: 1, offset: 1 });
+    expect(page.map((m) => m.id)).toEqual([m2.id]);
+  });
+
+  it("countByClient counts only that client's mentions", async () => {
+    const db = makeDb();
+    const mentions = new MentionStore(db);
+    const runStore = new RunStore(db);
+    const responseStore = new ResponseStore(db);
+
+    const runA = await runStore.create({
+      clientId: 1, collectionId: 10, batchId: "batch-a", totalPrompts: 1, triggeredBy: "manual",
+    });
+    const respA = await responseStore.create({ runId: runA.id, promptId: 100, platformId: 1, queryText: "q" });
+    await mentions.create({ responseId: respA.id, brandId: 1, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+    await mentions.create({ responseId: respA.id, brandId: 1, matchedText: "Acme Co", matchType: "alias", section: "list", confidence: 0.9 });
+
+    const runB = await runStore.create({
+      clientId: 2, collectionId: 20, batchId: "batch-b", totalPrompts: 1, triggeredBy: "manual",
+    });
+    const respB = await responseStore.create({ runId: runB.id, promptId: 200, platformId: 1, queryText: "q" });
+    await mentions.create({ responseId: respB.id, brandId: 2, matchedText: "Rival", matchType: "exact", section: "body", confidence: 1 });
+
+    expect(await mentions.countByClient(1)).toBe(2);
+    expect(await mentions.countByClient(2)).toBe(1);
+    expect(await mentions.countByClient(999)).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------

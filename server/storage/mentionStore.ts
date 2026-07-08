@@ -8,14 +8,16 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-10
- * Last Modified Date: 2026-05-10
+ * Last Modified Date: 2026-07-08
  * Comments:
  * - v1.00 Sprint 4 initial implementation
+ * - v1.01 B-26: listByClient newest-first with optional limit/offset;
+ *   new countByClient for pagination totals
  */
 
 import { responseMentions, responsesRaw, promptRuns } from "@shared/schema";
 import type { ResponseMention } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -37,9 +39,15 @@ function hydrate(row: Row): ResponseMention {
 
 type MentionInput = Omit<ResponseMention, "id">;
 
+export interface MentionPageOptions {
+  limit?: number;
+  offset?: number;
+}
+
 export interface IMentionStore {
   listByResponse(responseId: number): Promise<ResponseMention[]>;
-  listByClient(clientId: number): Promise<ResponseMention[]>;
+  listByClient(clientId: number, opts?: MentionPageOptions): Promise<ResponseMention[]>;
+  countByClient(clientId: number): Promise<number>;
   create(data: MentionInput): Promise<ResponseMention>;
   bulkCreate(data: MentionInput[]): Promise<ResponseMention[]>;
   deleteByResponse(responseId: number): Promise<void>;
@@ -57,7 +65,8 @@ export class MentionStore implements IMentionStore {
     return rows.map(hydrate);
   }
 
-  async listByClient(clientId: number): Promise<ResponseMention[]> {
+  async listByClient(clientId: number, opts?: MentionPageOptions): Promise<ResponseMention[]> {
+    // SQLite treats LIMIT -1 as "no limit", so unpaged callers get all rows.
     const rows = this._db
       .select({
         id: responseMentions.id,
@@ -74,8 +83,22 @@ export class MentionStore implements IMentionStore {
       .innerJoin(responsesRaw, eq(responseMentions.responseId, responsesRaw.id))
       .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
       .where(eq(promptRuns.clientId, clientId))
+      .orderBy(desc(responseMentions.id))
+      .limit(opts?.limit ?? -1)
+      .offset(opts?.offset ?? 0)
       .all();
     return rows.map(hydrate);
+  }
+
+  async countByClient(clientId: number): Promise<number> {
+    const row = this._db
+      .select({ value: count() })
+      .from(responseMentions)
+      .innerJoin(responsesRaw, eq(responseMentions.responseId, responsesRaw.id))
+      .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+      .where(eq(promptRuns.clientId, clientId))
+      .get();
+    return row?.value ?? 0;
   }
 
   async create(data: MentionInput): Promise<ResponseMention> {

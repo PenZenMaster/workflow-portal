@@ -1,7 +1,7 @@
 ## Resume From
 
 Last session: 2026-07-08
-Branch: main | Version: v1.29.0 | 768 tests passing
+Branch: main | Version: v1.30.0 | 775 tests passing
 
 Session 2026-07-08: TD-18 sweep COMPLETE (docs-only session, no code
 changes). Every client with a GA4 integration was disconnected and
@@ -44,9 +44,18 @@ existing job runner as "factory-run" jobs (factory_jobs = domain record);
 facts, JSON for descriptive config); (3) first production cell =
 reporting/ETL pipeline.
 
+Also this session: B-26 collapse + pagination SHIPPED as v1.30.0 (see
+Post-Sprint Work below). Archive was scoped OUT with the user: mention
+rows are deleted and recreated on every re-parse
+(mentionStore.deleteByResponse + bulkCreate in the parse-response
+handler), so an archived flag on response_mentions would be silently
+wiped — revisit only with response-level archiving or a separate
+hidden-matches table if the need returns. v1.30.0 packaged; NOT yet
+deployed to production.
+
 Next session priorities:
-1. B-26 (user request): Mentions view collapse/pagination/archive — scope
-   the combination with the user before building.
+1. Deploy v1.30.0 (routine cPanel cycle) and QA the Mentions section on a
+   client with >20 mentions (Show more / Show less / count label).
 2. TD-17: make the runner leave unknown job kinds queued (with delay)
    instead of hard-failing them — removes the mixed-version deploy race.
 3. Factory Slice 2: Search Console integration (reuse GA4 OAuth pattern,
@@ -140,6 +149,32 @@ Pick up from:
 4. Still open: Groq API access pending (GROQ_API_KEY for pre-production);
    backlog B-17, B-15 v2, B-14. See Tech Debt Register and Backlog below
    for full priority list.
+
+---
+
+## Post-Sprint Work This Session (v1.30.0, 2026-07-08)
+
+- feat (B-26): Mentions section collapse + server-side pagination.
+  - server/storage/mentionStore.ts: listByClient() now orders newest first
+    (id DESC) and accepts optional { limit, offset } (SQLite LIMIT -1 =
+    unlimited keeps unpaged callers — CSV export in jobs/handlers.ts and
+    routes/sources.ts — returning all rows, now newest first). New
+    countByClient() for pagination totals.
+  - server/routes/metrics.ts: GET /api/clients/:id/mentions accepts
+    limit/offset query params (400 INVALID_PAGINATION on non-integer or
+    negative values); response envelope changed from { data: [...] } to
+    { data: { mentions, total } }. MentionsSection was the only consumer.
+  - client/src/pages/ai/sections/MentionsSection.tsx: shows first 20
+    mentions; "Show more" loads 20 more per click (query refetch with a
+    larger limit), "Show less" collapses back, "Showing X of Y" count
+    label. Footer hidden entirely when total fits one page.
+  - Archive (the third B-26 ask) deliberately deferred — re-parse deletes
+    and recreates mention rows, so per-mention archived state would not
+    survive; see Resume From note.
+  - TDD: 7 new tests written first and confirmed failing (2 store, 2
+    route + 1 updated to the new envelope, 3 client in new
+    MentionsSection.test.tsx); ClientDetail.test.tsx mentions fixture
+    updated to the new URL/envelope. 775 tests passing.
 
 ---
 
@@ -1103,14 +1138,15 @@ Confirmed decisions:
   the portal - a /help route with rendered markdown, section navigation,
   and a Help link in the top nav - so operators don't need repo access to
   read setup and troubleshooting guides.
-- B-26 Feature: Mentions view is too long (user request 2026-07-07). The
-  Mentions section on ClientDetail renders every mention unbounded. Wanted:
-  (a) collapse pattern - show top N with "Show all/Show less"; (b) real
-  pagination on GET /api/clients/:id/mentions (limit/offset, newest first)
-  instead of rendering the full table; (c) archive pattern - archived flag
-  on mentions (archived_at + archivedBy), archive/unarchive actions,
-  archived hidden by default with a "Show archived" toggle. Scope the
-  combination before building.
+- B-26 Feature: Mentions view is too long (user request 2026-07-07).
+  **(a) collapse + (b) pagination COMPLETE (v1.30.0)** — GET
+  /api/clients/:id/mentions takes limit/offset (newest first, returns
+  { mentions, total }); MentionsSection shows 20 with Show more / Show
+  less and a "Showing X of Y" label. **(c) archive DEFERRED by user
+  decision 2026-07-08**: parse-response deletes and recreates mention
+  rows on every re-parse, so a per-mention archived flag would be wiped;
+  only worth building as response-level archiving or a separate
+  hidden-matches table if the need returns.
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
 - B-06 Session store: session expiry cleanup configuration review
 - B-15 v1 DONE (v1.15.0): Client Run-Readiness badges on /ai/clients (Ready /

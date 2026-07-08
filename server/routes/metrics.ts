@@ -9,9 +9,11 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-10
- * Last Modified Date: 2026-05-10
+ * Last Modified Date: 2026-07-08
  * Comments:
  * - v1.00 Sprint 4 initial implementation
+ * - v1.01 B-26: mentions list paginated (limit/offset, newest first),
+ *   response envelope now { mentions, total }
  */
 
 import type { Express } from "express";
@@ -32,6 +34,14 @@ import {
 } from "../services/scoring";
 
 const ANALYST_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
+
+function parsePageParam(raw: unknown, name: string): number | undefined {
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  if (typeof raw !== "string" || !Number.isInteger(n) || n < 0)
+    throw new AppError(400, `Invalid ${name}`, "INVALID_PAGINATION");
+  return n;
+}
 
 function periodToDates(period: string): { fromDate: string; toDate: string } {
   const toDate = new Date().toISOString().slice(0, 10);
@@ -128,8 +138,14 @@ export function registerMetricRoutes(app: Express): void {
     if (Number.isNaN(clientId))
       throw new AppError(400, "Invalid client id", "INVALID_ID");
 
-    const mentions = await mentionStore.listByClient(clientId);
-    ok(res, mentions);
+    const limit = parsePageParam(req.query.limit, "limit");
+    const offset = parsePageParam(req.query.offset, "offset");
+
+    const [mentions, total] = await Promise.all([
+      mentionStore.listByClient(clientId, { limit, offset }),
+      mentionStore.countByClient(clientId),
+    ]);
+    ok(res, { mentions, total });
   });
 
   // --- On-demand re-parse --------------------------------------------------

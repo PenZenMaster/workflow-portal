@@ -31,7 +31,7 @@ const API_RESPONSES: Record<string, unknown> = {
     data: { citationFrequency: 0, mentionRate: 0, aiSoV: 0, avgVisibilityScore: 0, totalResponses: 0, period: "30d" },
   },
   "/api/clients/4/metrics/trend?metric=mentionRate&period=30d": { data: [] },
-  "/api/clients/4/mentions": { data: [] },
+  "/api/clients/4/mentions?limit=20": { data: { mentions: [], total: 0 } },
   "/api/clients/4/metrics/sov": {
     data: { aiSoV: 0, clientMentions: 0, allBrandMentions: 0, fromDate: "2026-05-01", toDate: "2026-06-01" },
   },

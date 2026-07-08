@@ -4,7 +4,7 @@ import { buildAuthApp } from "./_helpers/buildAuthApp";
 
 // --- mocks ------------------------------------------------------------------
 
-const mockMentionStore = { listByResponse: vi.fn(), listByClient: vi.fn(), bulkCreate: vi.fn(), deleteByResponse: vi.fn(), create: vi.fn() };
+const mockMentionStore = { listByResponse: vi.fn(), listByClient: vi.fn(), countByClient: vi.fn(), bulkCreate: vi.fn(), deleteByResponse: vi.fn(), create: vi.fn() };
 const mockCitationStore = { listByResponse: vi.fn(), bulkCreate: vi.fn(), deleteByResponse: vi.fn(), create: vi.fn() };
 const mockMetricStore = { upsert: vi.fn(), listByClient: vi.fn(), aggregateForPeriod: vi.fn() };
 const mockResponseStore = { get: vi.fn() };
@@ -137,11 +137,35 @@ describe("GET /api/clients/:id/mentions", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 200 with mention list", async () => {
+  it("returns 200 with mentions and total in the envelope", async () => {
     mockMentionStore.listByClient.mockResolvedValue([]);
+    mockMentionStore.countByClient.mockResolvedValue(0);
     const res = await request(buildApp("analyst")).get("/api/clients/1/mentions");
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual([]);
+    expect(res.body.data).toEqual({ mentions: [], total: 0 });
+  });
+
+  it("forwards limit/offset to the store and returns the full total", async () => {
+    mockMentionStore.listByClient.mockResolvedValue([
+      { id: 5, matchedText: "B" },
+      { id: 4, matchedText: "A" },
+    ]);
+    mockMentionStore.countByClient.mockResolvedValue(7);
+    const res = await request(buildApp("analyst")).get("/api/clients/1/mentions?limit=2&offset=3");
+    expect(res.status).toBe(200);
+    expect(res.body.data.mentions).toHaveLength(2);
+    expect(res.body.data.total).toBe(7);
+    expect(mockMentionStore.listByClient).toHaveBeenCalledWith(1, { limit: 2, offset: 3 });
+    expect(mockMentionStore.countByClient).toHaveBeenCalledWith(1);
+  });
+
+  it("returns 400 for non-integer or negative limit/offset", async () => {
+    const bad = ["limit=abc", "limit=-1", "offset=xyz", "offset=-5", "limit=1.5"];
+    for (const qs of bad) {
+      const res = await request(buildApp("analyst")).get(`/api/clients/1/mentions?${qs}`);
+      expect(res.status, qs).toBe(400);
+    }
+    expect(mockMentionStore.listByClient).not.toHaveBeenCalled();
   });
 });
 
