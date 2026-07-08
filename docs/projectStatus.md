@@ -2,11 +2,22 @@
 
 Last session: 2026-07-07
 Branch: main | Version: v1.29.0 | 768 tests passing
-v1.28.0 deployed to production and confirmed working (2026-07-07). v1.29.0
-(Factory Slice 1: intake routes + factory-run dispatcher + reporting cell,
-migration 0016) is code-complete — package + deploy pending. No UI change;
-the factory API is admin-only (POST/GET /api/factory/jobs,
-POST /api/factory/jobs/:id/approve).
+v1.29.0 (Factory Slice 1: intake routes + factory-run dispatcher +
+reporting cell, migration 0016) deployed to production and QA PASSED
+(2026-07-07, client 9): dry run checks ok; real run aiTraffic matched the
+Traffic page monthly endpoint exactly (June 2026: 8 sessions, chatgpt.com
+7 + gemini.google.com 1); approval hold/release with approvedBy/approvedAt
+audit verified; negatives (INVALID_CONTRACT, CLIENT_NOT_FOUND,
+DUPLICATE_JOB_ID, NOT_AWAITING_APPROVAL) all correct. The factory API is
+admin-only (POST/GET /api/factory/jobs, POST /api/factory/jobs/:id/approve).
+
+QA session findings (all logged): TD-16 recurred and is nastier than
+documented — a 3.5-day-old stale worker survived Stop/Start and required an
+SSH kill (severity raised to Medium); new TD-17 (runner hard-fails unknown
+job kinds instead of leaving them for capable workers); new TD-18 HIGH
+(OAuth consent screen was in "Testing" — published to production
+2026-07-07, but every GA4 integration connected before that date needs a
+one-time Reconnect before its 7-day token dies).
 
 Factory decisions locked 2026-07-07: (1) factory jobs execute on the
 existing job runner as "factory-run" jobs (factory_jobs = domain record);
@@ -15,12 +26,13 @@ facts, JSON for descriptive config); (3) first production cell =
 reporting/ETL pipeline.
 
 Next session priorities:
-1. Deploy v1.29.0 (migration 0016 adds output/approval columns). QA on
-   production: POST /api/factory/jobs with a reporting.monthly-pipeline
-   contract for a GA4-connected client (dryRun true first, then false);
-   verify GET /api/factory/jobs shows done with an aiTraffic output, and
-   the approval hold/release flow works.
-2. Factory Slice 2: Search Console integration (reuse GA4 OAuth pattern,
+1. TD-18 sweep (HIGH, time-sensitive): reconnect GA4 on every client
+   connected before 2026-07-07 before its Testing-era token expires.
+2. B-26 (user request): Mentions view collapse/pagination/archive — scope
+   the combination with the user before building.
+3. TD-17: make the runner leave unknown job kinds queued (with delay)
+   instead of hard-failing them — removes the mixed-version deploy race.
+4. Factory Slice 2: Search Console integration (reuse GA4 OAuth pattern,
    webmasters.readonly scope) + hybrid-storage analytics fields (GSC
    property, Bing, reporting Sheet, Looker refs); extend the reporting
    cell. Also still open from Phase 1: production manifest schema, QA
@@ -947,7 +959,9 @@ Confirmed decisions:
 | TD-13 | Low | Open | skipLibCheck: true masks dep type errors | tsconfig.json |
 | TD-14 | Medium | Done | Salvo (clientId=4) run 6: 8/10 responses had a client-owned citation but zero client-brand mentions detected (all_brand_mentions=0). Root cause: brand_aliases for brand_id=4 was empty in production (v1.2.8 backfill never reached live data.db). Fixed (data-only) by adding the "Salvo Metal Works" alias via portal UI and re-parsing runs 6-8; verified live in v1.6.0 (AI SoV now 88.5%, down from an impossible 153%). | server/services/parser.ts |
 | TD-15 | Medium | Done | citationStore.listByClient, sentimentStore.listByClient, and sentimentStore.getReviewQueue all ignored their clientId parameter and returned the full response_citations / response_sentiment tables across all clients (same pattern fixed for mentionStore in v1.4.2). Fixed in v1.6.1 by joining responses_raw -> prompt_runs and filtering by client_id; feeds Citation Sources, Sentiment, and Recommendations sections on ClientDetail. | server/storage/citationStore.ts, server/storage/sentimentStore.ts |
-| TD-16 | Low | Open | Stale lsnode worker processes can survive a cPanel "Restart" of the Node app, causing env-var drift: a worker started before an env var was added/changed keeps its old `process.env` snapshot (registry.ts builds `_adapters` once at module load), so jobs claimed by that worker fail even though the env var is correctly set for new workers. Observed after adding `OPENAI_API_KEY` — 3/10 prompt-run jobs failed with "No adapter configured for platform: openai" while 7/10 (handled by the new worker) succeeded. Workaround: after changing env vars, manually `kill` any pre-existing `lsnode` PIDs via SSH so only the freshly-restarted worker remains, then requeue failed jobs via /admin/jobs. | ops/cPanel deployment |
+| TD-16 | Medium | Open | Stale lsnode worker processes can survive a cPanel "Restart" of the Node app, causing env-var drift: a worker started before an env var was added/changed keeps its old `process.env` snapshot (registry.ts builds `_adapters` once at module load), so jobs claimed by that worker fail even though the env var is correctly set for new workers. Observed after adding `OPENAI_API_KEY` — 3/10 prompt-run jobs failed with "No adapter configured for platform: openai" while 7/10 (handled by the new worker) succeeded. RECURRED during v1.29.0 QA (2026-07-07): a 3.5-day-old worker (predating v1.28.0) survived BOTH a cPanel Restart AND a full Stop/Start and kept failing factory-run jobs with "No handler registered". Only an SSH `kill <pid>` removed it. Severity raised Low->Medium: every deploy must now include the SSH `ps -eo pid,etime,cmd \| grep -i node` check + kill of old PIDs. | ops/cPanel deployment |
+| TD-17 | Medium | Open | JobRunner hard-fails jobs with unknown kinds ("No handler registered for kind: X") instead of leaving them queued. During mixed-version deploy windows (or with a TD-16 stale worker), an old worker that doesn't know a new job kind permanently fails jobs a newer worker could process; the no-handler path also ignores attempts/maxAttempts. Fix: treat unknown kind as "not mine" — skip and leave queued with a nextRunAt delay, or requeue with backoff, so a capable worker can claim it. | server/jobs/runner.ts (tick, no-handler branch) |
+| TD-18 | High | Open | All GA4 refresh tokens minted before 2026-07-07 will expire and fail with invalid_grant: the Google OAuth consent screen (project 551074775331) was in "Testing" publishing status, which caps refresh-token life at 7 days. Published to "In production" on 2026-07-07 (new tokens now long-lived), but tokens issued under Testing keep their 7-day clock — every client GA4 integration connected before that date needs a one-time Reconnect (Integrations page, tick the Analytics checkbox) before its token dies. Sweep all GA4-connected clients; done when each client's Test passes on a post-2026-07-07 connection. | ops/Google Cloud OAuth; client Integrations |
 
 ---
 
@@ -1068,6 +1082,14 @@ Confirmed decisions:
   the portal - a /help route with rendered markdown, section navigation,
   and a Help link in the top nav - so operators don't need repo access to
   read setup and troubleshooting guides.
+- B-26 Feature: Mentions view is too long (user request 2026-07-07). The
+  Mentions section on ClientDetail renders every mention unbounded. Wanted:
+  (a) collapse pattern - show top N with "Show all/Show less"; (b) real
+  pagination on GET /api/clients/:id/mentions (limit/offset, newest first)
+  instead of rendering the full table; (c) archive pattern - archived flag
+  on mentions (archived_at + archivedBy), archive/unarchive actions,
+  archived hidden by default with a "Show archived" toggle. Scope the
+  combination before building.
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
 - B-06 Session store: session expiry cleanup configuration review
 - B-15 v1 DONE (v1.15.0): Client Run-Readiness badges on /ai/clients (Ready /
