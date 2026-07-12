@@ -127,6 +127,13 @@
       "when": 1783877203083,
       "tag": "0017_lyrical_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1783896493064,
+      "tag": "0018_sleepy_jamie_braddock",
+      "breakpoints": true
     }
   ]
 }

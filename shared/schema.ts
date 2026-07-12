@@ -761,6 +761,48 @@ export type ResponseCitation = {
   isTrustedThirdParty: boolean;
 };
 
+// YLG recommendation classification (visibility spec section 6.2).
+export const RECOMMENDATION_STATUSES = [
+  "not_mentioned",
+  "incidental_mention",
+  "listed_option",
+  "recommended",
+  "strongly_recommended",
+  "first_choice",
+  "negative_or_excluded",
+] as const;
+export type RecommendationStatus = (typeof RECOMMENDATION_STATUSES)[number];
+
+export const responseRecommendations = sqliteTable("response_recommendations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  responseId: integer("response_id").notNull(),
+  brandId: integer("brand_id").notNull(),
+  status: text("status").notNull(),
+  rank: integer("rank"),
+  confidence: real("confidence").notNull().default(0),
+  evidenceExcerpt: text("evidence_excerpt"),
+  classifierVersion: text("classifier_version").notNull(),
+  // Human override retains the machine result (FR-11): status stays as
+  // classified; humanStatus carries the correction when present.
+  humanStatus: text("human_status"),
+  humanUserId: integer("human_user_id"),
+  humanAt: integer("human_at"),
+});
+
+export type ResponseRecommendation = {
+  id: number;
+  responseId: number;
+  brandId: number;
+  status: RecommendationStatus;
+  rank: number | null;
+  confidence: number;
+  evidenceExcerpt: string | null;
+  classifierVersion: string;
+  humanStatus: RecommendationStatus | null;
+  humanUserId: number | null;
+  humanAt: number | null;
+};
+
 export type MetricSnapshotDaily = {
   id: number;
   clientId: number;

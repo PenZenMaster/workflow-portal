@@ -313,6 +313,31 @@ as the leading/default choice.
 
 ---
 
+#### Recommendation Classification (added v1.33.0)
+> How strongly does the AI response present the brand as a choice?
+
+Every parsed response stores one classification per mentioned brand in
+`response_recommendations`, on a 7-status scale (visibility spec 6.2):
+`not_mentioned` (no row stored), `incidental_mention`, `listed_option`,
+`recommended`, `strongly_recommended`, `first_choice`, and
+`negative_or_excluded`.
+
+**Data sources:** deterministic rules over the parsed mentions — numbered-list
+rank (rank 1 = first_choice, other ranks = listed_option), list-section
+membership, and keyword patterns in the evidence excerpt ("highly
+recommend" = strongly_recommended, "recommend" = recommended, "avoid" /
+"not recommended" / complaint language = negative_or_excluded, which takes
+precedence over all positive signals). Each row records rank, confidence,
+the winning evidence excerpt, and `classifier_version` (currently
+`rules-1.0`) so results are reproducible. Rows are deleted and recreated
+on re-parse. An analyst override (`human_status`) is retained alongside
+the machine result, never replacing it.
+
+**What it means to the client:** being mentioned is not the same as being
+recommended. This classification feeds the upcoming Recommendation Rate
+and Recommendation Share of Voice metrics — the preferred competitive
+KPIs — which count only `listed_option` or stronger.
+
 ### 2.3 Sentiment Classification
 
 The sentiment classifier is rule-based (no AI model — fully auditable).

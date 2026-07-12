@@ -19,6 +19,7 @@ const {
   mockAliasStore,
   mockClientStore,
   mockPromptMethodologyStore,
+  mockRecommendationStore,
 } = vi.hoisted(() => ({
   mockScheduleStore: { listDue: vi.fn(), markFired: vi.fn() },
   mockPromptStore: { listByCollection: vi.fn() },
@@ -63,6 +64,7 @@ const {
   mockAliasStore: { listByBrand: vi.fn() },
   mockClientStore: { get: vi.fn() },
   mockPromptMethodologyStore: { getActive: vi.fn() },
+  mockRecommendationStore: { deleteByResponse: vi.fn(), bulkCreate: vi.fn() },
 }));
 
 vi.mock("../../../server/storage", () => ({
@@ -81,6 +83,7 @@ vi.mock("../../../server/storage", () => ({
   aliasStore: mockAliasStore,
   clientStore: mockClientStore,
   promptMethodologyStore: mockPromptMethodologyStore,
+  recommendationStore: mockRecommendationStore,
 }));
 
 type Handler = (payload: unknown, jobId: number) => Promise<void>;
@@ -278,6 +281,82 @@ describe("schedule-tick handler", () => {
       new Date("2026-06-15T10:00:00.000Z").getTime(),
       new Date("2026-06-20T09:00:00.000Z").getTime()
     );
+  });
+});
+
+describe("parse-response handler", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("classifies and stores a recommendation per mentioned brand, clearing old rows first", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 42,
+      runId: 9,
+      responseText: "Top plumbers in Seattle:\n1. Acme Plumbing - reliable emergency service\n2. Globex Plumbing - good value",
+      rawPayload: { citations: [] },
+    });
+    mockRunStore.get.mockResolvedValue({ id: 9, clientId: 10 });
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: "acme.com", createdAt: Date.now() },
+      { id: 2, clientId: 10, canonicalName: "Globex Plumbing", kind: "competitor", primaryDomain: null, createdAt: Date.now() },
+    ]);
+    mockAliasStore.listByBrand.mockImplementation(async (brandId: number) =>
+      brandId === 1
+        ? [{ id: 1, brandId: 1, aliasText: "Acme Plumbing", matchType: "exact", language: null }]
+        : [{ id: 2, brandId: 2, aliasText: "Globex Plumbing", matchType: "exact", language: null }]
+    );
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("parse-response")!({ responseId: 42 }, 1);
+
+    expect(mockRecommendationStore.deleteByResponse).toHaveBeenCalledWith(42);
+    expect(mockRecommendationStore.bulkCreate).toHaveBeenCalledTimes(1);
+    const [rows] = mockRecommendationStore.bulkCreate.mock.calls[0];
+    expect(rows).toHaveLength(2);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          responseId: 42,
+          brandId: 1,
+          status: "first_choice",
+          rank: 1,
+          classifierVersion: expect.stringMatching(/^rules-/),
+        }),
+        expect.objectContaining({
+          responseId: 42,
+          brandId: 2,
+          status: "listed_option",
+          rank: 2,
+        }),
+      ])
+    );
+  });
+
+  it("stores no recommendation rows when no tracked brand is mentioned", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 43,
+      runId: 9,
+      responseText: "Here are some general plumbing maintenance tips for homeowners.",
+      rawPayload: { citations: [] },
+    });
+    mockRunStore.get.mockResolvedValue({ id: 9, clientId: 10 });
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: "acme.com", createdAt: Date.now() },
+    ]);
+    mockAliasStore.listByBrand.mockResolvedValue([
+      { id: 1, brandId: 1, aliasText: "Acme Plumbing", matchType: "exact", language: null },
+    ]);
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("parse-response")!({ responseId: 43 }, 1);
+
+    expect(mockRecommendationStore.deleteByResponse).toHaveBeenCalledWith(43);
+    expect(mockRecommendationStore.bulkCreate).not.toHaveBeenCalled();
   });
 });
 

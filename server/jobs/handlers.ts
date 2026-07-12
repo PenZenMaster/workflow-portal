@@ -31,6 +31,7 @@ import {
   promptStore,
   mentionStore,
   citationStore,
+  recommendationStore,
   metricStore,
   sentimentStore,
   exportStore,
@@ -42,6 +43,7 @@ import {
 } from "../storage";
 import { getAdapter } from "../adapters/registry";
 import { parseResponse } from "../services/parser";
+import { classifyRecommendation, RECOMMENDATION_CLASSIFIER_VERSION } from "../services/recommendation";
 import { computeVisibilityScore } from "../services/scoring";
 import { classifySentiment } from "../services/sentiment";
 import { generateCsvLines } from "../services/csv";
@@ -156,6 +158,7 @@ export function registerJobHandlers(runner: JobRunner): void {
       // Clear old parse results (for re-runs).
       await mentionStore.deleteByResponse(responseId);
       await citationStore.deleteByResponse(responseId);
+      await recommendationStore.deleteByResponse(responseId);
 
       const { mentions, citations } = parseResponse(
         response.responseText,
@@ -175,6 +178,28 @@ export function registerJobHandlers(runner: JobRunner): void {
         );
       }
 
+      // Classify one recommendation row per mentioned brand. Absence of
+      // a row means not_mentioned - no rows are stored for unmentioned
+      // brands.
+      const mentionedBrandIds = Array.from(new Set(mentions.map((m) => m.brandId)));
+      const recommendationRows = mentionedBrandIds.map((brandId) => {
+        const classification = classifyRecommendation(
+          mentions.filter((m) => m.brandId === brandId)
+        );
+        return {
+          responseId,
+          brandId,
+          status: classification.status,
+          rank: classification.rank,
+          confidence: classification.confidence,
+          evidenceExcerpt: classification.evidenceExcerpt,
+          classifierVersion: RECOMMENDATION_CLASSIFIER_VERSION,
+        };
+      });
+      if (recommendationRows.length > 0) {
+        await recommendationStore.bulkCreate(recommendationRows);
+      }
+
       // Chain downstream jobs.
       runner.enqueue("sentiment-classify", { responseId });
       runner.enqueue("aggregate-snapshot-daily", { clientId: run.clientId });
@@ -183,6 +208,7 @@ export function registerJobHandlers(runner: JobRunner): void {
         responseId,
         mentions: mentions.length,
         citations: citations.length,
+        recommendations: recommendationRows.length,
       });
     },
   });

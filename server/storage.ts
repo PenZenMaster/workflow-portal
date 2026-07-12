@@ -18,6 +18,7 @@ import { ResponseStore } from "./storage/responseStore";
 import { ScheduleStore } from "./storage/scheduleStore";
 import { MentionStore } from "./storage/mentionStore";
 import { CitationStore } from "./storage/citationStore";
+import { RecommendationStore } from "./storage/recommendationStore";
 import { MetricStore } from "./storage/metricStore";
 import { SentimentStore } from "./storage/sentimentStore";
 import { AnnotationStore } from "./storage/annotationStore";
@@ -328,6 +329,19 @@ export const SCHEMA_SQL = `
     position INTEGER NOT NULL,
     is_trusted_third_party INTEGER NOT NULL DEFAULT 0
   );
+  CREATE TABLE IF NOT EXISTS response_recommendations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    response_id INTEGER NOT NULL,
+    brand_id INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    rank INTEGER,
+    confidence REAL NOT NULL DEFAULT 0,
+    evidence_excerpt TEXT,
+    classifier_version TEXT NOT NULL,
+    human_status TEXT,
+    human_user_id INTEGER,
+    human_at INTEGER
+  );
   CREATE TABLE IF NOT EXISTS metric_snapshots_daily (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL,
@@ -468,6 +482,7 @@ export const responseStore = new ResponseStore(db);
 export const scheduleStore = new ScheduleStore(db);
 export const mentionStore = new MentionStore(db);
 export const citationStore = new CitationStore(db);
+export const recommendationStore = new RecommendationStore(db);
 export const metricStore = new MetricStore(db);
 export const sentimentStore = new SentimentStore(db);
 export const annotationStore = new AnnotationStore(db);

@@ -1,7 +1,7 @@
 ## Resume From
 
 Last session: 2026-07-12
-Branch: main | Version: v1.32.0 | 798 tests passing
+Branch: main | Version: v1.33.0 | 818 tests passing
 
 Session 2026-07-12: v1.30.1 DEPLOYED to production and smoke tested
 (user-confirmed). YLG program kickoff: reviewed the two spec docs now in
@@ -89,21 +89,26 @@ with a 24h grace window before terminal failure (capped variant chosen
 by user — no eternal requeue loops for typo'd or retired kinds).
 
 Next session priorities:
-1. Deploy v1.32.0 (carries v1.31.0 schema + migration 0017 and the
-   v1.32.0 generator safety work; neither yet deployed). QA on
-   production: run Generate with AI on a real collection — verify intent
-   badges, branded/non-branded, rejected count + warnings render; save
-   selected and confirm intent_type/brand_in_prompt persist; verify a
-   cross-client generate URL 404s. Remember the TD-16 stale-worker check
-   on restart.
-2. YLG foundation sprint COMPLETE (v1.31.0 + v1.32.0, see Post-Sprint
-   Work below). Known gaps deferred by design: core_services has no UI
-   yet (set via API or DB until the client-profile form lands);
-   generation-source (adapter/model) display awaits the provenance
-   tables. Next YLG sprint: recommendation classifier (7-status scale,
-   evidence, confidence, human override) + source-domain registry +
-   golden dataset + prompt_generation_runs provenance (visibility doc
-   section 16 / prompt-gen doc Phase 4).
+1. Deploy v1.33.0 (recommendation classifier, migration 0018; v1.32.0
+   already live and QA-passed 2026-07-12). Post-deploy: re-parse a run
+   (RunDetail > Re-parse responses) so existing responses get
+   recommendation rows, then spot-check response_recommendations against
+   the response text. TD-16 stale-worker check on restart.
+2. YLG defensibility sprint continues. DONE: recommendation classifier
+   v1.33.0 (7-status, rank, confidence, evidence, classifier_version,
+   human-override columns; classifier tests double as the golden-dataset
+   start). NEXT slices, in order:
+   a. Source-domain registry + citation classification during parsing
+      (fixes isTrustedThirdParty always false; 8 source classes from
+      visibility doc 6.3).
+   b. Non-branded mention + recommendation rate endpoints (needs
+      prompts.brand_in_prompt populated on real panels) + Recommendation
+      SoV.
+   c. prompt_generation_runs provenance tables (prompt-gen doc Phase 4).
+   d. Human-override endpoint/UI for recommendations (store method
+      setHumanStatus already exists).
+3. Known gaps deferred by design: core_services has no UI yet;
+   generation-source display awaits provenance tables.
 3. Factory Slice 2 (DEFERRED behind YLG work): Search Console integration
    (reuse GA4 OAuth pattern,
    webmasters.readonly scope) + hybrid-storage analytics fields (GSC
@@ -196,6 +201,43 @@ Pick up from:
 4. Still open: Groq API access pending (GROQ_API_KEY for pre-production);
    backlog B-17, B-15 v2, B-14. See Tech Debt Register and Backlog below
    for full priority list.
+
+---
+
+## Post-Sprint Work This Session (v1.33.0, 2026-07-12)
+
+- feat(classifier): YLG recommendation classifier (defensibility sprint
+  slice 1). Migration 0018_sleepy_jamie_braddock.sql.
+  - shared/schema.ts: RECOMMENDATION_STATUSES 7-status scale
+    (not_mentioned, incidental_mention, listed_option, recommended,
+    strongly_recommended, first_choice, negative_or_excluded) +
+    response_recommendations table (status, rank, confidence,
+    evidence_excerpt, classifier_version, human_status/human_user_id/
+    human_at override columns) + ResponseRecommendation type.
+  - server/services/recommendation.ts (new): deterministic rules
+    classifier (classifier_version "rules-1.0") — negative patterns
+    checked first ("not recommended" never matches the plain "recommend"
+    rule) and take precedence over all positives; numbered-list rank 1 =
+    first_choice (0.9), other ranks = listed_option (0.9); "highly
+    recommend"/"best overall"/"top pick" = strongly_recommended (0.8);
+    plain "recommend"/"suggest" = recommended (0.7); unranked list
+    membership = listed_option (0.7); anything else = incidental_mention
+    (0.6). Strongest signal + best (lowest) rank win across mentions;
+    winning mention's excerpt is the stored evidence.
+  - server/storage/recommendationStore.ts (new): listByResponse,
+    client-scoped listByClient (responses_raw -> prompt_runs join, leak-
+    safe from day one), bulkCreate, deleteByResponse, setHumanStatus
+    (override retained alongside machine result, FR-11).
+  - server/jobs/handlers.ts (parse-response): deletes + recreates one
+    recommendation row per mentioned brand on every parse/re-parse; no
+    rows stored for unmentioned brands (absence = not_mentioned).
+  - docs/system-documentation.md: new Section 2.2 "Recommendation
+    Classification" entry (rules, precedence, provenance, client
+    meaning).
+  - TDD: 20 new tests written first and confirmed failing — 13 classifier
+    (golden-dataset style: numbered lists, bullets, prose, negatives,
+    multi-mention precedence), 5 store (incl. cross-client isolation
+    regression), 2 parse-response wiring. 818 tests passing.
 
 ---
 
