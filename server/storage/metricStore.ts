@@ -35,10 +35,13 @@ function hydrate(row: Row): MetricSnapshotDaily {
     clientBrandMentions: row.clientBrandMentions,
     visibilityScoreSum: row.visibilityScoreSum,
     promptResponseCount: row.promptResponseCount,
+    methodologyVersion: row.methodologyVersion,
   };
 }
 
-type SnapshotInput = Omit<MetricSnapshotDaily, "id">;
+type SnapshotInput = Omit<MetricSnapshotDaily, "id" | "methodologyVersion"> & {
+  methodologyVersion?: string;
+};
 
 export interface AggregateResult {
   totalCitations: number;
@@ -84,6 +87,7 @@ export class MetricStore implements IMetricStore {
           clientBrandMentions: data.clientBrandMentions,
           visibilityScoreSum: data.visibilityScoreSum,
           promptResponseCount: data.promptResponseCount,
+          methodologyVersion: data.methodologyVersion ?? "1.0",
         })
         .where(eq(metricSnapshotsDaily.id, existing.id))
         .returning()
@@ -104,6 +108,7 @@ export class MetricStore implements IMetricStore {
         clientBrandMentions: data.clientBrandMentions,
         visibilityScoreSum: data.visibilityScoreSum,
         promptResponseCount: data.promptResponseCount,
+        methodologyVersion: data.methodologyVersion ?? "1.0",
       })
       .returning()
       .get();

@@ -190,6 +190,15 @@ When a run is triggered:
 
 ### 2.2 Metric Definitions and Formulas
 
+**Methodology versioning (added v1.31.0):** every daily metric snapshot row
+(`metric_snapshots_daily.methodology_version`) records the YLG methodology
+version that was active when it was aggregated. Historical snapshots keep
+the version they were calculated under, so a future scoring change never
+silently rewrites old reports. The active methodology (currently 1.0:
+30-prompt panel, 24 non-branded / 6 branded, 3 replicates on non-branded,
+monthly full run + weekly 8-prompt sentinel) lives in the
+`prompt_methodologies` table and is seeded automatically on startup.
+
 #### Citation Frequency
 > What share of AI responses directly cite the client's website?
 
@@ -373,6 +382,21 @@ Each recommendation includes evidence (the data that triggered it) and a suggest
 - Organize prompts by category so you can filter results by type
 
 ### 3.2 Prompt Categories
+
+**YLG intent taxonomy (added v1.31.0):** alongside the legacy category,
+every prompt can now carry measurement metadata: an `intent_type` from the
+canonical 8-type YLG taxonomy (`provider_recommendation`,
+`service_specific`, `geographic_discovery`, `problem_solution`,
+`comparison`, `trust_validation`, `brand_validation`, `alternative`), a
+`brand_in_prompt` flag separating non-branded discovery from branded
+validation, plus `service`, `prompt_family`, `commercial_value`, and
+`measurement_purpose`. The `geo` field doubles as the YLG "location"
+attribute. Existing prompts were backfilled from their category
+(informational/commercial -> provider_recommendation, comparative ->
+comparison, local -> geographic_discovery, problem_aware ->
+problem_solution, alternative -> alternative); `brand_in_prompt` is left
+unset until validated. The legacy categories below remain supported while
+the UI migrates to intent types.
 
 The portal supports seven prompt categories. Use each to cover different stages of the buyer journey.
 

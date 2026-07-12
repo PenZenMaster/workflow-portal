@@ -164,6 +164,7 @@ export const clients = sqliteTable("clients", {
   primaryDomain: text("primary_domain").notNull(),
   geographies: text("geographies").notNull().default("[]"), // JSON string[]
   exclusions: text("exclusions").notNull().default("[]"),   // JSON string[]
+  coreServices: text("core_services").notNull().default("[]"), // JSON string[]
   ownerUserId: integer("owner_user_id"),
   deletedAt: integer("deleted_at"),
   createdAt: integer("created_at").notNull(),
@@ -208,6 +209,7 @@ export const insertClientSchema = z.object({
   primaryDomain: z.string().min(1, "Primary domain is required"),
   geographies: z.array(z.string()).default([]),
   exclusions: z.array(z.string()).default([]),
+  coreServices: z.array(z.string()).default([]),
   ownerUserId: z.number().int().optional(),
 });
 
@@ -248,6 +250,7 @@ export type Client = {
   primaryDomain: string;
   geographies: string[];
   exclusions: string[];
+  coreServices: string[];
   ownerUserId: number | null;
   createdAt: number;
   updatedAt: number;
@@ -297,6 +300,33 @@ export const PROMPT_CATEGORIES = [
 ] as const;
 export type PromptCategory = (typeof PROMPT_CATEGORIES)[number];
 
+// Canonical YLG intent taxonomy (locked 2026-07-12). category is retained
+// for backward compatibility during migration; intent_type is the
+// measurement-oriented replacement.
+export const PROMPT_INTENT_TYPES = [
+  "provider_recommendation",
+  "service_specific",
+  "geographic_discovery",
+  "problem_solution",
+  "comparison",
+  "trust_validation",
+  "brand_validation",
+  "alternative",
+] as const;
+export type PromptIntentType = (typeof PROMPT_INTENT_TYPES)[number];
+
+export const COMMERCIAL_VALUES = ["low", "medium", "high"] as const;
+export type CommercialValue = (typeof COMMERCIAL_VALUES)[number];
+
+export const MEASUREMENT_PURPOSES = [
+  "mention",
+  "recommendation",
+  "citation",
+  "comparison",
+  "validation",
+] as const;
+export type MeasurementPurpose = (typeof MEASUREMENT_PURPOSES)[number];
+
 export const FUNNEL_STAGES = ["awareness", "consideration", "decision"] as const;
 export type FunnelStage = (typeof FUNNEL_STAGES)[number];
 
@@ -326,14 +356,31 @@ export const prompts = sqliteTable("prompts", {
   text: text("text").notNull(),
   category: text("category").notNull().default("category"),
   funnelStage: text("funnel_stage").notNull().default("awareness"),
-  geo: text("geo"),
+  geo: text("geo"), // doubles as the YLG "location" attribute
   deviceContext: text("device_context"),
   priorityWeight: real("priority_weight").notNull().default(1.0),
   status: text("status").notNull().default("active"), // 'draft' | 'active'
   targetPlatforms: text("target_platforms").notNull().default("[]"), // JSON string[]
   position: integer("position").notNull().default(0),
+  // YLG measurement metadata (nullable = not yet classified)
+  intentType: text("intent_type"),
+  brandInPrompt: integer("brand_in_prompt"), // 0 | 1 | null (null = unvalidated)
+  service: text("service"),
+  promptFamily: text("prompt_family"),
+  commercialValue: text("commercial_value"),
+  measurementPurpose: text("measurement_purpose"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
+});
+
+export const promptMethodologies = sqliteTable("prompt_methodologies", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  version: text("version").notNull().unique(),
+  status: text("status").notNull().default("active"), // 'draft' | 'active' | 'retired'
+  quotas: text("quotas").notNull().default("{}"),               // JSON MethodologyQuotas
+  validationRules: text("validation_rules").notNull().default("{}"), // JSON
+  effectiveAt: integer("effective_at"),
+  createdAt: integer("created_at").notNull(),
 });
 
 export const insertPromptCollectionSchema = z.object({
@@ -351,6 +398,12 @@ export const insertPromptSchema = z.object({
   status: z.enum(["draft", "active"]).default("active"),
   targetPlatforms: z.array(z.string()).default([]),
   position: z.number().int().default(0),
+  intentType: z.enum(PROMPT_INTENT_TYPES).optional(),
+  brandInPrompt: z.boolean().optional(),
+  service: z.string().optional(),
+  promptFamily: z.string().optional(),
+  commercialValue: z.enum(COMMERCIAL_VALUES).optional(),
+  measurementPurpose: z.enum(MEASUREMENT_PURPOSES).optional(),
 });
 
 export const bulkInsertPromptsSchema = z.object({
@@ -436,8 +489,34 @@ export type Prompt = {
   status: "draft" | "active";
   targetPlatforms: string[];
   position: number;
+  intentType: PromptIntentType | null;
+  brandInPrompt: boolean | null;
+  service: string | null;
+  promptFamily: string | null;
+  commercialValue: CommercialValue | null;
+  measurementPurpose: MeasurementPurpose | null;
   createdAt: number;
   updatedAt: number;
+};
+
+export type MethodologyQuotas = {
+  panelSize: number;
+  nonBranded: number;
+  branded: number;
+  intentQuotas: Record<string, number>;
+  replicates: { nonBranded: number; branded: number };
+  surfaces: string[];
+  cadence: { full: string; sentinel: string; sentinelSize: number };
+};
+
+export type PromptMethodology = {
+  id: number;
+  version: string;
+  status: "draft" | "active" | "retired";
+  quotas: MethodologyQuotas;
+  validationRules: Record<string, unknown>;
+  effectiveAt: number | null;
+  createdAt: number;
 };
 
 // --- AI Visibility: Integrations ------------------------------------------
@@ -644,6 +723,7 @@ export const metricSnapshotsDaily = sqliteTable("metric_snapshots_daily", {
   clientBrandMentions: integer("client_brand_mentions").notNull().default(0),
   visibilityScoreSum: real("visibility_score_sum").notNull().default(0),
   promptResponseCount: integer("prompt_response_count").notNull().default(0),
+  methodologyVersion: text("methodology_version").notNull().default("1.0"),
 });
 
 export type ResponseMention = {
@@ -680,6 +760,7 @@ export type MetricSnapshotDaily = {
   clientBrandMentions: number;
   visibilityScoreSum: number;
   promptResponseCount: number;
+  methodologyVersion: string;
 };
 
 // --- AI Visibility: Runs, Responses, Schedules ----------------------------

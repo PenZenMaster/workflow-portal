@@ -38,6 +38,7 @@ import {
   brandStore,
   aliasStore,
   clientStore,
+  promptMethodologyStore,
 } from "../storage";
 import { getAdapter } from "../adapters/registry";
 import { parseResponse } from "../services/parser";
@@ -332,6 +333,8 @@ export function registerJobHandlers(runner: JobRunner): void {
         }
       }
 
+      const methodology = await promptMethodologyStore.getActive();
+
       await metricStore.upsert({
         clientId,
         dateIso: today,
@@ -343,6 +346,7 @@ export function registerJobHandlers(runner: JobRunner): void {
         clientBrandMentions,
         visibilityScoreSum,
         promptResponseCount,
+        methodologyVersion: methodology?.version ?? "1.0",
       });
 
       logger.info("aggregate-snapshot-daily: complete", { clientId, today });

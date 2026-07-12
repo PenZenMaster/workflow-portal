@@ -325,6 +325,51 @@ describe("PromptStore", () => {
     expect(list).toHaveLength(1);
   });
 
+  it("create persists YLG measurement metadata fields", async () => {
+    const p = await store.create(collectionId, {
+      ...SAMPLE_PROMPT,
+      intentType: "provider_recommendation" as const,
+      brandInPrompt: false,
+      service: "commercial roofing",
+      promptFamily: "roofers-grand-rapids",
+      commercialValue: "high" as const,
+      measurementPurpose: "recommendation" as const,
+    });
+    expect(p.intentType).toBe("provider_recommendation");
+    expect(p.brandInPrompt).toBe(false);
+    expect(p.service).toBe("commercial roofing");
+    expect(p.promptFamily).toBe("roofers-grand-rapids");
+    expect(p.commercialValue).toBe("high");
+    expect(p.measurementPurpose).toBe("recommendation");
+
+    const [listed] = await store.listByCollection(collectionId);
+    expect(listed.intentType).toBe("provider_recommendation");
+    expect(listed.brandInPrompt).toBe(false);
+  });
+
+  it("create defaults YLG measurement metadata to null when omitted", async () => {
+    const p = await store.create(collectionId, SAMPLE_PROMPT);
+    expect(p.intentType).toBeNull();
+    expect(p.brandInPrompt).toBeNull();
+    expect(p.service).toBeNull();
+    expect(p.promptFamily).toBeNull();
+    expect(p.commercialValue).toBeNull();
+    expect(p.measurementPurpose).toBeNull();
+  });
+
+  it("update carries YLG measurement metadata fields", async () => {
+    const p = await store.create(collectionId, SAMPLE_PROMPT);
+    const updated = await store.update(p.id, {
+      ...SAMPLE_PROMPT,
+      intentType: "brand_validation" as const,
+      brandInPrompt: true,
+      measurementPurpose: "validation" as const,
+    });
+    expect(updated?.intentType).toBe("brand_validation");
+    expect(updated?.brandInPrompt).toBe(true);
+    expect(updated?.measurementPurpose).toBe("validation");
+  });
+
   it("bulkCreate inserts multiple prompts in one call", async () => {
     const input = [
       { ...SAMPLE_PROMPT, text: "Prompt 1" },

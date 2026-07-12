@@ -209,6 +209,15 @@ describe("MetricStore", () => {
     promptResponseCount: 10,
   };
 
+  it("stores methodologyVersion, defaulting to 1.0 when omitted", async () => {
+    const s = await store.upsert(SAMPLE_SNAPSHOT);
+    expect(s.methodologyVersion).toBe("1.0");
+
+    const s2 = await store.upsert({ ...SAMPLE_SNAPSHOT, methodologyVersion: "2.0" });
+    expect(s2.methodologyVersion).toBe("2.0");
+    expect(s2.id).toBe(s.id);
+  });
+
   it("creates a snapshot", async () => {
     const s = await store.upsert(SAMPLE_SNAPSHOT);
     expect(s.citationCount).toBe(5);

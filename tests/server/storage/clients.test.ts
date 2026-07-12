@@ -50,6 +50,25 @@ describe("ClientStore", () => {
     expect(updated?.name).toBe("Acme Updated");
   });
 
+  it("round-trips coreServices through create and update", async () => {
+    const c = await store.create({
+      ...SAMPLE_CLIENT,
+      coreServices: ["roof repair", "metal roofing"],
+    });
+    expect(c.coreServices).toEqual(["roof repair", "metal roofing"]);
+
+    const updated = await store.update(c.id, {
+      ...SAMPLE_CLIENT,
+      coreServices: ["foundation repair"],
+    });
+    expect(updated?.coreServices).toEqual(["foundation repair"]);
+  });
+
+  it("defaults coreServices to an empty array when omitted", async () => {
+    const c = await store.create(SAMPLE_CLIENT);
+    expect(c.coreServices).toEqual([]);
+  });
+
   it("returns undefined for unknown id", async () => {
     expect(await store.get(9999)).toBeUndefined();
   });

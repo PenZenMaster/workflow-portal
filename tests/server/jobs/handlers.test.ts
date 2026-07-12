@@ -18,6 +18,7 @@ const {
   mockBrandStore,
   mockAliasStore,
   mockClientStore,
+  mockPromptMethodologyStore,
 } = vi.hoisted(() => ({
   mockScheduleStore: { listDue: vi.fn(), markFired: vi.fn() },
   mockPromptStore: { listByCollection: vi.fn() },
@@ -61,6 +62,7 @@ const {
   mockBrandStore: { listByClient: vi.fn() },
   mockAliasStore: { listByBrand: vi.fn() },
   mockClientStore: { get: vi.fn() },
+  mockPromptMethodologyStore: { getActive: vi.fn() },
 }));
 
 vi.mock("../../../server/storage", () => ({
@@ -78,6 +80,7 @@ vi.mock("../../../server/storage", () => ({
   brandStore: mockBrandStore,
   aliasStore: mockAliasStore,
   clientStore: mockClientStore,
+  promptMethodologyStore: mockPromptMethodologyStore,
 }));
 
 type Handler = (payload: unknown, jobId: number) => Promise<void>;
@@ -274,6 +277,54 @@ describe("schedule-tick handler", () => {
       2,
       new Date("2026-06-15T10:00:00.000Z").getTime(),
       new Date("2026-06-20T09:00:00.000Z").getTime()
+    );
+  });
+});
+
+describe("aggregate-snapshot-daily handler", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("stamps the snapshot with the active methodology version", async () => {
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme", kind: "client", primaryDomain: null, createdAt: Date.now() },
+    ]);
+    mockRunStore.listByClient.mockResolvedValue([]);
+    mockPromptMethodologyStore.getActive.mockResolvedValue({
+      id: 1,
+      version: "1.0",
+      status: "active",
+      quotas: {},
+      validationRules: {},
+      effectiveAt: null,
+      createdAt: Date.now(),
+    });
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("aggregate-snapshot-daily")!({ clientId: 10 }, 1);
+
+    expect(mockMetricStore.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: 10, methodologyVersion: "1.0" })
+    );
+  });
+
+  it("falls back to methodology 1.0 when no active methodology exists", async () => {
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme", kind: "client", primaryDomain: null, createdAt: Date.now() },
+    ]);
+    mockRunStore.listByClient.mockResolvedValue([]);
+    mockPromptMethodologyStore.getActive.mockResolvedValue(undefined);
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("aggregate-snapshot-daily")!({ clientId: 10 }, 1);
+
+    expect(mockMetricStore.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ methodologyVersion: "1.0" })
     );
   });
 });

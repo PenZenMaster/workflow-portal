@@ -14,7 +14,15 @@
  */
 
 import { prompts } from "@shared/schema";
-import type { Prompt, InsertPrompt, PromptCategory, FunnelStage } from "@shared/schema";
+import type {
+  Prompt,
+  InsertPrompt,
+  PromptCategory,
+  FunnelStage,
+  PromptIntentType,
+  CommercialValue,
+  MeasurementPurpose,
+} from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
@@ -34,9 +42,20 @@ function hydrate(row: Row): Prompt {
     status: row.status as "draft" | "active",
     targetPlatforms: JSON.parse(row.targetPlatforms || "[]") as string[],
     position: row.position,
+    intentType: row.intentType as PromptIntentType | null,
+    brandInPrompt: row.brandInPrompt === null ? null : row.brandInPrompt === 1,
+    service: row.service,
+    promptFamily: row.promptFamily,
+    commercialValue: row.commercialValue as CommercialValue | null,
+    measurementPurpose: row.measurementPurpose as MeasurementPurpose | null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+function brandInPromptToDb(value: boolean | undefined): number | null {
+  if (value === undefined) return null;
+  return value ? 1 : 0;
 }
 
 function toValues(collectionId: number, data: InsertPrompt, now: number) {
@@ -51,6 +70,12 @@ function toValues(collectionId: number, data: InsertPrompt, now: number) {
     status: data.status ?? "active",
     targetPlatforms: JSON.stringify(data.targetPlatforms ?? []),
     position: data.position ?? 0,
+    intentType: data.intentType ?? null,
+    brandInPrompt: brandInPromptToDb(data.brandInPrompt),
+    service: data.service ?? null,
+    promptFamily: data.promptFamily ?? null,
+    commercialValue: data.commercialValue ?? null,
+    measurementPurpose: data.measurementPurpose ?? null,
     createdAt: now,
     updatedAt: now,
   };
@@ -120,6 +145,15 @@ export class PromptStore implements IPromptStore {
         status: data.status ?? existing.status,
         targetPlatforms: JSON.stringify(data.targetPlatforms ?? []),
         position: data.position ?? existing.position,
+        intentType: data.intentType ?? existing.intentType,
+        brandInPrompt:
+          data.brandInPrompt === undefined
+            ? existing.brandInPrompt
+            : brandInPromptToDb(data.brandInPrompt),
+        service: data.service ?? existing.service,
+        promptFamily: data.promptFamily ?? existing.promptFamily,
+        commercialValue: data.commercialValue ?? existing.commercialValue,
+        measurementPurpose: data.measurementPurpose ?? existing.measurementPurpose,
         updatedAt: now,
       })
       .where(eq(prompts.id, id))

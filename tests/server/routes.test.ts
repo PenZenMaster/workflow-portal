@@ -23,6 +23,8 @@ vi.mock("../../server/storage", () => ({
   storage: mockStorage,
   // Sprint 2: platformStore.seedDefaults() is called in the route aggregator.
   platformStore: { seedDefaults: vi.fn().mockResolvedValue(undefined) },
+  // v1.31.0: promptMethodologyStore.seedDefaults() is called there too.
+  promptMethodologyStore: { seedDefaults: vi.fn().mockResolvedValue(undefined) },
 }));
 vi.mock("../../server/seed", () => ({ seedIfEmpty: vi.fn() }));
 

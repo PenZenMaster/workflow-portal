@@ -1,7 +1,7 @@
 ## Resume From
 
 Last session: 2026-07-12
-Branch: main | Version: v1.30.1 | 777 tests passing
+Branch: main | Version: v1.31.0 | 790 tests passing
 
 Session 2026-07-12: v1.30.1 DEPLOYED to production and smoke tested
 (user-confirmed). YLG program kickoff: reviewed the two spec docs now in
@@ -89,11 +89,12 @@ with a 24h grace window before terminal failure (capped variant chosen
 by user — no eternal requeue loops for typo'd or retired kinds).
 
 Next session priorities:
-1. YLG foundation sprint (IN PROGRESS this session): v1.31.0 prompt
-   metadata schema + prompt_methodologies (seeded v1.0) +
-   metric_snapshots_daily.methodology_version + clients.core_services;
-   then v1.32.0 generator safety (ownership validation, expanded context,
-   parse diagnostics, exact-duplicate detection, review-UI metadata).
+1. YLG foundation sprint: v1.31.0 (metadata schema + methodology
+   versioning) SHIPPED this session — see Post-Sprint Work below. Next
+   slice: v1.32.0 generator safety (FR-01 ownership validation, expanded
+   GenerationContext with coreServices/exclusions, parse diagnostics
+   instead of silent drops, exact-duplicate detection, review-UI
+   metadata + warnings). NOTE: v1.31.0 not yet deployed.
 2. YLG next sprint: recommendation classifier (7-status scale, evidence,
    confidence, human override) + source-domain registry + golden dataset
    (visibility doc section 16).
@@ -189,6 +190,38 @@ Pick up from:
 4. Still open: Groq API access pending (GROQ_API_KEY for pre-production);
    backlog B-17, B-15 v2, B-14. See Tech Debt Register and Backlog below
    for full priority list.
+
+---
+
+## Post-Sprint Work This Session (v1.31.0, 2026-07-12)
+
+- feat(prompts): YLG measurement metadata schema + methodology versioning
+  (foundation sprint slice 1 of 2). Migration 0017_lyrical_cannonball.sql.
+  - shared/schema.ts: canonical 8-type PROMPT_INTENT_TYPES enum (locked
+    2026-07-12), COMMERCIAL_VALUES, MEASUREMENT_PURPOSES; prompts gains
+    intent_type, brand_in_prompt (nullable = unvalidated), service,
+    prompt_family, commercial_value, measurement_purpose (geo doubles as
+    the YLG "location"); new prompt_methodologies table + PromptMethodology
+    / MethodologyQuotas types; clients.core_services JSON column;
+    metric_snapshots_daily.methodology_version (default '1.0').
+  - Migration backfills intent_type from category (informational/
+    commercial -> provider_recommendation, comparative -> comparison,
+    local -> geographic_discovery, problem_aware -> problem_solution,
+    alternative -> alternative; unknown/legacy values stay NULL).
+  - server/storage/promptMethodologyStore.ts (new): METHODOLOGY_V1_QUOTAS
+    (approved 30-prompt panel, replicates, surfaces, cadence), getActive(),
+    getByVersion(), list(), idempotent seedDefaults() (INSERT OR IGNORE on
+    version), called from routes/index.ts on startup.
+  - promptStore/clientStore/metricStore hydrate + write paths carry the
+    new fields; metricStore.upsert accepts optional methodologyVersion
+    (defaults '1.0'); aggregate-snapshot-daily stamps each snapshot with
+    the active methodology version.
+  - docs/system-documentation.md: Section 2.2 methodology-versioning note,
+    Section 3.2 YLG intent taxonomy + backfill mapping.
+  - TDD: 13 new tests written first and confirmed failing (5 methodology
+    store, 3 prompt store, 2 client store, 1 metric store, 2 aggregate
+    handler); routes.test.ts storage mock gained promptMethodologyStore.
+    790 tests passing.
 
 ---
 

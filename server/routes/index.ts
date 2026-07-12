@@ -17,7 +17,7 @@
 import type { Express } from "express";
 import type { Server } from "node:http";
 import { seedIfEmpty } from "../seed";
-import { platformStore } from "../storage";
+import { platformStore, promptMethodologyStore } from "../storage";
 import { registerAuthRoutes } from "./auth";
 import { registerWorkflowRoutes } from "./workflows";
 import { registerClientRoutes } from "./clients";
@@ -37,9 +37,11 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Seed workflow catalog and default AI platforms on first run.
+  // Seed workflow catalog, default AI platforms, and the YLG prompt
+  // methodology on first run.
   seedIfEmpty();
   await platformStore.seedDefaults();
+  await promptMethodologyStore.seedDefaults();
 
   registerAuthRoutes(app);
   registerWorkflowRoutes(app);

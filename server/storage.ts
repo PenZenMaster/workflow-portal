@@ -12,6 +12,7 @@ import { ClientUserStore } from "./storage/clientUserStore";
 import { PlatformStore } from "./storage/platformStore";
 import { PromptCollectionStore } from "./storage/promptCollectionStore";
 import { PromptStore } from "./storage/promptStore";
+import { PromptMethodologyStore } from "./storage/promptMethodologyStore";
 import { RunStore } from "./storage/runStore";
 import { ResponseStore } from "./storage/responseStore";
 import { ScheduleStore } from "./storage/scheduleStore";
@@ -134,6 +135,7 @@ export const SCHEMA_SQL = `
     primary_domain TEXT NOT NULL,
     geographies TEXT NOT NULL DEFAULT '[]',
     exclusions TEXT NOT NULL DEFAULT '[]',
+    core_services TEXT NOT NULL DEFAULT '[]',
     owner_user_id INTEGER,
     deleted_at INTEGER,
     created_at INTEGER NOT NULL,
@@ -197,8 +199,23 @@ export const SCHEMA_SQL = `
     status TEXT NOT NULL DEFAULT 'active',
     target_platforms TEXT NOT NULL DEFAULT '[]',
     position INTEGER NOT NULL DEFAULT 0,
+    intent_type TEXT,
+    brand_in_prompt INTEGER,
+    service TEXT,
+    prompt_family TEXT,
+    commercial_value TEXT,
+    measurement_purpose TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS prompt_methodologies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    version TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'active',
+    quotas TEXT NOT NULL DEFAULT '{}',
+    validation_rules TEXT NOT NULL DEFAULT '{}',
+    effective_at INTEGER,
+    created_at INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS prompt_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -322,7 +339,8 @@ export const SCHEMA_SQL = `
     all_brand_mentions INTEGER NOT NULL DEFAULT 0,
     client_brand_mentions INTEGER NOT NULL DEFAULT 0,
     visibility_score_sum REAL NOT NULL DEFAULT 0,
-    prompt_response_count INTEGER NOT NULL DEFAULT 0
+    prompt_response_count INTEGER NOT NULL DEFAULT 0,
+    methodology_version TEXT NOT NULL DEFAULT '1.0'
   );
   CREATE TABLE IF NOT EXISTS run_schedules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -444,6 +462,7 @@ export const clientUserStore = new ClientUserStore(db);
 export const platformStore = new PlatformStore(db);
 export const promptCollectionStore = new PromptCollectionStore(db);
 export const promptStore = new PromptStore(db);
+export const promptMethodologyStore = new PromptMethodologyStore(db);
 export const runStore = new RunStore(db);
 export const responseStore = new ResponseStore(db);
 export const scheduleStore = new ScheduleStore(db);

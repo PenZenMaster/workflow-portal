@@ -28,6 +28,7 @@ function hydrate(row: Row): Client {
     primaryDomain: row.primaryDomain,
     geographies: JSON.parse(row.geographies || "[]") as string[],
     exclusions: JSON.parse(row.exclusions || "[]") as string[],
+    coreServices: JSON.parse(row.coreServices || "[]") as string[],
     ownerUserId: row.ownerUserId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -74,6 +75,7 @@ export class ClientStore implements IClientStore {
         primaryDomain: data.primaryDomain,
         geographies: JSON.stringify(data.geographies ?? []),
         exclusions: JSON.stringify(data.exclusions ?? []),
+        coreServices: JSON.stringify(data.coreServices ?? []),
         ownerUserId: data.ownerUserId ?? null,
         createdAt: now,
         updatedAt: now,
@@ -98,6 +100,7 @@ export class ClientStore implements IClientStore {
         primaryDomain: data.primaryDomain,
         geographies: JSON.stringify(data.geographies ?? []),
         exclusions: JSON.stringify(data.exclusions ?? []),
+        coreServices: JSON.stringify(data.coreServices ?? []),
         ownerUserId: data.ownerUserId ?? null,
         updatedAt: now,
       })
