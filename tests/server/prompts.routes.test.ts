@@ -83,7 +83,8 @@ const SAMPLE_CLIENT = {
   name: "Acme Plumbing",
   primaryDomain: "acmeplumbing.com",
   geographies: ["Seattle, WA"],
-  exclusions: [],
+  exclusions: ["septic services"],
+  coreServices: ["drain cleaning"],
   ownerUserId: null,
   createdAt: Date.now(),
   updatedAt: Date.now(),
@@ -505,10 +506,22 @@ describe("POST /api/clients/:clientId/prompt-collections/:id/generate-prompts", 
     expect(res.body.code).toBe("COLLECTION_NOT_FOUND");
   });
 
+  it("returns 404 when the collection belongs to a different client (FR-01)", async () => {
+    mockClientStore.get.mockResolvedValue({ ...SAMPLE_CLIENT, id: 11 });
+    mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION); // clientId 10
+    const res = await request(buildApp("analyst"))
+      .post("/api/clients/11/prompt-collections/1/generate-prompts")
+      .send({});
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("COLLECTION_NOT_FOUND");
+    expect(mockGeneratePrompts).not.toHaveBeenCalled();
+  });
+
   it("returns 503 when no generation adapter is configured", async () => {
     mockClientStore.get.mockResolvedValue(SAMPLE_CLIENT);
     mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION);
     mockBrandStore.listByClient.mockResolvedValue([]);
+    mockPromptStore.listByCollection.mockResolvedValue([]);
     mockGeneratePrompts.mockRejectedValue(
       new AppError(503, "No AI platform is configured for prompt generation", "NO_GENERATION_ADAPTER")
     );
@@ -519,16 +532,30 @@ describe("POST /api/clients/:clientId/prompt-collections/:id/generate-prompts", 
     expect(res.body.code).toBe("NO_GENERATION_ADAPTER");
   });
 
-  it("returns 200 with generated candidates", async () => {
+  it("returns 200 with candidates, invalid diagnostics, and warnings", async () => {
     mockClientStore.get.mockResolvedValue(SAMPLE_CLIENT);
     mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION);
     mockBrandStore.listByClient.mockResolvedValue([
       { id: 1, clientId: 10, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: "acmeplumbing.com", createdAt: Date.now() },
       { id: 2, clientId: 10, canonicalName: "Best Plumbers Inc", kind: "competitor", primaryDomain: null, createdAt: Date.now() },
     ]);
-    mockGeneratePrompts.mockResolvedValue([
-      { text: "What is the best way to fix a leaky faucet?", category: "informational", funnelStage: "awareness" },
-    ]);
+    mockPromptStore.listByCollection.mockResolvedValue([SAMPLE_PROMPT]);
+    mockGeneratePrompts.mockResolvedValue({
+      candidates: [
+        {
+          text: "Who fixes leaky faucets in Seattle?",
+          category: "problem_aware",
+          funnelStage: "awareness",
+          intentType: "problem_solution",
+          brandInPrompt: false,
+          service: "drain cleaning",
+          geo: "Seattle, WA",
+          rationale: "Problem-to-provider connection",
+        },
+      ],
+      invalid: [{ item: { text: "" }, errors: ["Prompt text is required"] }],
+      warnings: ["Only 1 of 5 requested prompts were valid"],
+    });
 
     const res = await request(buildApp("analyst"))
       .post("/api/clients/10/prompt-collections/1/generate-prompts")
@@ -536,12 +563,17 @@ describe("POST /api/clients/:clientId/prompt-collections/:id/generate-prompts", 
 
     expect(res.status).toBe(200);
     expect(res.body.data.candidates).toHaveLength(1);
+    expect(res.body.data.invalid).toHaveLength(1);
+    expect(res.body.data.warnings).toHaveLength(1);
     expect(mockGeneratePrompts).toHaveBeenCalledWith({
       clientName: "Acme Plumbing",
       primaryDomain: "acmeplumbing.com",
       geographies: ["Seattle, WA"],
       clientBrandNames: ["Acme Plumbing"],
       competitorNames: ["Best Plumbers Inc"],
+      coreServices: ["drain cleaning"],
+      exclusions: ["septic services"],
+      existingPromptTexts: ["Best SEO agency in Seattle"],
       count: 5,
     });
   });

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { Prompt, PromptCollection, Platform, GeneratedPromptCandidate, RunSchedule } from "@shared/schema";
+import type { Prompt, PromptCollection, Platform, GeneratedPromptCandidate, GenerationResult, RunSchedule } from "@shared/schema";
 import { PROMPT_CATEGORIES } from "@shared/schema";
 
 const CATEGORY_LABELS: Record<typeof PROMPT_CATEGORIES[number], string> = {
@@ -23,6 +23,23 @@ import { Plus, Trash2, Zap, Play, X, Sparkles, Pencil } from "lucide-react";
 import { Breadcrumbs, useClientName } from "@/components/Breadcrumbs";
 
 type Candidate = GeneratedPromptCandidate & { selected: boolean };
+
+// Payload for the bulk-import endpoint: rationale is display-only
+// provenance, and null service/geo must be omitted (the insert schema
+// takes optional strings, not nulls).
+type CandidatePayload = Omit<GeneratedPromptCandidate, "rationale" | "service" | "geo"> & {
+  service?: string;
+  geo?: string;
+};
+
+function toPayload(c: Candidate): CandidatePayload {
+  const { selected: _selected, rationale: _rationale, service, geo, ...rest } = c;
+  return {
+    ...rest,
+    ...(service != null ? { service } : {}),
+    ...(geo != null ? { geo } : {}),
+  };
+}
 
 const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
 
@@ -50,6 +67,7 @@ export default function PromptCollectionDetail() {
   const [category, setCategory] = useState<typeof PROMPT_CATEGORIES[number]>("informational");
   const [geo, setGeo] = useState("");
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  const [genDiagnostics, setGenDiagnostics] = useState<{ rejectedCount: number; warnings: string[] } | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
   const [editCategory, setEditCategory] = useState<typeof PROMPT_CATEGORIES[number]>("informational");
@@ -96,22 +114,24 @@ export default function PromptCollectionDetail() {
   const generateMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/clients/${id}/prompt-collections/${collectionId}/generate-prompts`, {});
-      return res.json() as Promise<{ data: { candidates: GeneratedPromptCandidate[] } }>;
+      return res.json() as Promise<{ data: GenerationResult }>;
     },
     onSuccess: (result) => {
       setCandidates(result.data.candidates.map((c) => ({ ...c, selected: true })));
+      setGenDiagnostics({ rejectedCount: result.data.invalid.length, warnings: result.data.warnings });
     },
     onError: (err) => toast({ title: "Generation failed", description: String(err), variant: "destructive" }),
   });
 
   const saveBulkMutation = useMutation({
-    mutationFn: async (prompts: GeneratedPromptCandidate[]) => {
+    mutationFn: async (prompts: CandidatePayload[]) => {
       const res = await apiRequest("POST", `/api/prompt-collections/${collectionId}/prompts/bulk`, { prompts });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/prompt-collections/${collectionId}/prompts`] });
       setCandidates(null);
+      setGenDiagnostics(null);
       toast({ title: "Prompts saved" });
     },
     onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
@@ -351,9 +371,19 @@ export default function PromptCollectionDetail() {
       {candidates && (
         <div className="border rounded-lg p-5 mb-5 bg-muted/30 space-y-4">
           <div className="flex items-center justify-between">
-            <p className="font-medium text-sm">Review generated prompts ({candidates.filter((c) => c.selected).length} selected)</p>
-            <button type="button" onClick={() => setCandidates(null)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            <p className="font-medium text-sm">
+              Review generated prompts ({candidates.filter((c) => c.selected).length} selected, {candidates.length} valid
+              {genDiagnostics && genDiagnostics.rejectedCount > 0 ? `, ${genDiagnostics.rejectedCount} rejected` : ""})
+            </p>
+            <button type="button" onClick={() => { setCandidates(null); setGenDiagnostics(null); }} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
+          {genDiagnostics && genDiagnostics.warnings.length > 0 && (
+            <ul className="rounded-md border border-orange-300 bg-orange-50 dark:bg-orange-950/30 px-3 py-2 space-y-1">
+              {genDiagnostics.warnings.map((w, i) => (
+                <li key={i} className="text-xs text-orange-700 dark:text-orange-300">{w}</li>
+              ))}
+            </ul>
+          )}
           {candidates.length === 0 ? (
             <p className="text-sm text-muted-foreground">No prompts were generated.</p>
           ) : (
@@ -388,16 +418,25 @@ export default function PromptCollectionDetail() {
                         <option key={cat} value={cat}>{CATEGORY_LABELS[cat]}</option>
                       ))}
                     </select>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{c.intentType}</span>
+                      <span className={`rounded px-1.5 py-0.5 ${c.brandInPrompt ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" : "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300"}`}>
+                        {c.brandInPrompt ? "Branded" : "Non-branded"}
+                      </span>
+                      {c.service && <span>Service: {c.service}</span>}
+                      {c.geo && <span>Location: {c.geo}</span>}
+                    </div>
+                    {c.rationale && <p className="text-xs text-muted-foreground italic">{c.rationale}</p>}
                   </div>
                 </li>
               ))}
             </ul>
           )}
           <div className="flex gap-2 justify-end">
-            <Button variant="ghost" size="sm" onClick={() => setCandidates(null)}>Cancel</Button>
+            <Button variant="ghost" size="sm" onClick={() => { setCandidates(null); setGenDiagnostics(null); }}>Cancel</Button>
             <Button
               size="sm"
-              onClick={() => saveBulkMutation.mutate(candidates.filter((c) => c.selected).map(({ selected: _selected, ...rest }) => rest))}
+              onClick={() => saveBulkMutation.mutate(candidates.filter((c) => c.selected).map(toPayload))}
               disabled={saveBulkMutation.isPending || candidates.filter((c) => c.selected).length === 0}
             >
               {saveBulkMutation.isPending ? "Saving…" : "Save selected"}

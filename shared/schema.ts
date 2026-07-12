@@ -424,8 +424,21 @@ export type GeneratePromptsInput = z.infer<typeof generatePromptsSchema>;
 
 export type GeneratedPromptCandidate = {
   text: string;
-  category: PromptCategory;
+  category: PromptCategory; // legacy, derived from intentType during migration
   funnelStage: FunnelStage;
+  intentType: PromptIntentType;
+  brandInPrompt: boolean;
+  service: string | null;
+  geo: string | null;
+  rationale: string | null; // analyst-facing justification, not persisted
+};
+
+export type GenerationInvalidItem = { item: unknown; errors: string[] };
+
+export type GenerationResult = {
+  candidates: GeneratedPromptCandidate[];
+  invalid: GenerationInvalidItem[];
+  warnings: string[];
 };
 
 export type ClientReadiness = {

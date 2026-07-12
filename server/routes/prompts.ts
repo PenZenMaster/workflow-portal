@@ -232,6 +232,10 @@ export function registerPromptRoutes(app: Express): void {
       const collection = await promptCollectionStore.get(collectionId);
       if (!collection)
         throw new AppError(404, "Collection not found", "COLLECTION_NOT_FOUND");
+      // FR-01: generation must never cross client boundaries. 404 (not
+      // 403) so collection ids of other clients cannot be probed.
+      if (collection.clientId !== clientId)
+        throw new AppError(404, "Collection not found", "COLLECTION_NOT_FOUND");
 
       const parsed = generatePromptsSchema.safeParse(req.body ?? {});
       if (!parsed.success)
@@ -245,16 +249,21 @@ export function registerPromptRoutes(app: Express): void {
         .filter((b) => b.kind === "competitor")
         .map((b) => b.canonicalName);
 
-      const candidates = await generatePrompts({
+      const existingPrompts = await promptStore.listByCollection(collectionId);
+
+      const result = await generatePrompts({
         clientName: client.name,
         primaryDomain: client.primaryDomain,
         geographies: client.geographies,
         clientBrandNames: clientBrandNames.length > 0 ? clientBrandNames : [client.name],
         competitorNames,
+        coreServices: client.coreServices,
+        exclusions: client.exclusions,
+        existingPromptTexts: existingPrompts.map((p) => p.text),
         count: parsed.data.count,
       });
 
-      ok(res, { candidates });
+      ok(res, result);
     }
   );
 

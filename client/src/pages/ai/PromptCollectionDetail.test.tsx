@@ -37,9 +37,33 @@ const COLLECTION = {
 };
 
 const CANDIDATES = [
-  { text: "What is the best way to fix a leaky faucet?", category: "informational", funnelStage: "awareness" },
-  { text: "Best plumber near Seattle", category: "local", funnelStage: "decision" },
+  {
+    text: "What is the best way to fix a leaky faucet?",
+    category: "informational",
+    funnelStage: "awareness",
+    intentType: "problem_solution",
+    brandInPrompt: false,
+    service: "drain cleaning",
+    geo: null,
+    rationale: "Problem-to-provider connection",
+  },
+  {
+    text: "Best plumber near Seattle",
+    category: "local",
+    funnelStage: "decision",
+    intentType: "geographic_discovery",
+    brandInPrompt: false,
+    service: null,
+    geo: "Seattle, WA",
+    rationale: null,
+  },
 ];
+
+const GENERATION_RESULT = {
+  candidates: CANDIDATES,
+  invalid: [{ item: { text: "" }, errors: ["Prompt text is required"] }],
+  warnings: ["Only 2 of 12 requested prompts were valid"],
+};
 
 const EXISTING_PROMPT = {
   id: 5,
@@ -96,7 +120,7 @@ beforeEach(() => {
     const method = init?.method ?? "GET";
 
     if (method === "POST" && url === GENERATE_URL) {
-      return { ok: true, status: 200, json: async () => ({ data: { candidates: CANDIDATES } }), text: async () => "" } as Response;
+      return { ok: true, status: 200, json: async () => ({ data: GENERATION_RESULT }), text: async () => "" } as Response;
     }
 
     if (method === "POST" && url === BULK_URL) {
@@ -178,6 +202,19 @@ describe("PromptCollectionDetail — AI prompt generation", () => {
     expect(screen.getByDisplayValue("Best plumber near Seattle")).toBeInTheDocument();
   });
 
+  it("shows intent metadata, rejected count, and warnings from the generation result", async () => {
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Generate with AI/i }));
+    await screen.findByDisplayValue("What is the best way to fix a leaky faucet?");
+
+    expect(screen.getByText(/problem_solution/i)).toBeInTheDocument();
+    expect(screen.getByText(/geographic_discovery/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/non-branded/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/1 rejected/i)).toBeInTheDocument();
+    expect(screen.getByText(/Only 2 of 12 requested prompts were valid/i)).toBeInTheDocument();
+  });
+
   it("Save selected posts the checked candidates to the bulk import endpoint", async () => {
     renderPage();
 
@@ -200,7 +237,16 @@ describe("PromptCollectionDetail — AI prompt generation", () => {
       text: "What is the best way to fix a leaky faucet?",
       category: "informational",
       funnelStage: "awareness",
+      intentType: "problem_solution",
+      brandInPrompt: false,
+      service: "drain cleaning",
     });
+    // rationale is provenance display only; null geo/service must be
+    // omitted (insertPromptSchema rejects null)
+    expect(body.prompts[0]).not.toHaveProperty("rationale");
+    expect(body.prompts[0]).not.toHaveProperty("geo");
+    expect(body.prompts[1]).toMatchObject({ geo: "Seattle, WA", intentType: "geographic_discovery" });
+    expect(body.prompts[1]).not.toHaveProperty("service");
   });
 });
 

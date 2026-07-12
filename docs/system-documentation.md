@@ -398,6 +398,18 @@ problem_solution, alternative -> alternative); `brand_in_prompt` is left
 unset until validated. The legacy categories below remain supported while
 the UI migrates to intent types.
 
+**Generate with AI (updated v1.32.0):** generation now uses the 8-type
+intent taxonomy and the client's core services and exclusions, treats all
+client data as untrusted reference material, and can never target a
+collection belonging to another client. Invalid candidates are reported
+with reasons instead of silently disappearing, normalized exact
+duplicates (within the batch and against the collection's existing
+prompts) are rejected, and the review panel shows valid/rejected counts,
+warnings (including "fewer than 80% of requested prompts were valid"),
+each candidate's intent type, branded state, service, and location, and
+the model's rationale. Saved candidates carry their measurement metadata
+into the prompts table.
+
 The portal supports seven prompt categories. Use each to cover different stages of the buyer journey.
 
 **Category prompts** — broad discovery queries
