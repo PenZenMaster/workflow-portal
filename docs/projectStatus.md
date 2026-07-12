@@ -1,7 +1,37 @@
 ## Resume From
 
-Last session: 2026-07-08
+Last session: 2026-07-12
 Branch: main | Version: v1.30.1 | 777 tests passing
+
+Session 2026-07-12: v1.30.1 DEPLOYED to production and smoke tested
+(user-confirmed). YLG program kickoff: reviewed the two spec docs now in
+docs/ (YLG_AI_Prompt_Generation_Project_Plan_and_Dev_Spec.docx v1.0,
+YLG_AI_Visibility_Project_Plan_and_Dev_Spec_v1.1.docx). Current-state
+claims verified against code (fuzzy matching is substring-only,
+parser.ts; isTrustedThirdParty hardcoded false, parser.ts; prompts schema
+lacks all measurement metadata). Four design decisions LOCKED with user:
+1. Sequencing: combined "foundation sprint" first (shared prompt metadata
+   schema + methodology versioning + prompt-gen P0 safety: collection
+   ownership validation, exclusions/services in generation context,
+   validation diagnostics, exact-duplicate detection). Recommendation
+   classifier + source-domain registry come next sprint. Factory Slice 2
+   (Search Console) deferred, not cancelled.
+2. Canonical intent taxonomy = the prompt-gen doc's 8-type enum:
+   provider_recommendation, service_specific, geographic_discovery,
+   problem_solution, comparison, trust_validation, brand_validation,
+   alternative. (The two docs disagreed; visibility doc names map onto
+   this: category_discovery->provider_recommendation,
+   trust->trust_validation.)
+3. Methodology v1.0 APPROVED as written: 30-prompt panel (24 non-branded /
+   6 branded, 80/20), 4 core surfaces (ChatGPT search, Google AI, Gemini,
+   Perplexity), monthly full run with 3 replicates on non-branded prompts,
+   weekly 8-prompt sentinel (~440 observations/client/month).
+4. Migration approach: reuse prompts.geo as the spec's "location"; add
+   intent_type alongside category with a backfill mapping
+   (informational->provider_recommendation, comparative->comparison,
+   commercial->provider_recommendation, local->geographic_discovery,
+   problem_aware->problem_solution, alternative->alternative); retire
+   category later once UI/reports read intent_type.
 
 Session 2026-07-08: TD-18 sweep COMPLETE (docs-only session, no code
 changes). Every client with a GA4 integration was disconnected and
@@ -59,30 +89,35 @@ with a 24h grace window before terminal failure (capped variant chosen
 by user — no eternal requeue loops for typo'd or retired kinds).
 
 Next session priorities:
-1. Deploy v1.30.1 (carries the TD-17 runner fix; v1.30.0 already live).
-   QA: none needed beyond smoke — behavior only changes during
-   mixed-version windows. Remember the TD-16 stale-worker check on
-   restart (ps -eo pid,etime,cmd | grep -i node; kill old PIDs).
-2. Factory Slice 2: Search Console integration (reuse GA4 OAuth pattern,
+1. YLG foundation sprint (IN PROGRESS this session): v1.31.0 prompt
+   metadata schema + prompt_methodologies (seeded v1.0) +
+   metric_snapshots_daily.methodology_version + clients.core_services;
+   then v1.32.0 generator safety (ownership validation, expanded context,
+   parse diagnostics, exact-duplicate detection, review-UI metadata).
+2. YLG next sprint: recommendation classifier (7-status scale, evidence,
+   confidence, human override) + source-domain registry + golden dataset
+   (visibility doc section 16).
+3. Factory Slice 2 (DEFERRED behind YLG work): Search Console integration
+   (reuse GA4 OAuth pattern,
    webmasters.readonly scope) + hybrid-storage analytics fields (GSC
    property, Bing, reporting Sheet, Looker refs); extend the reporting
    cell. Also still open from Phase 1: production manifest schema, QA
    severity definitions.
-3. Workflow 20 follow-up (carried over): paste the methodology block from
+4. Workflow 20 follow-up (carried over): paste the methodology block from
    docs/ranking-audit-ai-run-methodology.md into workflow 20's prompt
    (above the <PASTE> lines) and set its AI model; re-test Run with AI for
    less generic output.
-4. B-20 GBP API: Business Profile APIs were NOT yet enabled in the GCP
+5. B-20 GBP API: Business Profile APIs were NOT yet enabled in the GCP
    project (quota page showed "No quotas available" on 2026-07-07). Enable
    My Business Account Management + Business Information (+ Q&A) APIs in
    the project named on the access application, then check quota: 0 QPM =
    approval pending, 300 QPM = granted. When granted, build the per-client
    GBP snapshot integration (reuse GA4 OAuth pattern; United Structural
    Systems is under a different Google account).
-5. TD-19 (when convenient): finish local ssh-agent setup so Claude can
+6. TD-19 (when convenient): finish local ssh-agent setup so Claude can
    reach the production DB non-interactively (see Session 2026-07-08 note
    above for the exact commands).
-6. Next backlog candidates: B-24 tooltips, B-25 in-app Help, B-15 v2
+7. Next backlog candidates: B-24 tooltips, B-25 in-app Help, B-15 v2
    onboarding wizard, B-14 version footer. Groq API access still pending.
 Production: v1.24.0 deployed and user-confirmed (2026-07-03). This deploy
 carried v1.22.1 (GA4 scope guard), v1.23.0 (B-21 Run-with-AI inputs), and
