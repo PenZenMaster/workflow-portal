@@ -1,7 +1,24 @@
 ## Resume From
 
 Last session: 2026-07-14
-Branch: main | Version: v1.33.1 | 823 tests passing
+Branch: main | Version: v1.33.2 | 826 tests passing
+
+Session 2026-07-14 (later): TD-19 CLOSED — new 'fmj' key authorized in
+cPanel; `ssh -o BatchMode=yes -i ~/.ssh/workflow-portal
+fullmetaljacket@69.72.136.208` works with no prompt (add -i explicitly).
+v1.33.0 QA part 2 PASSED: all 25 response_recommendations rows on
+production are well-formed (19 for Run #75, 6 for run 67 — a second
+post-deploy parse, which definitively rules TD-16 OUT). Spot-check found
+TD-20 (rank detection defeated by markdown bold — see register), FIXED as
+v1.33.2 (parser.ts regex + 3 TDD tests). ALSO FOUND, not yet actioned:
+rules-1.0 keyword false positive — "To recommend alternatives to X"
+classifies X as recommended (response 2991); this is the known
+ambiguous-prose limitation, waiting on the planned LLM classifier slice.
+AFTER v1.33.2 DEPLOYS: re-parse runs 67 and 75 (and any other parsed
+runs) so ranks/first_choice/visibility-score R component are corrected;
+verify response 3447 flips to first_choice rank 1.
+v1.33.1 deploy was IN PROGRESS by user this session (deep-link fix;
+check: hard-load https://portal.fullmetaljacketseo.com/ai/clients).
 
 Session 2026-07-14: v1.33.0 DEPLOYED to production and confirmed live
 (version footer + portal fully functional). Post-deploy QA part 1 done:
@@ -1239,7 +1256,8 @@ Confirmed decisions:
 | TD-16 | Medium | Open | Stale lsnode worker processes can survive a cPanel "Restart" of the Node app, causing env-var drift: a worker started before an env var was added/changed keeps its old `process.env` snapshot (registry.ts builds `_adapters` once at module load), so jobs claimed by that worker fail even though the env var is correctly set for new workers. Observed after adding `OPENAI_API_KEY` — 3/10 prompt-run jobs failed with "No adapter configured for platform: openai" while 7/10 (handled by the new worker) succeeded. RECURRED during v1.29.0 QA (2026-07-07): a 3.5-day-old worker (predating v1.28.0) survived BOTH a cPanel Restart AND a full Stop/Start and kept failing factory-run jobs with "No handler registered". Only an SSH `kill <pid>` removed it. Severity raised Low->Medium: every deploy must now include the SSH `ps -eo pid,etime,cmd \| grep -i node` check + kill of old PIDs. | ops/cPanel deployment |
 | TD-17 | Medium | Done | JobRunner hard-failed jobs with unknown kinds ("No handler registered for kind: X") instead of leaving them queued, so during mixed-version deploy windows (or with a TD-16 stale worker) an old worker permanently failed jobs a newer worker could process. FIXED in v1.30.1: unknown-kind jobs are released back to queued with a 60s nextRunAt delay and a descriptive lastError so a capable worker can claim them; if no capable worker claims the job within 24h of creation (UNKNOWN_KIND_MAX_AGE_MS — covers typo'd or retired kinds), it fails terminally with "no handler appeared within 24h". attempts is deliberately not incremented (it means "handler executed and threw"). | server/jobs/runner.ts (tick, no-handler branch) |
 | TD-18 | High | Done | All GA4 refresh tokens minted before 2026-07-07 would expire with invalid_grant: the Google OAuth consent screen (project 551074775331) was in "Testing" publishing status, which caps refresh-token life at 7 days. Published to "In production" on 2026-07-07 (new tokens long-lived), but Testing-era tokens kept their 7-day clock. RESOLVED 2026-07-08: every GA4-connected client was disconnected and reconnected via the portal UI under the published app (Analytics checkbox ticked, property IDs re-selected) and every integration Test passes on a post-publish connection. | ops/Google Cloud OAuth; client Integrations |
-| TD-19 | Low | Open | No non-interactive SSH access to production from the dev machine. Server side FIXED 2026-07-08: the local ~/.ssh/workflow-portal public key is in authorized_keys and the server accepts it. Remaining local blocker: the private key is passphrase-protected and the Windows ssh-agent service is Stopped/Disabled, so BatchMode auth fails at the signing step. Fix (admin PowerShell): Set-Service ssh-agent -StartupType Automatic; Start-Service ssh-agent; then ssh-add the key once. Until fixed, live-DB questions require interactive password SSH by the user. | ops/local dev environment |
+| TD-19 | Low | Done | No non-interactive SSH access to production from the dev machine. RESOLVED 2026-07-14: the old passphrase-protected key was replaced with a new passphrase-free ed25519 keypair (~/.ssh/workflow-portal); user imported the public key in cPanel as 'fmj' and authorized it. Verified: `ssh -o BatchMode=yes -i ~/.ssh/workflow-portal fullmetaljacket@69.72.136.208 "echo SSH-OK"` succeeds with no prompt. Live-DB queries now work non-interactively. | ops/local dev environment |
+| TD-20 | Medium | Done | Numbered-list rank detection missed markdown-formatted list items: detectRecommendationRank required `N.` plus only whitespace directly before the brand mention, but LLM responses almost always bold list items (`1. **Brand**`) or the number itself (`**1.**`). Effect: recommendationRank was almost never set on real responses, so first_choice was effectively unreachable in the v1.33.0 classifier AND the visibility score's firstRecommended component (scoring.ts) never fired — this predates v1.33.0. Found during v1.33.0 production QA (Run #75 response 3447: brand at list position 1 stored as listed_option/no rank). FIXED in v1.33.2: rank regex now tolerates markdown emphasis chars around the list marker; decimal numbers ("4.5") still excluded. Affected runs need a re-parse after deploy for corrected ranks/statuses/scores. | server/services/parser.ts (detectRecommendationRank) |
 
 ---
 

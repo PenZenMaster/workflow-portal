@@ -10,9 +10,10 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-10
- * Last Modified Date: 2026-05-10
+ * Last Modified Date: 2026-07-14
  * Comments:
  * - v1.00 Sprint 4 initial implementation
+ * - v1.01 TD-20: rank detection tolerates markdown emphasis around list markers
  */
 
 export interface AliasInput {
@@ -76,9 +77,13 @@ function detectSection(text: string, matchIndex: number): "summary" | "list" | "
 }
 
 function detectRecommendationRank(text: string, matchIndex: number): number | null {
-  // Look at the 10 characters immediately before the match for a "N. " list marker.
-  const before = text.slice(Math.max(0, matchIndex - 10), matchIndex);
-  const match = /(\d+)\.\s*$/.exec(before);
+  // Look at the characters immediately before the match for a "N. " list
+  // marker. Markdown emphasis markers may sit between the number and the
+  // brand ("1. **Brand**") or wrap the number itself ("**1.** Brand"), so
+  // whitespace, asterisks, underscores, and backticks are allowed after
+  // the dot. A digit after the dot (e.g. "4.5") is not a list marker.
+  const before = text.slice(Math.max(0, matchIndex - 12), matchIndex);
+  const match = /(\d+)\.[\s*_`]*$/.exec(before);
   if (match) return parseInt(match[1], 10);
   return null;
 }

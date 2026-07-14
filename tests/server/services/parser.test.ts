@@ -99,6 +99,31 @@ describe("parseResponse — section detection", () => {
     const acme = result.mentions.find((m) => m.brandId === 1);
     expect(acme?.recommendationRank).toBe(1);
   });
+
+  // TD-20: LLM responses almost always bold list items; markdown markers
+  // between the number and the brand must not defeat rank detection.
+  it("assigns recommendation rank when the list item is bolded (1. **Brand**)", () => {
+    const text = "1. **Acme Corp**: great for local SEO\n2. **Rival Co**: solid technical work";
+    const result = parseResponse(text, [], BRANDS);
+    const acme = result.mentions.find((m) => m.brandId === 1);
+    const rival = result.mentions.find((m) => m.brandId === 2);
+    expect(acme?.recommendationRank).toBe(1);
+    expect(rival?.recommendationRank).toBe(2);
+  });
+
+  it("assigns recommendation rank when the list number itself is bolded (**1.** Brand)", () => {
+    const text = "**1.** Acme Corp — the top pick\n**2.** Rival Co — runner-up";
+    const result = parseResponse(text, [], BRANDS);
+    const acme = result.mentions.find((m) => m.brandId === 1);
+    expect(acme?.recommendationRank).toBe(1);
+  });
+
+  it("does not treat a decimal number before a mention as a list rank", () => {
+    const text = "Rated 4.5 Acme Corp reviews are strong.";
+    const result = parseResponse(text, [], BRANDS);
+    const acme = result.mentions.find((m) => m.brandId === 1);
+    expect(acme?.recommendationRank).toBeNull();
+  });
 });
 
 describe("parseResponse — citation extraction", () => {

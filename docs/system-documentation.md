@@ -338,6 +338,17 @@ recommended. This classification feeds the upcoming Recommendation Rate
 and Recommendation Share of Voice metrics — the preferred competitive
 KPIs — which count only `listed_option` or stronger.
 
+**Fixes:** v1.33.2 (TD-20) — numbered-list rank detection previously
+required the list number to sit directly before the brand name with only
+whitespace between, so the dominant LLM format `1. **Brand**` (and bolded
+numbers like `**1.**`) never produced a rank. `first_choice` was
+effectively unreachable on real responses, and the visibility score's
+first-recommended component (R) never fired. Rank detection now tolerates
+markdown emphasis markers around the list number; a digit after the dot
+(e.g. "4.5") is still not treated as a rank. Runs parsed before v1.33.2
+need a re-parse for corrected ranks, recommendation statuses, and
+visibility scores.
+
 ### 2.3 Sentiment Classification
 
 The sentiment classifier is rule-based (no AI model — fully auditable).
