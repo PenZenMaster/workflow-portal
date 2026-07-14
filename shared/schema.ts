@@ -722,7 +722,68 @@ export const responseCitations = sqliteTable("response_citations", {
   ownedByBrandId: integer("owned_by_brand_id"),
   position: integer("position").notNull(),
   isTrustedThirdParty: integer("is_trusted_third_party").notNull().default(0),
+  sourceClass: text("source_class").notNull().default("unknown_or_low_trust"),
 });
+
+// YLG source classification (visibility spec section 6.3). The two
+// ownership classes are derived from brand domains at parse time; only
+// the remaining six are assignable in the source-domain registry.
+export const SOURCE_CLASSES = [
+  "client_owned",
+  "competitor_owned",
+  "industry_authority",
+  "local_authority",
+  "review_platform",
+  "publisher_editorial",
+  "general_directory",
+  "unknown_or_low_trust",
+] as const;
+export type SourceClass = (typeof SOURCE_CLASSES)[number];
+
+export const REGISTRY_SOURCE_CLASSES = [
+  "industry_authority",
+  "local_authority",
+  "review_platform",
+  "publisher_editorial",
+  "general_directory",
+  "unknown_or_low_trust",
+] as const;
+export type RegistrySourceClass = (typeof REGISTRY_SOURCE_CLASSES)[number];
+
+// Classes that count as trusted independent corroboration (the T
+// component of the visibility score). Review platforms are reputation
+// evidence reported separately, per spec Phase 3 - deliberately excluded.
+export const TRUSTED_SOURCE_CLASSES = [
+  "industry_authority",
+  "local_authority",
+  "publisher_editorial",
+] as const;
+
+export const sourceDomains = sqliteTable("source_domains", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  rootDomain: text("root_domain").notNull().unique(),
+  sourceClass: text("source_class").notNull().default("unknown_or_low_trust"),
+  rationale: text("rationale"),
+  classifiedBy: text("classified_by").notNull().default("seed"), // 'seed' | 'user:<id>'
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export type SourceDomain = {
+  id: number;
+  rootDomain: string;
+  sourceClass: RegistrySourceClass;
+  rationale: string | null;
+  classifiedBy: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export const upsertSourceDomainSchema = z.object({
+  sourceClass: z.enum(REGISTRY_SOURCE_CLASSES),
+  rationale: z.string().min(1, "Rationale is required").max(500),
+});
+export type UpsertSourceDomainInput = z.infer<typeof upsertSourceDomainSchema>;
 
 export const metricSnapshotsDaily = sqliteTable("metric_snapshots_daily", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -759,6 +820,7 @@ export type ResponseCitation = {
   ownedByBrandId: number | null;
   position: number;
   isTrustedThirdParty: boolean;
+  sourceClass: SourceClass;
 };
 
 // YLG recommendation classification (visibility spec section 6.2).

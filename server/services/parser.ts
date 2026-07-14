@@ -166,7 +166,7 @@ export function parseResponse(
       rootDomain,
       ownedByBrandId: owner?.id ?? null,
       position: c.position,
-      isTrustedThirdParty: false, // populated by a future sprint's trusted-domain registry
+      isTrustedThirdParty: false, // derived from the source class in the parse-response handler
     };
   });
 

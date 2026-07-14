@@ -20,6 +20,7 @@ const {
   mockClientStore,
   mockPromptMethodologyStore,
   mockRecommendationStore,
+  mockSourceDomainStore,
 } = vi.hoisted(() => ({
   mockScheduleStore: { listDue: vi.fn(), markFired: vi.fn() },
   mockPromptStore: { listByCollection: vi.fn() },
@@ -65,6 +66,7 @@ const {
   mockClientStore: { get: vi.fn() },
   mockPromptMethodologyStore: { getActive: vi.fn() },
   mockRecommendationStore: { deleteByResponse: vi.fn(), bulkCreate: vi.fn() },
+  mockSourceDomainStore: { getMapForDomains: vi.fn() },
 }));
 
 vi.mock("../../../server/storage", () => ({
@@ -84,6 +86,7 @@ vi.mock("../../../server/storage", () => ({
   clientStore: mockClientStore,
   promptMethodologyStore: mockPromptMethodologyStore,
   recommendationStore: mockRecommendationStore,
+  sourceDomainStore: mockSourceDomainStore,
 }));
 
 type Handler = (payload: unknown, jobId: number) => Promise<void>;
@@ -357,6 +360,87 @@ describe("parse-response handler", () => {
 
     expect(mockRecommendationStore.deleteByResponse).toHaveBeenCalledWith(43);
     expect(mockRecommendationStore.bulkCreate).not.toHaveBeenCalled();
+  });
+
+  it("stamps each citation with a source class: brand ownership beats registry, registry beats unknown", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 44,
+      runId: 9,
+      responseText: "Acme Plumbing is well reviewed on Yelp.",
+      rawPayload: {
+        citations: [
+          "https://acme.com/about",
+          "https://yelp.com/biz/acme",
+          "https://chicagotribune.com/story",
+          "https://randomblog.net/post",
+        ],
+      },
+    });
+    mockRunStore.get.mockResolvedValue({ id: 9, clientId: 10 });
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: "acme.com", createdAt: Date.now() },
+    ]);
+    mockAliasStore.listByBrand.mockResolvedValue([
+      { id: 1, brandId: 1, aliasText: "Acme Plumbing", matchType: "exact", language: null },
+    ]);
+    mockSourceDomainStore.getMapForDomains.mockResolvedValue(
+      new Map([
+        ["yelp.com", "review_platform"],
+        ["chicagotribune.com", "publisher_editorial"],
+      ])
+    );
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("parse-response")!({ responseId: 44 }, 1);
+
+    expect(mockCitationStore.bulkCreate).toHaveBeenCalledTimes(1);
+    const [rows] = mockCitationStore.bulkCreate.mock.calls[0];
+    const byDomain = new Map(rows.map((r: { rootDomain: string }) => [r.rootDomain, r]));
+    expect(byDomain.get("acme.com")).toMatchObject({
+      sourceClass: "client_owned",
+      isTrustedThirdParty: false,
+    });
+    expect(byDomain.get("yelp.com")).toMatchObject({
+      sourceClass: "review_platform",
+      isTrustedThirdParty: false,
+    });
+    expect(byDomain.get("chicagotribune.com")).toMatchObject({
+      sourceClass: "publisher_editorial",
+      isTrustedThirdParty: true,
+    });
+    expect(byDomain.get("randomblog.net")).toMatchObject({
+      sourceClass: "unknown_or_low_trust",
+      isTrustedThirdParty: false,
+    });
+  });
+
+  it("looks up the registry once with the deduplicated set of cited domains", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 45,
+      runId: 9,
+      responseText: "Some plumbing advice.",
+      rawPayload: {
+        citations: [
+          "https://yelp.com/biz/a",
+          "https://yelp.com/biz/b",
+          "https://randomblog.net/post",
+        ],
+      },
+    });
+    mockRunStore.get.mockResolvedValue({ id: 9, clientId: 10 });
+    mockBrandStore.listByClient.mockResolvedValue([]);
+    mockSourceDomainStore.getMapForDomains.mockResolvedValue(new Map());
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("parse-response")!({ responseId: 45 }, 1);
+
+    expect(mockSourceDomainStore.getMapForDomains).toHaveBeenCalledTimes(1);
+    const [domains] = mockSourceDomainStore.getMapForDomains.mock.calls[0];
+    expect([...domains].sort()).toEqual(["randomblog.net", "yelp.com"]);
   });
 });
 

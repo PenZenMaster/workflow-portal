@@ -166,6 +166,33 @@ describe("CitationStore", () => {
     expect(await store.listByResponse(3)).toHaveLength(0);
   });
 
+  it("persists and hydrates the source class", async () => {
+    const c = await store.create({
+      responseId: 4,
+      url: "https://yelp.com/biz/acme",
+      rootDomain: "yelp.com",
+      ownedByBrandId: null,
+      position: 1,
+      isTrustedThirdParty: false,
+      sourceClass: "review_platform",
+    });
+    expect(c.sourceClass).toBe("review_platform");
+    const [fetched] = await store.listByResponse(4);
+    expect(fetched.sourceClass).toBe("review_platform");
+  });
+
+  it("defaults the source class to unknown_or_low_trust when omitted", async () => {
+    const c = await store.create({
+      responseId: 5,
+      url: "https://legacy.net/page",
+      rootDomain: "legacy.net",
+      ownedByBrandId: null,
+      position: 1,
+      isTrustedThirdParty: false,
+    });
+    expect(c.sourceClass).toBe("unknown_or_low_trust");
+  });
+
   it("listByClient returns only citations belonging to that client's runs", async () => {
     const db = makeDb();
     const citations = new CitationStore(db);

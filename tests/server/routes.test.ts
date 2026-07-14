@@ -25,6 +25,8 @@ vi.mock("../../server/storage", () => ({
   platformStore: { seedDefaults: vi.fn().mockResolvedValue(undefined) },
   // v1.31.0: promptMethodologyStore.seedDefaults() is called there too.
   promptMethodologyStore: { seedDefaults: vi.fn().mockResolvedValue(undefined) },
+  // v1.34.0: sourceDomainStore.seedDefaults() is called there too.
+  sourceDomainStore: { seedDefaults: vi.fn().mockResolvedValue(undefined) },
 }));
 vi.mock("../../server/seed", () => ({ seedIfEmpty: vi.fn() }));
 

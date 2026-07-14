@@ -17,7 +17,7 @@
 import type { Express } from "express";
 import type { Server } from "node:http";
 import { seedIfEmpty } from "../seed";
-import { platformStore, promptMethodologyStore } from "../storage";
+import { platformStore, promptMethodologyStore, sourceDomainStore } from "../storage";
 import { registerAuthRoutes } from "./auth";
 import { registerWorkflowRoutes } from "./workflows";
 import { registerClientRoutes } from "./clients";
@@ -32,6 +32,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerUserRoutes } from "./users";
 import { registerJobRoutes } from "./jobs";
 import { registerFactoryRoutes } from "./factory";
+import { registerSourceDomainRoutes } from "./sourceDomains";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -42,6 +43,7 @@ export async function registerRoutes(
   seedIfEmpty();
   await platformStore.seedDefaults();
   await promptMethodologyStore.seedDefaults();
+  await sourceDomainStore.seedDefaults();
 
   registerAuthRoutes(app);
   registerWorkflowRoutes(app);
@@ -57,6 +59,7 @@ export async function registerRoutes(
   registerUserRoutes(app);
   registerJobRoutes(app);
   registerFactoryRoutes(app);
+  registerSourceDomainRoutes(app);
 
   return httpServer;
 }

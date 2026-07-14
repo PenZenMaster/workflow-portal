@@ -40,10 +40,12 @@ import {
   aliasStore,
   clientStore,
   promptMethodologyStore,
+  sourceDomainStore,
 } from "../storage";
 import { getAdapter } from "../adapters/registry";
 import { parseResponse } from "../services/parser";
 import { classifyRecommendation, RECOMMENDATION_CLASSIFIER_VERSION } from "../services/recommendation";
+import { classifyCitationSource, isTrustedSourceClass, type CitationOwnerKind } from "../services/sourceClassifier";
 import { computeVisibilityScore } from "../services/scoring";
 import { classifySentiment } from "../services/sentiment";
 import { generateCsvLines } from "../services/csv";
@@ -173,8 +175,27 @@ export function registerJobHandlers(runner: JobRunner): void {
       }
 
       if (citations.length > 0) {
+        // Classify each citation's source (spec 6.3): brand ownership wins,
+        // then the source-domain registry, then unknown_or_low_trust.
+        // isTrustedThirdParty is derived from the class (T score component).
+        const registry = await sourceDomainStore.getMapForDomains(
+          Array.from(new Set(citations.map((c) => c.rootDomain)))
+        );
+        const brandKindById = new Map(allBrands.map((b) => [b.id, b.kind]));
         await citationStore.bulkCreate(
-          citations.map((c) => ({ ...c, responseId }))
+          citations.map((c) => {
+            let ownerKind: CitationOwnerKind = null;
+            if (c.ownedByBrandId !== null) {
+              ownerKind = brandKindById.get(c.ownedByBrandId) === "client" ? "client" : "competitor";
+            }
+            const sourceClass = classifyCitationSource(ownerKind, c.rootDomain, registry);
+            return {
+              ...c,
+              responseId,
+              sourceClass,
+              isTrustedThirdParty: isTrustedSourceClass(sourceClass),
+            };
+          })
         );
       }
 

@@ -8,13 +8,14 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-10
- * Last Modified Date: 2026-05-10
+ * Last Modified Date: 2026-07-14
  * Comments:
  * - v1.00 Sprint 4 initial implementation
+ * - v1.01 YLG source registry slice: sourceClass column carried
  */
 
 import { responseCitations, responsesRaw, promptRuns } from "@shared/schema";
-import type { ResponseCitation } from "@shared/schema";
+import type { ResponseCitation, SourceClass } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
@@ -30,10 +31,15 @@ function hydrate(row: Row): ResponseCitation {
     ownedByBrandId: row.ownedByBrandId,
     position: row.position,
     isTrustedThirdParty: row.isTrustedThirdParty === 1,
+    sourceClass: row.sourceClass as SourceClass,
   };
 }
 
-type CitationInput = Omit<ResponseCitation, "id">;
+// sourceClass is optional on insert: rows written before the classifier
+// ran (or by legacy callers) take the unknown_or_low_trust default.
+type CitationInput = Omit<ResponseCitation, "id" | "sourceClass"> & {
+  sourceClass?: SourceClass;
+};
 
 export interface ICitationStore {
   listByResponse(responseId: number): Promise<ResponseCitation[]>;
@@ -65,6 +71,7 @@ export class CitationStore implements ICitationStore {
         ownedByBrandId: responseCitations.ownedByBrandId,
         position: responseCitations.position,
         isTrustedThirdParty: responseCitations.isTrustedThirdParty,
+        sourceClass: responseCitations.sourceClass,
       })
       .from(responseCitations)
       .innerJoin(responsesRaw, eq(responseCitations.responseId, responsesRaw.id))
@@ -84,6 +91,7 @@ export class CitationStore implements ICitationStore {
         ownedByBrandId: data.ownedByBrandId ?? null,
         position: data.position,
         isTrustedThirdParty: data.isTrustedThirdParty ? 1 : 0,
+        sourceClass: data.sourceClass ?? "unknown_or_low_trust",
       })
       .returning()
       .get();

@@ -349,6 +349,46 @@ markdown emphasis markers around the list number; a digit after the dot
 need a re-parse for corrected ranks, recommendation statuses, and
 visibility scores.
 
+#### Source Classification (added v1.34.0)
+> Who is the AI citing, and how much does that citation count for?
+
+Every citation stored during parsing is stamped with one of the 8 source
+classes from visibility spec section 6.3: `client_owned`,
+`competitor_owned`, `industry_authority`, `local_authority`,
+`review_platform`, `publisher_editorial`, `general_directory`, and
+`unknown_or_low_trust`.
+
+**Data sources:** classification precedence is (1) brand ownership — a
+citation whose root domain matches a tracked client/competitor brand's
+primary domain is `client_owned`/`competitor_owned`; (2) the
+`source_domains` registry — a global table mapping root domains to the
+six non-ownership classes, each row carrying a required rationale and
+who classified it (`seed` or `user:<id>`); (3) default
+`unknown_or_low_trust` for anything unregistered. The registry is seeded
+on startup with unambiguous review platforms (Yelp, BBB, Angi, Houzz,
+Thumbtack, Trustpilot, HomeAdvisor) and general directories
+(YellowPages, ZoomInfo, Manta, D&B, MapQuest, Foursquare); seeding never
+overwrites a human reclassification. `isTrustedThirdParty` (the
+visibility score's T component) is now derived from the class: true only
+for `industry_authority`, `local_authority`, and `publisher_editorial` —
+review platforms are reputation evidence reported separately, per spec.
+
+**Registry management (admin roles):** `GET /api/source-domains`
+(optionally `?class=`), `PUT /api/source-domains/:domain` (class +
+rationale), and `GET /api/source-domains/unreviewed` — cited domains not
+yet in the registry, most-cited first, which powers the spec's monthly
+review of newly observed domains. Social platforms (YouTube, Facebook,
+Reddit, Instagram) are deliberately unseeded and appear there.
+
+**What it means to the client:** an AI answer that cites the client's
+own site proves the site is being read; an answer that cites a trusted
+independent source naming the client is corroboration the client cannot
+buy. This classification separates the two, and stops competitor sites
+and low-trust scraped content from inflating trust metrics.
+
+**Note:** citations parsed before v1.34.0 hold the default
+`unknown_or_low_trust` until their runs are re-parsed.
+
 ### 2.3 Sentiment Classification
 
 The sentiment classifier is rule-based (no AI model — fully auditable).

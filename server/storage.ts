@@ -18,6 +18,7 @@ import { ResponseStore } from "./storage/responseStore";
 import { ScheduleStore } from "./storage/scheduleStore";
 import { MentionStore } from "./storage/mentionStore";
 import { CitationStore } from "./storage/citationStore";
+import { SourceDomainStore } from "./storage/sourceDomainStore";
 import { RecommendationStore } from "./storage/recommendationStore";
 import { MetricStore } from "./storage/metricStore";
 import { SentimentStore } from "./storage/sentimentStore";
@@ -327,7 +328,17 @@ export const SCHEMA_SQL = `
     root_domain TEXT NOT NULL,
     owned_by_brand_id INTEGER,
     position INTEGER NOT NULL,
-    is_trusted_third_party INTEGER NOT NULL DEFAULT 0
+    is_trusted_third_party INTEGER NOT NULL DEFAULT 0,
+    source_class TEXT NOT NULL DEFAULT 'unknown_or_low_trust'
+  );
+  CREATE TABLE IF NOT EXISTS source_domains (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    root_domain TEXT NOT NULL UNIQUE,
+    source_class TEXT NOT NULL DEFAULT 'unknown_or_low_trust',
+    rationale TEXT,
+    classified_by TEXT NOT NULL DEFAULT 'seed',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS response_recommendations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -482,6 +493,7 @@ export const responseStore = new ResponseStore(db);
 export const scheduleStore = new ScheduleStore(db);
 export const mentionStore = new MentionStore(db);
 export const citationStore = new CitationStore(db);
+export const sourceDomainStore = new SourceDomainStore(db);
 export const recommendationStore = new RecommendationStore(db);
 export const metricStore = new MetricStore(db);
 export const sentimentStore = new SentimentStore(db);

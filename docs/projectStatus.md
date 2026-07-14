@@ -1,7 +1,23 @@
 ## Resume From
 
 Last session: 2026-07-14
-Branch: main | Version: v1.33.2 | 826 tests passing
+Branch: main | Version: v1.34.0 | 852 tests passing
+
+Session 2026-07-14 (latest): v1.34.0 SHIPPED (packaged + tagged, NOT yet
+deployed) — YLG source-domain registry + citation classification
+(defensibility sprint slice 2, spec 6.3). Scope decisions locked with
+user: social platforms stay unknown_or_low_trust (review queue), trusted
+= industry_authority/local_authority/publisher_editorial only, API-only
+(admin UI deferred as B-27). New: SOURCE_CLASSES/8, source_domains
+registry table (migration 0019_absent_stature.sql),
+response_citations.source_class, sourceClassifier service (ownership >
+registry > unknown), sourceDomainStore (upsert/reclassify, seed 13
+domains idempotent + never overwrites human rows, unreviewed queue),
+admin routes GET/PUT /api/source-domains + /unreviewed, parse-response
+stamps class + derives isTrustedThirdParty (T component now live).
+26 new TDD tests. AFTER DEPLOY: re-parse all runs (SSH jobs-table
+method, see earlier note) so the 7,286 existing citations get classes;
+then review the unreviewed queue (facebook/youtube/reddit dominate).
 
 Session 2026-07-14 (later): TD-19 CLOSED — new 'fmj' key authorized in
 cPanel; `ssh -o BatchMode=yes -i ~/.ssh/workflow-portal
@@ -166,10 +182,9 @@ Next session priorities:
 2. YLG defensibility sprint continues. DONE: recommendation classifier
    v1.33.0 (7-status, rank, confidence, evidence, classifier_version,
    human-override columns; classifier tests double as the golden-dataset
-   start). NEXT slices, in order:
-   a. Source-domain registry + citation classification during parsing
-      (fixes isTrustedThirdParty always false; 8 source classes from
-      visibility doc 6.3).
+   start). DONE: source-domain registry + citation classification
+   v1.34.0 (slice a — isTrustedThirdParty now derived from source class).
+   NEXT slices, in order:
    b. Non-branded mention + recommendation rate endpoints (needs
       prompts.brand_in_prompt populated on real panels) + Recommendation
       SoV.
@@ -270,6 +285,50 @@ Pick up from:
 4. Still open: Groq API access pending (GROQ_API_KEY for pre-production);
    backlog B-17, B-15 v2, B-14. See Tech Debt Register and Backlog below
    for full priority list.
+
+---
+
+## Post-Sprint Work This Session (v1.34.0, 2026-07-14)
+
+- feat(sources): YLG source-domain registry + citation classification
+  (defensibility sprint slice 2, visibility spec 6.3). Migration
+  0019_absent_stature.sql.
+  - shared/schema.ts: SOURCE_CLASSES 8-class enum, REGISTRY_SOURCE_CLASSES
+    (the 6 assignable ones — ownership classes are derived, never stored),
+    TRUSTED_SOURCE_CLASSES (industry_authority, local_authority,
+    publisher_editorial — user decision: review platforms are reputation
+    evidence, not trust), source_domains table (root_domain unique,
+    source_class, rationale, classified_by, timestamps),
+    response_citations.source_class (default unknown_or_low_trust),
+    upsertSourceDomainSchema zod.
+  - server/services/sourceClassifier.ts (new): pure classifier —
+    ownership beats registry beats unknown; isTrustedSourceClass maps
+    class -> T score component.
+  - server/storage/sourceDomainStore.ts (new): list (class filter),
+    getByDomain, upsert (reclassify in place, updatedAt bump),
+    getMapForDomains batch lookup, listUnreviewed (cited domains absent
+    from the registry, citation counts desc — monthly review queue),
+    idempotent seedDefaults (13 unambiguous domains: 7 review platforms,
+    6 general directories; onConflictDoNothing so human reclassifications
+    survive reseeding). Seeded from routes/index.ts on startup.
+  - server/routes/sourceDomains.ts (new, ADMIN_ROLES): GET
+    /api/source-domains?class=, PUT /api/source-domains/:domain
+    (lowercases domain, validates format INVALID_DOMAIN, zod body
+    INVALID_INPUT — client_owned/competitor_owned rejected, records
+    classifiedBy user:<id>), GET /api/source-domains/unreviewed.
+  - server/jobs/handlers.ts (parse-response): batch registry lookup on
+    deduped cited domains; each citation stamped with source_class and a
+    derived isTrustedThirdParty (replaces the hardcoded false from
+    parser.ts — the visibility score's T component is now reachable).
+  - docs/system-documentation.md: new "Source Classification" Section
+    2.2 entry (classes, precedence, registry API, client meaning).
+  - TDD: 26 new tests written first and confirmed failing — 5 classifier,
+    8 store (incl. seed idempotency + human-reclassification survival +
+    unreviewed queue), 9 routes (RBAC, validation, normalization), 2
+    parse-response wiring, 2 citation store. 852 tests passing.
+  - Post-deploy: re-parse all runs so existing citations get classes;
+    social domains (facebook/youtube/reddit/instagram) intentionally
+    unseeded -> unreviewed queue (user decision, strict spec reading).
 
 ---
 
@@ -1399,6 +1458,13 @@ Confirmed decisions:
   rows on every re-parse, so a per-mention archived flag would be wiped;
   only worth building as response-level archiving or a separate
   hidden-matches table if the need returns.
+- B-27 Feature: admin UI for the source-domain registry (deferred by user
+  decision 2026-07-14 when v1.34.0 shipped API-only). A
+  /admin/source-domains page over the existing endpoints: unreviewed
+  queue (GET /api/source-domains/unreviewed, citation counts desc) with
+  per-domain class dropdown + required rationale field posting to PUT
+  /api/source-domains/:domain, plus a registry list filterable by class.
+  Powers the spec's monthly review of newly observed domains.
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
 - B-06 Session store: session expiry cleanup configuration review
 - B-15 v1 DONE (v1.15.0): Client Run-Readiness badges on /ai/clients (Ready /
