@@ -3,8 +3,10 @@ import type { Express } from 'express';
 import fs from "node:fs";
 import path from "node:path";
 
-export function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "public");
+export function serveStatic(
+  app: Express,
+  distPath: string = path.resolve(__dirname, "public"),
+) {
   if (!fs.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`,
@@ -25,9 +27,19 @@ export function serveStatic(app: Express) {
     })
   );
 
-  // fall through to index.html if the file doesn't exist
-  app.use("/{*path}", (_req, res) => {
+  // The SPA is hash-routed and index.html references assets relative to the
+  // document URL (vite base "./"), so serving index.html for a nested path
+  // would make ./assets resolve to a folder that doesn't exist. Send nested
+  // paths into the hash router instead; only "/" serves index.html directly.
+  app.use("/{*path}", (req, res) => {
+    // req.path is rewritten relative to the mount inside app.use(path, ...),
+    // so the real requested path must come from originalUrl.
+    const pathname = req.originalUrl.split("?")[0];
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    if (pathname !== "/") {
+      res.redirect(302, `/#${req.originalUrl}`);
+      return;
+    }
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
