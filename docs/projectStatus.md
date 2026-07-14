@@ -14,11 +14,23 @@ v1.33.2 (parser.ts regex + 3 TDD tests). ALSO FOUND, not yet actioned:
 rules-1.0 keyword false positive — "To recommend alternatives to X"
 classifies X as recommended (response 2991); this is the known
 ambiguous-prose limitation, waiting on the planned LLM classifier slice.
-AFTER v1.33.2 DEPLOYS: re-parse runs 67 and 75 (and any other parsed
-runs) so ranks/first_choice/visibility-score R component are corrected;
-verify response 3447 flips to first_choice rank 1.
-v1.33.1 deploy was IN PROGRESS by user this session (deep-link fix;
-check: hard-load https://portal.fullmetaljacketseo.com/ai/clients).
+v1.33.2 DEPLOYED (user skipped v1.33.1 tarball; v1.33.2 includes it) and
+FULLY VERIFIED: deep-link check passed (hard-loading /ai/clients lands on
+Clients at /#/ai/clients); TD-16 post-deploy check found and killed a
+1d19h stale worker (PID 2937680, predated v1.33.0); runs 67+75 re-parsed
+via direct jobs-table inserts over SSH (88 parse-response jobs, all
+done, 0 failed, ~10 jobs/min). Verification: response 3447 flipped
+listed_option -> first_choice rank 1 (conf 0.9), 3449 likewise. New
+distribution: run 75 = 31 incidental / 3 listed / 2 first_choice /
+1 strongly_recommended; run 67 = 9 incidental / 1 recommended /
+1 listed. NOTE: row counts jumped (19->37 on run 75) which retroactively
+shows the stale worker had claimed ~half of last session's re-parse jobs
+and silently wrote NO recommendation rows (old code, no visible
+failure) — TD-16's cost now includes silent stale-code output, not just
+env-var drift. Response 2991 still 'recommended' (rules-1.0
+ambiguous-prose false positive, waits for the LLM classifier slice).
+Dashboard aggregates pick up the recomputed visibility scores on the
+next aggregate-snapshot-daily run.
 
 Session 2026-07-14: v1.33.0 DEPLOYED to production and confirmed live
 (version footer + portal fully functional). Post-deploy QA part 1 done:
