@@ -3,19 +3,29 @@
 Last session: 2026-07-14
 Branch: main | Version: v1.34.1 | 853 tests passing
 
-Session 2026-07-14 (v1.34.0 deploy QA): v1.34.0 DEPLOYED and verified —
-registry seeded (13 rows), classification confirmed live (salvo ->
-client_owned, houzz/bbb -> review_platform, zoominfo ->
-general_directory, unseeded -> unknown). Full re-parse of all 3,121
-completed responses enqueued ~15:25 local (~11 jobs/min, ~4.5h; check
-"SELECT status, COUNT(*) FROM jobs WHERE kind='parse-response' GROUP BY
-status" and the source_class distribution when done). QA found TD-21
-(URL-formatted brand domains never matched ownership — see register),
-FIXED as v1.34.1 (packaged + tagged, NOT yet deployed). AFTER v1.34.1
-DEPLOYS: re-parse responses citing competitor domains (or simply re-run
-the affected clients' runs); ALSO user data fix — Chicago Metal brand
-primary domain is chicagometal.com but citations say
-chicagometalsupply.com.
+Session 2026-07-14 (v1.34.x deploy QA, shutdown ~16:00 local): v1.34.0
+AND v1.34.1 both DEPLOYED to production and verified (registry seeded 13
+rows; classification confirmed live: salvo -> client_owned, houzz/bbb ->
+review_platform, zoominfo -> general_directory; single fresh worker
+after each restart, no TD-16 zombie). TD-21 found during QA and fixed in
+v1.34.1 (see register). Full re-parse of ALL completed responses was IN
+FLIGHT at shutdown: 3,121 enqueued ~15:25 + 378 requeued (the ones
+parsed before the v1.34.1 fix, appended at the tail so they re-run under
+the fixed parser); at 16:00 the queue stood at 418 done / 3,169 queued,
+~11 jobs/min, ETA roughly 21:00 local. User was fixing the Chicago Metal
+brand primary domain (chicagometal.com -> chicagometalsupply.com) in the
+portal UI at shutdown; Salvo's recent responses and the requeued tail
+parse after that fix lands, so no extra re-parse should be needed.
+NEXT SESSION FIRST: verify the finished re-parse —
+  ssh -o BatchMode=yes -i ~/.ssh/workflow-portal
+  fullmetaljacket@69.72.136.208 "sqlite3 ~/persistent/data.db 'SELECT
+  source_class, COUNT(*) FROM response_citations GROUP BY source_class'"
+Expect client_owned in the hundreds, competitor_owned > 0 (K&M, Cupolas,
+Chicago Metal if user's fix landed), review_platform covering
+yelp/bbb/angi/houzz volume, zero failed parse-response jobs, and
+facebook/youtube/reddit topping GET /api/source-domains/unreviewed. Then
+spot-check one Salvo response citing chicagometalsupply.com ->
+competitor_owned.
 
 Session 2026-07-14 (latest): v1.34.0 SHIPPED (packaged + tagged, NOT yet
 deployed) — YLG source-domain registry + citation classification
