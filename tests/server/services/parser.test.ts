@@ -139,6 +139,20 @@ describe("parseResponse — citation extraction", () => {
     expect(result.citations[0].ownedByBrandId).toBe(1);
   });
 
+  // TD-21: brand records store primary_domain both as bare domains
+  // ("acme.com") and full URLs ("https://www.rival.com/"). Ownership
+  // matching must handle both.
+  it("matches ownership when the brand's primaryDomain is a full URL", () => {
+    const urlBrand: BrandInput = {
+      id: 5,
+      primaryDomain: "https://www.rival.com/",
+      aliases: [{ aliasText: "Rival Co", matchType: "exact" }],
+    };
+    const citations = [{ url: "https://rival.com/services", position: 1 }];
+    const result = parseResponse("Some text.", citations, [urlBrand]);
+    expect(result.citations[0].ownedByBrandId).toBe(5);
+  });
+
   it("marks a citation as unowned when domain does not match any brand", () => {
     const citations = [{ url: "https://searchenginejournal.com/article", position: 1 }];
     const result = parseResponse("Some text.", citations, BRANDS);

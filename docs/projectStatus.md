@@ -1,7 +1,21 @@
 ## Resume From
 
 Last session: 2026-07-14
-Branch: main | Version: v1.34.0 | 852 tests passing
+Branch: main | Version: v1.34.1 | 853 tests passing
+
+Session 2026-07-14 (v1.34.0 deploy QA): v1.34.0 DEPLOYED and verified —
+registry seeded (13 rows), classification confirmed live (salvo ->
+client_owned, houzz/bbb -> review_platform, zoominfo ->
+general_directory, unseeded -> unknown). Full re-parse of all 3,121
+completed responses enqueued ~15:25 local (~11 jobs/min, ~4.5h; check
+"SELECT status, COUNT(*) FROM jobs WHERE kind='parse-response' GROUP BY
+status" and the source_class distribution when done). QA found TD-21
+(URL-formatted brand domains never matched ownership — see register),
+FIXED as v1.34.1 (packaged + tagged, NOT yet deployed). AFTER v1.34.1
+DEPLOYS: re-parse responses citing competitor domains (or simply re-run
+the affected clients' runs); ALSO user data fix — Chicago Metal brand
+primary domain is chicagometal.com but citations say
+chicagometalsupply.com.
 
 Session 2026-07-14 (latest): v1.34.0 SHIPPED (packaged + tagged, NOT yet
 deployed) — YLG source-domain registry + citation classification
@@ -1328,6 +1342,7 @@ Confirmed decisions:
 | TD-17 | Medium | Done | JobRunner hard-failed jobs with unknown kinds ("No handler registered for kind: X") instead of leaving them queued, so during mixed-version deploy windows (or with a TD-16 stale worker) an old worker permanently failed jobs a newer worker could process. FIXED in v1.30.1: unknown-kind jobs are released back to queued with a 60s nextRunAt delay and a descriptive lastError so a capable worker can claim them; if no capable worker claims the job within 24h of creation (UNKNOWN_KIND_MAX_AGE_MS — covers typo'd or retired kinds), it fails terminally with "no handler appeared within 24h". attempts is deliberately not incremented (it means "handler executed and threw"). | server/jobs/runner.ts (tick, no-handler branch) |
 | TD-18 | High | Done | All GA4 refresh tokens minted before 2026-07-07 would expire with invalid_grant: the Google OAuth consent screen (project 551074775331) was in "Testing" publishing status, which caps refresh-token life at 7 days. Published to "In production" on 2026-07-07 (new tokens long-lived), but Testing-era tokens kept their 7-day clock. RESOLVED 2026-07-08: every GA4-connected client was disconnected and reconnected via the portal UI under the published app (Analytics checkbox ticked, property IDs re-selected) and every integration Test passes on a post-publish connection. | ops/Google Cloud OAuth; client Integrations |
 | TD-19 | Low | Done | No non-interactive SSH access to production from the dev machine. RESOLVED 2026-07-14: the old passphrase-protected key was replaced with a new passphrase-free ed25519 keypair (~/.ssh/workflow-portal); user imported the public key in cPanel as 'fmj' and authorized it. Verified: `ssh -o BatchMode=yes -i ~/.ssh/workflow-portal fullmetaljacket@69.72.136.208 "echo SSH-OK"` succeeds with no prompt. Live-DB queries now work non-interactively. | ops/local dev environment |
+| TD-21 | Medium | Done | Citation ownership matching silently failed for URL-formatted brand domains: parser.ts unconditionally prefixed "https://" to brands.primary_domain before extracting the root domain, so values stored as full URLs ("https://chicagometal.com/", "https://www.kmsheetmetal.com/" — how the Brands UI accepted them) produced an unparseable double-scheme URL and ownedByBrandId never matched. Predates v1.34.0: competitor-owned citation attribution in Sources analysis was broken for every URL-formatted brand since Sprint 4; surfaced during v1.34.0 QA when chicagometalsupply.com classified unknown instead of competitor_owned. FIXED in v1.34.1: scheme prefixed only when missing. RELATED DATA ISSUE (user, portal UI): Chicago Metal's brand record says chicagometal.com but AI responses cite chicagometalsupply.com — correct the brand's primary domain if that's the real site. Affected responses need a re-parse after deploy. | server/services/parser.ts (parsedCitations owner match) |
 | TD-20 | Medium | Done | Numbered-list rank detection missed markdown-formatted list items: detectRecommendationRank required `N.` plus only whitespace directly before the brand mention, but LLM responses almost always bold list items (`1. **Brand**`) or the number itself (`**1.**`). Effect: recommendationRank was almost never set on real responses, so first_choice was effectively unreachable in the v1.33.0 classifier AND the visibility score's firstRecommended component (scoring.ts) never fired — this predates v1.33.0. Found during v1.33.0 production QA (Run #75 response 3447: brand at list position 1 stored as listed_option/no rank). FIXED in v1.33.2: rank regex now tolerates markdown emphasis chars around the list marker; decimal numbers ("4.5") still excluded. Affected runs need a re-parse after deploy for corrected ranks/statuses/scores. | server/services/parser.ts (detectRecommendationRank) |
 
 ---

@@ -14,6 +14,7 @@
  * Comments:
  * - v1.00 Sprint 4 initial implementation
  * - v1.01 TD-20: rank detection tolerates markdown emphasis around list markers
+ * - v1.02 TD-21: ownership matching accepts URL-formatted brand primary domains
  */
 
 export interface AliasInput {
@@ -156,10 +157,18 @@ export function parseResponse(
     }
   }
 
+  // Brand records hold primary_domain as either a bare domain
+  // ("acme.com") or a full URL ("https://www.rival.com/"); only prefix
+  // a scheme when one is missing so both forms resolve to a root domain.
+  const brandRootDomain = (primaryDomain: string): string =>
+    extractRootDomain(
+      primaryDomain.includes("://") ? primaryDomain : `https://${primaryDomain}`
+    );
+
   const parsedCitations: ParsedCitation[] = citations.map((c) => {
     const rootDomain = extractRootDomain(c.url);
     const owner = brands.find(
-      (b) => b.primaryDomain && extractRootDomain(`https://${b.primaryDomain}`) === rootDomain
+      (b) => b.primaryDomain && brandRootDomain(b.primaryDomain) === rootDomain
     );
     return {
       url: c.url,

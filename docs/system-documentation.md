@@ -389,6 +389,14 @@ and low-trust scraped content from inflating trust metrics.
 **Note:** citations parsed before v1.34.0 hold the default
 `unknown_or_low_trust` until their runs are re-parsed.
 
+**Fixes:** v1.34.1 (TD-21) — brand ownership matching (which drives both
+`ownedByBrandId` and the `client_owned`/`competitor_owned` classes)
+previously failed for brands whose primary domain was saved as a full
+URL (e.g. `https://www.example.com/`) instead of a bare domain: the
+parser prefixed a second scheme and the comparison never matched. Both
+formats now work. Brands with URL-formatted domains need their runs
+re-parsed for corrected ownership attribution.
+
 ### 2.3 Sentiment Classification
 
 The sentiment classifier is rule-based (no AI model — fully auditable).
