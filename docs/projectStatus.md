@@ -1,7 +1,46 @@
 ## Resume From
 
-Last session: 2026-07-12
-Branch: main | Version: v1.33.0 | 818 tests passing
+Last session: 2026-07-14
+Branch: main | Version: v1.33.1 | 823 tests passing
+
+Session 2026-07-14: v1.33.0 DEPLOYED to production and confirmed live
+(version footer + portal fully functional). Post-deploy QA part 1 done:
+re-parsed Salvo Metal Works Run #75 (40 completed responses) via
+RunDetail > Re-parse responses — completed in under a minute, so the job
+runner is healthy (no TD-16 zombie hoarding the queue). Part 2 — the
+response_recommendations spot-check against response text — is BLOCKED
+on SSH access and is the FIRST thing to do next session (it also
+definitively rules TD-16 in/out, since only the new worker writes
+recommendation rows).
+
+v1.33.1 SHIPPED (packaged + tagged, NOT yet deployed): fix(static) —
+hard-loading a nested path URL (e.g. /ai/clients) served fallback HTML
+for the asset requests (vite base "./" + hash routing) and rendered a
+blank page. serveStatic now 302-redirects non-root paths to /#<path>
+with query string preserved (server/static.ts; req.path is mount-
+relative inside app.use(path,...) so the redirect reads originalUrl).
+5 new tests in tests/server/static.test.ts. Deploy check: hard-loading
+https://portal.fullmetaljacketseo.com/ai/clients must land on Clients.
+
+TD-19 progress/reset: ssh-agent service is now Running + Automatic (the
+admin fix was done). BUT the old key's passphrase is lost ("Quest@
+Rivers3end" and 9 mangle variants all fail to decrypt), so a NEW
+passphrase-free ed25519 keypair was generated at
+%USERPROFILE%\.ssh\workflow-portal (fingerprint
+SHA256:iwhhGLw19v4V6LiYFk2mduYYY4UKrptWgyyrEuj/iRE). The old local key
+is deleted. NEXT STEP (user, in cPanel): delete all old keys on the
+server, then authorize the new public key:
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMxnW+SuE//VIvky+k1xJo9y6n/NzFVU5KEcrn2DniZa workflow-portal-2026-07-14
+(cPanel Terminal: echo '<that line>' >> ~/.ssh/authorized_keys && chmod
+600 ~/.ssh/authorized_keys — or SSH Access > Manage SSH Keys > Import
+Key > Authorize.) Then test: ssh -o BatchMode=yes
+fullmetaljacket@69.72.136.208 "echo SSH-OK" — no passphrase needed, no
+ssh-add required.
+
+Also noted: Run #75's 10 failed responses are all Anthropic API 400
+"credit balance is too low" (same likely cause for failures on runs
+#42/#53/#64). User says billing auto-reload is ON, so next runs should
+recover; verify on the next scheduled run.
 
 Session 2026-07-12: v1.30.1 DEPLOYED to production and smoke tested
 (user-confirmed). YLG program kickoff: reviewed the two spec docs now in
@@ -89,11 +128,12 @@ with a 24h grace window before terminal failure (capped variant chosen
 by user — no eternal requeue loops for typo'd or retired kinds).
 
 Next session priorities:
-1. Deploy v1.33.0 (recommendation classifier, migration 0018; v1.32.0
-   already live and QA-passed 2026-07-12). Post-deploy: re-parse a run
-   (RunDetail > Re-parse responses) so existing responses get
-   recommendation rows, then spot-check response_recommendations against
-   the response text. TD-16 stale-worker check on restart.
+1. Finish TD-19 (server-side key install, see Session 2026-07-14 note),
+   then spot-check response_recommendations on the production DB against
+   Run #75 response text (completes v1.33.0 QA + definitive TD-16 check):
+   ssh fullmetaljacket@69.72.136.208 "sqlite3 ~/persistent/data.db
+   'SELECT ...'" now works non-interactively once the key is authorized.
+   Then deploy v1.33.1 (static deep-link fix; tarball already packaged).
 2. YLG defensibility sprint continues. DONE: recommendation classifier
    v1.33.0 (7-status, rank, confidence, evidence, classifier_version,
    human-override columns; classifier tests double as the golden-dataset
