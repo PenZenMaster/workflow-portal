@@ -338,6 +338,19 @@ recommended. This classification feeds the upcoming Recommendation Rate
 and Recommendation Share of Voice metrics — the preferred competitive
 KPIs — which count only `listed_option` or stronger.
 
+**Human overrides (v1.36.0):** analysts (analyst role and up) can
+correct a classification from the Run detail page — each complete
+response has a collapsible Recommendations panel listing every brand's
+machine status, rank, and evidence, with a status dropdown that records
+an override via `PATCH /api/response-recommendations/:id`
+(`GET /api/responses/:id/recommendations` backs the panel). The machine
+status is always retained alongside the override (FR-11); metrics use
+the override (`COALESCE(human_status, status)`), so corrections flow
+into the non-branded recommendation rate and Recommendation SoV on the
+next aggregate. Overrides survive re-parses only if the response is not
+re-parsed (re-parsing deletes and recreates recommendation rows) —
+re-parse a run only when parser/brand changes require it.
+
 **Fixes:** v1.33.2 (TD-20) — numbered-list rank detection previously
 required the list number to sit directly before the brand name with only
 whitespace between, so the dominant LLM format `1. **Brand**` (and bolded

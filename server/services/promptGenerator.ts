@@ -151,7 +151,7 @@ export function buildGenerationPrompt(ctx: GenerationContext): string {
     "object with exactly these keys:",
     '  "text": string - the prompt text, natural conversational language',
     `  "intentType": one of ${PROMPT_INTENT_TYPES.map((t) => `"${t}"`).join(", ")}`,
-    '  "brandInPrompt": boolean - true only when the client or a competitor brand name appears in the text',
+    '  "brandInPrompt": boolean - true only when the client\'s own brand name appears in the text; a prompt naming only competitors is false',
     '  "funnelStage": one of "awareness", "consideration", "decision"',
     '  "service": string or null - the core service the prompt targets',
     '  "location": string or null - the approved geography referenced, if any',

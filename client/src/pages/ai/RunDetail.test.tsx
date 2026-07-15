@@ -117,3 +117,71 @@ describe("RunDetail — Retry failed", () => {
     expect(screen.queryByRole("button", { name: /Retry failed/i })).not.toBeInTheDocument();
   });
 });
+
+describe("RunDetail — Recommendations panel", () => {
+  const RECOMMENDATION = {
+    id: 5,
+    responseId: 11,
+    brandId: 10,
+    brandName: "Salvo Metal Works",
+    status: "listed_option",
+    rank: 2,
+    confidence: 0.7,
+    evidenceExcerpt: "2. Salvo Metal Works - known for...",
+    classifierVersion: "rules-1.0",
+    humanStatus: null,
+    humanUserId: null,
+    humanAt: null,
+  };
+
+  beforeEach(() => {
+    runApiResponse = {
+      data: {
+        run: { ...BASE_RUN, status: "complete", completedPrompts: 1, failedPrompts: 0 },
+        responses: [COMPLETE_RESPONSE],
+      },
+    };
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url === "/api/responses/11/recommendations") {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ data: [RECOMMENDATION] }),
+          text: async () => JSON.stringify({ data: [RECOMMENDATION] }),
+        } as Response;
+      }
+      if (method === "PATCH" && url === "/api/response-recommendations/5") {
+        const updated = { data: { ...RECOMMENDATION, humanStatus: "recommended", humanUserId: 1, humanAt: Date.now() } };
+        return { ok: true, status: 200, json: async () => updated, text: async () => JSON.stringify(updated) } as Response;
+      }
+      return base(url, init);
+    });
+  });
+
+  it("loads and shows brand classifications when the panel is expanded", async () => {
+    renderRunDetail();
+
+    const toggle = await screen.findByRole("button", { name: /Recommendations/i });
+    await userEvent.click(toggle);
+
+    expect(await screen.findByText("Salvo Metal Works")).toBeInTheDocument();
+    const select = screen.getByLabelText(/Override status for Salvo Metal Works/i) as HTMLSelectElement;
+    expect(select.value).toBe("listed_option");
+  });
+
+  it("submits a human override via PATCH and reflects the corrected status", async () => {
+    renderRunDetail();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Recommendations/i }));
+    const select = await screen.findByLabelText(/Override status for Salvo Metal Works/i);
+    await userEvent.selectOptions(select, "recommended");
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/response-recommendations/5",
+        expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "recommended" }) }),
+      ),
+    );
+  });
+});

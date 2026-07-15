@@ -65,6 +65,15 @@ describe("promptGenerator", () => {
       expect(prompt).toContain("12");
     });
 
+    it("defines brandInPrompt as client-brand-only (competitor-only prompts are non-branded)", () => {
+      const prompt = buildGenerationPrompt(BASE_CONTEXT);
+
+      expect(prompt).toContain(
+        '"brandInPrompt": boolean - true only when the client\'s own brand name appears in the text; a prompt naming only competitors is false'
+      );
+      expect(prompt).not.toContain("client or a competitor brand name");
+    });
+
     it("includes core services, exclusions, and the untrusted-data instruction", () => {
       const prompt = buildGenerationPrompt(BASE_CONTEXT);
 

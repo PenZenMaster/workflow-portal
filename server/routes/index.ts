@@ -33,6 +33,7 @@ import { registerUserRoutes } from "./users";
 import { registerJobRoutes } from "./jobs";
 import { registerFactoryRoutes } from "./factory";
 import { registerSourceDomainRoutes } from "./sourceDomains";
+import { registerRecommendationRoutes } from "./recommendations";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -60,6 +61,7 @@ export async function registerRoutes(
   registerJobRoutes(app);
   registerFactoryRoutes(app);
   registerSourceDomainRoutes(app);
+  registerRecommendationRoutes(app);
 
   return httpServer;
 }

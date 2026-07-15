@@ -844,6 +844,12 @@ export const RECOMMENDED_STATUSES = [
   "first_choice",
 ] as const;
 
+// Analyst human-status override (FR-11): the machine status is retained;
+// the override drives reporting.
+export const recommendationOverrideSchema = z.object({
+  status: z.enum(RECOMMENDATION_STATUSES),
+});
+
 export const responseRecommendations = sqliteTable("response_recommendations", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   responseId: integer("response_id").notNull(),

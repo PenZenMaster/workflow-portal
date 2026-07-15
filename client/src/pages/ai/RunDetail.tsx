@@ -1,15 +1,108 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { PromptRun, ResponseRaw } from "@shared/schema";
+import type { PromptRun, ResponseRaw, RecommendationStatus, ResponseRecommendation } from "@shared/schema";
+import { RECOMMENDATION_STATUSES } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, CheckCircle2, RotateCcw } from "lucide-react";
+import { RefreshCw, CheckCircle2, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
 import { isReparseComplete, reparseProgressLabel, type ReparseStatus } from "./reparseStatus";
 import { Breadcrumbs, useClientName } from "@/components/Breadcrumbs";
 
 const TERMINAL = new Set(["complete", "partial", "failed"]);
+
+type RecommendationRow = ResponseRecommendation & { brandName: string };
+
+function formatStatus(status: string): string {
+  return status.replace(/_/g, " ");
+}
+
+function ResponseRecommendations({ responseId }: { responseId: number }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+
+  const { data, isLoading } = useQuery<{ data: RecommendationRow[] }>({
+    queryKey: [`/api/responses/${responseId}/recommendations`],
+    enabled: open,
+  });
+
+  const overrideMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: RecommendationStatus }) => {
+      const res = await apiRequest("PATCH", `/api/response-recommendations/${id}`, { status });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/responses/${responseId}/recommendations`] });
+      toast({ title: "Override saved", description: "Metrics use the corrected status from the next aggregate." });
+    },
+    onError: (err) => toast({ title: "Override failed", description: String(err), variant: "destructive" }),
+  });
+
+  const rows = data?.data ?? [];
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+      >
+        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        Recommendations
+      </button>
+
+      {open && (
+        <div className="mt-2 space-y-2">
+          {isLoading ? (
+            <p className="text-xs text-muted-foreground">Loading...</p>
+          ) : rows.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No brand classifications for this response.</p>
+          ) : (
+            rows.map((r) => {
+              const effective = r.humanStatus ?? r.status;
+              return (
+                <div key={r.id} className="flex flex-wrap items-center gap-2 rounded border bg-muted/30 px-2 py-1.5 text-xs">
+                  <span className="font-medium">{r.brandName}</span>
+                  <span className="text-muted-foreground">
+                    machine: {formatStatus(r.status)}
+                    {r.rank != null && ` (rank ${r.rank})`}
+                  </span>
+                  {r.humanStatus && (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                      overridden
+                    </span>
+                  )}
+                  <label className="ml-auto flex items-center gap-1">
+                    <span className="sr-only">{`Override status for ${r.brandName}`}</span>
+                    <select
+                      aria-label={`Override status for ${r.brandName}`}
+                      className="rounded border bg-background px-1 py-0.5"
+                      value={effective}
+                      disabled={overrideMutation.isPending}
+                      onChange={(e) =>
+                        overrideMutation.mutate({ id: r.id, status: e.target.value as RecommendationStatus })
+                      }
+                    >
+                      {RECOMMENDATION_STATUSES.map((s) => (
+                        <option key={s} value={s}>
+                          {formatStatus(s)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {r.evidenceExcerpt && (
+                    <p className="w-full text-muted-foreground italic truncate">"{r.evidenceExcerpt}"</p>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function RunDetail() {
   const { runId } = useParams<{ runId: string }>();
@@ -180,6 +273,7 @@ export default function RunDetail() {
               {r.latencyMs && (
                 <p className="text-xs text-muted-foreground mt-1">{r.latencyMs}ms</p>
               )}
+              {r.status === "complete" && <ResponseRecommendations responseId={r.id} />}
             </li>
           ))}
         </ul>
