@@ -6,7 +6,7 @@ import { buildAuthApp } from "./_helpers/buildAuthApp";
 
 const mockMentionStore = { listByResponse: vi.fn(), listByClient: vi.fn(), countByClient: vi.fn(), bulkCreate: vi.fn(), deleteByResponse: vi.fn(), create: vi.fn() };
 const mockCitationStore = { listByResponse: vi.fn(), bulkCreate: vi.fn(), deleteByResponse: vi.fn(), create: vi.fn() };
-const mockMetricStore = { upsert: vi.fn(), listByClient: vi.fn(), aggregateForPeriod: vi.fn() };
+const mockMetricStore = { upsert: vi.fn(), listByClient: vi.fn(), aggregateForPeriod: vi.fn(), aggregateNonBranded: vi.fn() };
 const mockResponseStore = { get: vi.fn() };
 const mockBrandStore = { listByClient: vi.fn() };
 const mockAliasStore = { listByBrand: vi.fn() };
@@ -98,6 +98,56 @@ describe("GET /api/clients/:id/metrics/trend", () => {
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/trend?metric=aiSoV&period=30d");
     expect(res.status).toBe(200);
     expect(res.body.data[0].value).toBe(20);
+  });
+});
+
+describe("GET /api/clients/:id/metrics/non-branded", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const AGG = {
+    nonBrandedResponses: 20,
+    unvalidatedResponses: 4,
+    mentionedNonBranded: 8,
+    recommendedNonBranded: 5,
+    clientRecommended: 6,
+    allBrandRecommended: 24,
+  };
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/clients/1/metrics/non-branded");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 for a non-numeric client id", async () => {
+    const res = await request(buildApp("analyst")).get("/api/clients/abc/metrics/non-branded");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_ID");
+  });
+
+  it("computes non-branded mention rate, recommendation rate, and Recommendation SoV from the aggregate", async () => {
+    mockMetricStore.aggregateNonBranded.mockResolvedValue(AGG);
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/non-branded?period=30d");
+    expect(res.status).toBe(200);
+    expect(mockMetricStore.aggregateNonBranded).toHaveBeenCalledWith(1, expect.any(String), expect.any(String));
+    expect(res.body.data.mentionRate).toBe(40);          // 8/20
+    expect(res.body.data.recommendationRate).toBe(25);   // 5/20
+    expect(res.body.data.recommendationSoV).toBe(25);    // 6/24
+    expect(res.body.data.nonBrandedResponses).toBe(20);
+    expect(res.body.data.unvalidatedResponses).toBe(4);
+    expect(res.body.data.clientRecommended).toBe(6);
+    expect(res.body.data.allBrandRecommended).toBe(24);
+  });
+
+  it("returns zeros rather than NaN when there are no non-branded responses", async () => {
+    mockMetricStore.aggregateNonBranded.mockResolvedValue({
+      nonBrandedResponses: 0, unvalidatedResponses: 0, mentionedNonBranded: 0,
+      recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0,
+    });
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/non-branded");
+    expect(res.status).toBe(200);
+    expect(res.body.data.mentionRate).toBe(0);
+    expect(res.body.data.recommendationRate).toBe(0);
+    expect(res.body.data.recommendationSoV).toBe(0);
   });
 });
 

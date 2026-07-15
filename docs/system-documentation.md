@@ -349,6 +349,41 @@ markdown emphasis markers around the list number; a digit after the dot
 need a re-parse for corrected ranks, recommendation statuses, and
 visibility scores.
 
+#### Non-Branded Panel Metrics (added v1.35.0)
+> How visible is the client when the prompt never names them?
+
+`GET /api/clients/:id/metrics/non-branded?period=30d|90d|365d` computes
+three metrics live from the raw tables (daily snapshots carry no
+branded/non-branded split), scoped to complete responses whose prompt has
+`brand_in_prompt = 0`:
+
+- **Non-branded mention rate** — % of non-branded responses mentioning a
+  client brand. The defensible visibility number: the AI surfaced the
+  client without being asked about them.
+- **Non-branded recommendation rate** — % of non-branded responses whose
+  effective recommendation status for a client brand is recommended-and-up
+  (`recommended`, `strongly_recommended`, `first_choice` — see
+  `RECOMMENDED_STATUSES`). `listed_option` deliberately does not count:
+  being one name in a list is not a recommendation.
+- **Recommendation SoV** — client recommendation rows / all-brand
+  recommendation rows at recommended-and-up, within non-branded responses.
+  Branded prompts are excluded because they trivially surface the client.
+
+"Effective status" means the analyst's human override wins over the
+machine classification when present (`COALESCE(human_status, status)`),
+so corrections flow into reported numbers (FR-11).
+
+**Coverage caveat:** prompts with `brand_in_prompt` still NULL
+(unvalidated legacy prompts) contribute to neither numerator nor
+denominator; the response reports them as `unvalidatedResponses`. Until a
+client's panel is classified, these metrics under-report. Populate
+`brand_in_prompt` via prompt generation (which sets it) or bulk import.
+
+**Client meaning:** "When people ask AI tools for a
+[service] in [area] without naming anyone, you appear in X% of answers
+and are actively recommended in Y%; of all recommendations handed out,
+you get Z%."
+
 #### Source Classification (added v1.34.0)
 > Who is the AI citing, and how much does that citation count for?
 

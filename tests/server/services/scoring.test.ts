@@ -4,8 +4,10 @@ import {
   computeCitationFrequency,
   computeMentionRate,
   computeAISoV,
+  computeRecommendationRate,
   DEFAULT_WEIGHTS,
 } from "../../../server/services/scoring";
+import { RECOMMENDED_STATUSES } from "@shared/schema";
 import type { ResponseMention, ResponseCitation } from "@shared/schema";
 
 function mention(brandId: number, section: ResponseMention["section"], rank?: number): ResponseMention {
@@ -127,5 +129,26 @@ describe("computeAISoV", () => {
 
   it("computes clientMentions / allBrandMentions × 100", () => {
     expect(computeAISoV(3, 12)).toBeCloseTo(25, 5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("computeRecommendationRate", () => {
+  it("returns the percentage of recommended responses", () => {
+    expect(computeRecommendationRate(5, 20)).toBe(25);
+  });
+
+  it("returns 0 when there are no responses", () => {
+    expect(computeRecommendationRate(0, 0)).toBe(0);
+  });
+});
+
+describe("RECOMMENDED_STATUSES", () => {
+  it("is exactly recommended-and-up (excludes listed_option)", () => {
+    expect([...RECOMMENDED_STATUSES]).toEqual([
+      "recommended",
+      "strongly_recommended",
+      "first_choice",
+    ]);
   });
 });

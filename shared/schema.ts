@@ -835,6 +835,15 @@ export const RECOMMENDATION_STATUSES = [
 ] as const;
 export type RecommendationStatus = (typeof RECOMMENDATION_STATUSES)[number];
 
+// Statuses that count as an actual recommendation in rate/SoV metrics:
+// recommended-and-up. listed_option is mere list membership, not a
+// recommendation (metric definition locked 2026-07-15).
+export const RECOMMENDED_STATUSES = [
+  "recommended",
+  "strongly_recommended",
+  "first_choice",
+] as const;
+
 export const responseRecommendations = sqliteTable("response_recommendations", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   responseId: integer("response_id").notNull(),

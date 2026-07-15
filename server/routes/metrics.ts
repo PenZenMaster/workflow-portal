@@ -30,6 +30,7 @@ import {
   computeCitationFrequency,
   computeMentionRate,
   computeAISoV,
+  computeRecommendationRate,
   DEFAULT_WEIGHTS,
 } from "../services/scoring";
 
@@ -126,6 +127,39 @@ export function registerMetricRoutes(app: Express): void {
       aiSoV: computeAISoV(agg.totalClientBrandMentions, agg.totalAllBrandMentions),
       clientMentions: agg.totalClientBrandMentions,
       allBrandMentions: agg.totalAllBrandMentions,
+      fromDate,
+      toDate,
+    });
+  });
+
+  // --- Non-branded panel metrics (YLG slice b) ------------------------------
+  // Rates over responses to non-branded prompts only (brand_in_prompt = 0);
+  // Recommendation SoV counts effective (human-override-first) statuses at
+  // recommended-and-up. unvalidatedResponses reports panel coverage: prompts
+  // whose brand_in_prompt is still NULL contribute to neither rate.
+
+  app.get("/api/clients/:id/metrics/non-branded", requireAuth, async (req, res) => {
+    const clientId = Number(req.params.id);
+    if (Number.isNaN(clientId))
+      throw new AppError(400, "Invalid client id", "INVALID_ID");
+
+    const { fromDate, toDate } = periodToDates(
+      typeof req.query.period === "string" ? req.query.period : "30d"
+    );
+    const agg = await metricStore.aggregateNonBranded(clientId, fromDate, toDate);
+
+    ok(res, {
+      nonBrandedResponses: agg.nonBrandedResponses,
+      unvalidatedResponses: agg.unvalidatedResponses,
+      mentionRate: computeMentionRate(agg.mentionedNonBranded, agg.nonBrandedResponses),
+      recommendationRate: computeRecommendationRate(
+        agg.recommendedNonBranded,
+        agg.nonBrandedResponses
+      ),
+      recommendationSoV: computeAISoV(agg.clientRecommended, agg.allBrandRecommended),
+      clientRecommended: agg.clientRecommended,
+      allBrandRecommended: agg.allBrandRecommended,
+      period: req.query.period ?? "30d",
       fromDate,
       toDate,
     });

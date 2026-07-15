@@ -9,9 +9,10 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-10
- * Last Modified Date: 2026-05-10
+ * Last Modified Date: 2026-07-15
  * Comments:
  * - v1.00 Sprint 4 initial implementation
+ * - v1.01 YLG slice b: computeRecommendationRate
  */
 
 import type { ResponseMention, ResponseCitation } from "@shared/schema";
@@ -76,4 +77,10 @@ export function computeMentionRate(mentioned: number, total: number): number {
 export function computeAISoV(clientMentions: number, allBrandMentions: number): number {
   if (allBrandMentions === 0) return 0;
   return (clientMentions / allBrandMentions) * 100;
+}
+
+/** Recommendation Rate = (responses recommending client / total responses) × 100 */
+export function computeRecommendationRate(recommended: number, total: number): number {
+  if (total === 0) return 0;
+  return (recommended / total) * 100;
 }

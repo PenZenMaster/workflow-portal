@@ -1,12 +1,15 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
+import { eq } from "drizzle-orm";
+import { brands, prompts, responsesRaw } from "@shared/schema";
 import { SCHEMA_SQL } from "../../../server/storage";
 import { MentionStore } from "../../../server/storage/mentionStore";
 import { CitationStore } from "../../../server/storage/citationStore";
 import { MetricStore } from "../../../server/storage/metricStore";
 import { RunStore } from "../../../server/storage/runStore";
 import { ResponseStore } from "../../../server/storage/responseStore";
+import { RecommendationStore } from "../../../server/storage/recommendationStore";
 
 function makeDb() {
   const sqlite = new Database(":memory:");
@@ -339,5 +342,129 @@ describe("MetricStore", () => {
     expect(agg.totalClientBrandMentions).toBe(6);
     expect(agg.totalVisibilityScore).toBe(35);
     expect(agg.totalResponses).toBe(15);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("MetricStore.aggregateNonBranded", () => {
+  const WIDE_FROM = "2000-01-01";
+  const WIDE_TO = "2100-01-01";
+  const CLASSIFIER = "rules-1.0";
+
+  // One client (id 1) with a client brand and a competitor brand, plus a
+  // second client (id 2) whose data must never leak into client 1's numbers.
+  async function seed() {
+    const db = makeDb();
+    const store = new MetricStore(db);
+    const runStore = new RunStore(db);
+    const responseStore = new ResponseStore(db);
+    const mentionStore = new MentionStore(db);
+    const recStore = new RecommendationStore(db);
+
+    const now = Date.now();
+    db.insert(brands).values([
+      { id: 10, clientId: 1, canonicalName: "Acme", kind: "client", createdAt: now },
+      { id: 11, clientId: 1, canonicalName: "Rival", kind: "competitor", createdAt: now },
+      { id: 20, clientId: 2, canonicalName: "Other Co", kind: "client", createdAt: now },
+    ]).run();
+    db.insert(prompts).values([
+      { id: 100, collectionId: 1, text: "best metal shop near me", brandInPrompt: 0, createdAt: now, updatedAt: now },
+      { id: 101, collectionId: 1, text: "tell me about Acme", brandInPrompt: 1, createdAt: now, updatedAt: now },
+      { id: 102, collectionId: 1, text: "legacy prompt", brandInPrompt: null, createdAt: now, updatedAt: now },
+    ]).run();
+
+    const run = await runStore.create({ clientId: 1, collectionId: 1, batchId: "b1", totalPrompts: 3, triggeredBy: "manual" });
+    const runOther = await runStore.create({ clientId: 2, collectionId: 2, batchId: "b2", totalPrompts: 1, triggeredBy: "manual" });
+
+    async function completeResponse(runId: number, promptId: number): Promise<number> {
+      const r = await responseStore.create({ runId, promptId, platformId: 1, queryText: "q" });
+      await responseStore.updateResult(r.id, { status: "complete", responseText: "text" });
+      return r.id;
+    }
+
+    return { db, store, mentionStore, recStore, run, runOther, completeResponse };
+  }
+
+  it("counts only complete non-branded responses in the denominator and reports unvalidated separately", async () => {
+    const { store, run, runOther, completeResponse } = await seed();
+    await completeResponse(run.id, 100); // non-branded
+    await completeResponse(run.id, 100); // non-branded
+    await completeResponse(run.id, 101); // branded — excluded
+    await completeResponse(run.id, 102); // unvalidated — excluded from denominator, counted separately
+    await completeResponse(runOther.id, 100); // other client — ignored entirely
+
+    const agg = await store.aggregateNonBranded(1, WIDE_FROM, WIDE_TO);
+    expect(agg.nonBrandedResponses).toBe(2);
+    expect(agg.unvalidatedResponses).toBe(1);
+  });
+
+  it("counts distinct non-branded responses mentioning the client brand, ignoring competitor-only mentions", async () => {
+    const { store, mentionStore, run, completeResponse } = await seed();
+    const withClient = await completeResponse(run.id, 100);
+    const withCompetitor = await completeResponse(run.id, 100);
+    const branded = await completeResponse(run.id, 101);
+
+    // two mentions on one response must count once
+    await mentionStore.create({ responseId: withClient, brandId: 10, matchedText: "Acme", matchType: "exact", section: "summary", confidence: 1 });
+    await mentionStore.create({ responseId: withClient, brandId: 10, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+    await mentionStore.create({ responseId: withCompetitor, brandId: 11, matchedText: "Rival", matchType: "exact", section: "body", confidence: 1 });
+    // client mention on a branded response must not count
+    await mentionStore.create({ responseId: branded, brandId: 10, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+
+    const agg = await store.aggregateNonBranded(1, WIDE_FROM, WIDE_TO);
+    expect(agg.nonBrandedResponses).toBe(2);
+    expect(agg.mentionedNonBranded).toBe(1);
+  });
+
+  it("counts recommendations at recommended-and-up with the human override taking precedence", async () => {
+    const { store, recStore, run, completeResponse } = await seed();
+    const r1 = await completeResponse(run.id, 100);
+    const r2 = await completeResponse(run.id, 100);
+    const r3 = await completeResponse(run.id, 100);
+
+    // r1: machine says listed_option (not counted) — human upgrades to first_choice (counted)
+    const [rec1] = await recStore.bulkCreate([{ responseId: r1, brandId: 10, status: "listed_option", confidence: 0.7, classifierVersion: CLASSIFIER }]);
+    await recStore.setHumanStatus(rec1.id, "first_choice", 1);
+    // r2: machine says recommended (counted) — human downgrades to incidental_mention (not counted)
+    const [rec2] = await recStore.bulkCreate([{ responseId: r2, brandId: 10, status: "recommended", confidence: 0.7, classifierVersion: CLASSIFIER }]);
+    await recStore.setHumanStatus(rec2.id, "incidental_mention", 1);
+    // r3: machine listed_option, no override (not counted)
+    await recStore.bulkCreate([{ responseId: r3, brandId: 10, status: "listed_option", confidence: 0.7, classifierVersion: CLASSIFIER }]);
+
+    const agg = await store.aggregateNonBranded(1, WIDE_FROM, WIDE_TO);
+    expect(agg.recommendedNonBranded).toBe(1);
+    expect(agg.clientRecommended).toBe(1);
+  });
+
+  it("computes Recommendation SoV inputs across client and competitor brands on non-branded responses", async () => {
+    const { store, recStore, run, completeResponse } = await seed();
+    const r1 = await completeResponse(run.id, 100);
+    const r2 = await completeResponse(run.id, 100);
+
+    await recStore.bulkCreate([
+      { responseId: r1, brandId: 10, status: "recommended", confidence: 0.7, classifierVersion: CLASSIFIER },
+      { responseId: r1, brandId: 11, status: "strongly_recommended", confidence: 0.8, classifierVersion: CLASSIFIER },
+      { responseId: r2, brandId: 11, status: "first_choice", confidence: 0.9, classifierVersion: CLASSIFIER },
+      // incidental competitor row must not count toward SoV
+      { responseId: r2, brandId: 10, status: "incidental_mention", confidence: 0.6, classifierVersion: CLASSIFIER },
+    ]);
+
+    const agg = await store.aggregateNonBranded(1, WIDE_FROM, WIDE_TO);
+    expect(agg.clientRecommended).toBe(1);
+    expect(agg.allBrandRecommended).toBe(3);
+  });
+
+  it("excludes responses captured outside the requested period", async () => {
+    const { db, store, run, completeResponse } = await seed();
+    const rid = await completeResponse(run.id, 100);
+    db.update(responsesRaw)
+      .set({ capturedAt: Date.parse("2026-01-15T12:00:00Z") })
+      .where(eq(responsesRaw.id, rid))
+      .run();
+
+    const inRange = await store.aggregateNonBranded(1, "2026-01-01", "2026-01-31");
+    expect(inRange.nonBrandedResponses).toBe(1);
+    const outOfRange = await store.aggregateNonBranded(1, "2026-02-01", "2026-02-28");
+    expect(outOfRange.nonBrandedResponses).toBe(0);
   });
 });
