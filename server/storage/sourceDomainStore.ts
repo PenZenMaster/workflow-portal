@@ -12,14 +12,15 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-07-14
- * Last Modified Date: 2026-07-14
+ * Last Modified Date: 2026-07-15
  * Comments:
  * - v1.00 YLG defensibility sprint - source registry slice
+ * - v1.01 listUnreviewed counts only unknown_or_low_trust citations
  */
 
 import { sourceDomains, responseCitations } from "@shared/schema";
 import type { RegistrySourceClass, SourceDomain } from "@shared/schema";
-import { eq, notInArray, sql } from "drizzle-orm";
+import { and, eq, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -152,7 +153,15 @@ export class SourceDomainStore implements ISourceDomainStore {
         citationCount: sql<number>`count(*)`,
       })
       .from(responseCitations)
-      .where(notInArray(responseCitations.rootDomain, registered))
+      .where(
+        and(
+          notInArray(responseCitations.rootDomain, registered),
+          // Ownership-resolved citations (client_owned/competitor_owned)
+          // need no human review; only unresolved ones count toward the
+          // monthly queue.
+          eq(responseCitations.sourceClass, "unknown_or_low_trust"),
+        ),
+      )
       .groupBy(responseCitations.rootDomain)
       .orderBy(sql`count(*) desc`)
       .limit(limit)

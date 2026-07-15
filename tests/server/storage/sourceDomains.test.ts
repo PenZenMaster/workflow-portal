@@ -127,4 +127,17 @@ describe("SourceDomainStore", () => {
       { rootDomain: "smallblog.net", citationCount: 1 },
     ]);
   });
+
+  it("listUnreviewed counts only unknown_or_low_trust citations, excluding ownership-resolved domains", async () => {
+    const citations = new CitationStore(db);
+    // Fully ownership-resolved domain: every citation classified, nothing to review.
+    await citations.create({ responseId: 1, url: "https://ownclient.com/", rootDomain: "ownclient.com", ownedByBrandId: 4, position: 1, isTrustedThirdParty: false, sourceClass: "client_owned" });
+    await citations.create({ responseId: 2, url: "https://rival.com/", rootDomain: "rival.com", ownedByBrandId: 5, position: 1, isTrustedThirdParty: false, sourceClass: "competitor_owned" });
+    // Mixed domain: owned in its own client's runs, unknown when cited for another client.
+    await citations.create({ responseId: 1, url: "https://sister.com/a", rootDomain: "sister.com", ownedByBrandId: 9, position: 2, isTrustedThirdParty: false, sourceClass: "client_owned" });
+    await citations.create({ responseId: 2, url: "https://sister.com/b", rootDomain: "sister.com", ownedByBrandId: null, position: 2, isTrustedThirdParty: false });
+
+    const unreviewed = await store.listUnreviewed();
+    expect(unreviewed).toEqual([{ rootDomain: "sister.com", citationCount: 1 }]);
+  });
 });

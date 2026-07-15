@@ -377,8 +377,14 @@ review platforms are reputation evidence reported separately, per spec.
 (optionally `?class=`), `PUT /api/source-domains/:domain` (class +
 rationale), and `GET /api/source-domains/unreviewed` — cited domains not
 yet in the registry, most-cited first, which powers the spec's monthly
-review of newly observed domains. Social platforms (YouTube, Facebook,
-Reddit, Instagram) are deliberately unseeded and appear there.
+review of newly observed domains. Only `unknown_or_low_trust` citations
+count toward the queue (v1.34.2): domains fully resolved by ownership
+(client or competitor sites) never appear, and a domain that is owned in
+one client's runs but unresolved in another's shows only its unresolved
+citation count. Social platforms (YouTube, Facebook, Reddit, Instagram,
+LinkedIn) were registered as `unknown_or_low_trust` with rationales in
+the 2026-07-15 registry review, so they no longer appear in the queue
+while keeping their untrusted class.
 
 **What it means to the client:** an AI answer that cites the client's
 own site proves the site is being read; an answer that cites a trusted
