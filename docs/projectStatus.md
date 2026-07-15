@@ -1,7 +1,30 @@
 ## Resume From
 
 Last session: 2026-07-15
-Branch: main | Version: v1.35.0 | 866 tests passing
+Branch: main | Version: v1.36.0 | 878 tests passing
+
+Session 2026-07-15 (afternoon): v1.36.0 SHIPPED, DEPLOYED, QA PASSED
+(slice d — GET /api/responses/:id/recommendations + PATCH
+/api/response-recommendations/:id human override + RunDetail
+Recommendations panel + generator brandInPrompt client-brand-only fix).
+TD-23 logged (overrides lost on re-parse — deletes/recreates rows).
+brand_in_prompt BACKFILLED on production (130 rows + 4 corrections;
+"Overhead Door Joliet" alias added to client 7 — fixes prompt
+classification AND mention detection; its batch-2 re-parse picks the
+alias up automatically). Panel note: Salvo Metal Works is 55% branded
+(6/5) — needs non-branded prompts added before its non-branded metrics
+are meaningful (Epic 4 governance input). GitHub issue #3 groomed with
+user: Epic 6 deleted (conflicted with locked v1.35.0 definitions —
+deployed definitions stand), epic-to-backlog mapping + sequencing
+posted as a comment. NEXT: (1) verify overnight queue drain (expect
+only a future schedule-tick queued) + registry spot-checks
+(competitor_owned >> 366, unreviewed queue short); (2) next dev sprint
+= Epic 1 + issue #2 F1 (adapter contract + token/cost recording) OR
+Epic 2 unified manifest (absorbs YLG slice c + factory manifest item).
+USER-OWNED open items: B-20 GBP API enablement in GCP (quota 0->300
+check), Groq API access (external, pending), Anthropic billing —
+verify the next scheduled runs stop failing with credit-balance 400s
+(runs 69-76 all partial, 10-12 failures each).
 
 Session 2026-07-15: v1.34.2 AND v1.35.0 both SHIPPED, DEPLOYED, and QA
 PASSED same day. Production job queue was still draining at checkpoint
