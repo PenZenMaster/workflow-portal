@@ -1,7 +1,63 @@
 ## Resume From
 
-Last session: 2026-07-14
-Branch: main | Version: v1.34.1 | 853 tests passing
+Last session: 2026-07-15
+Branch: main | Version: v1.35.0 | 866 tests passing
+
+Session 2026-07-15: v1.34.2 AND v1.35.0 both SHIPPED, DEPLOYED, and QA
+PASSED same day. Production job queue was still draining at checkpoint
+(~4,000 jobs: 1,740 chained sentiment/aggregate from batch-1 re-parse,
+then 2,270 batch-2 parse jobs, ~10/min, ETA late evening 2026-07-15).
+NEXT SESSION FIRST: confirm the queue drained (SELECT status, COUNT(*)
+FROM jobs WHERE status IN ('queued','running') — expect only a future
+schedule-tick), then spot-check the registry work landed: competitor_owned
+citation count should be well above 366, unreviewed queue much shorter
+(GET /api/source-domains/unreviewed), and dashboards pick up recomputed
+scores after the next aggregate-snapshot-daily.
+
+Shipped this session:
+- v1.34.2 fix(sources): unreviewed queue counts only unknown_or_low_trust
+  citations (ownership-resolved domains no longer pollute it). TD-22
+  logged (co.uk root-domain public-suffix bug, 35 citations affected).
+- v1.35.0 feat(metrics): YLG slice b — GET /api/clients/:id/metrics/
+  non-branded (non-branded mention rate, recommendation rate,
+  Recommendation SoV) via new metricStore.aggregateNonBranded live
+  aggregate. Definitions LOCKED with user: RECOMMENDED_STATUSES =
+  recommended/strongly_recommended/first_choice (listed_option excluded);
+  human override wins (COALESCE(human_status, status), FR-11); SoV scoped
+  to non-branded only. KNOWN CAVEAT: legacy prompts have brand_in_prompt
+  NULL, so production reports large unvalidatedResponses / tiny
+  denominators until panels are classified — documented in
+  system-documentation.md 2.2, not a bug.
+
+Registry review DONE (2 batches, all user-approved, applied via SSH SQL
+as classified_by user:1): registry now 50 domains (13 seed + 37 human).
+Decisions: socials/retailers/wikipedia/google registered
+unknown_or_low_trust (documented, out of queue); SEL/SEJ/bobvila/
+thisoldhouse publisher_editorial; ahrefs/semrush/seranking/neilpatel/
+smacna/gaf/clopay/polyjohn/satelliteindustries industry_authority;
+overheaddoor.com industry_authority (franchisor corroboration for client
+7, user decision); theknot/homeguide/cbinsights general_directory;
+bestpickreports/bestcompany/trustindex review_platform. 69 competitor
+brands added: 7 national portable-restroom cos x clients 3/8/9 + Mulch
+Mound (6) in batch 1; 11 more restroom cos x 3/8/9, 3 garage-door cos x
+5/7, 4 sheet-metal cos (4), usstn.com + Acculevel (11), Digital Applied
++ Onely (2) in batch 2. NOTES: salvoarchitecturalroofingcontractors.com
+is sister company of Salvo Metal Works AND portal client 10 (separate
+entities, user-confirmed) — registered unknown w/ rationale, ownership
+wins in its own runs. usstn.com is NOT related to client 11
+(user-corrected) — added as ordinary competitor under full name "United
+Structural Systems of Tennessee" to avoid mention cross-matching.
+
+Also this session: GitHub issue #2 filed (optimize AI calls — B-28);
+B-29 logged (per-response aggregate chaining dedupe). OPS LESSONS:
+(1) when checking queue health, GROUP BY kind, status over ALL kinds
+first — kind-filtered counts hide starvation behind chained jobs (cost
+30 min of false runner-outage diagnosis on the v1.35.0 deploy; runner
+was healthy, claims are strict rowid order); (2) Glob from the workspace
+root times out on cold cache (node_modules crawl) — scope to
+workflow-portal subdirs; root .ignore file added for Grep. v1.35.0
+deploy QA: version live, single fresh worker (one TD-16 stale worker
+killed), endpoint verified end-to-end by user.
 
 Session 2026-07-14 (v1.34.x deploy QA, shutdown ~16:00 local): v1.34.0
 AND v1.34.1 both DEPLOYED to production and verified (registry seeded 13
@@ -208,13 +264,14 @@ Next session priorities:
    human-override columns; classifier tests double as the golden-dataset
    start). DONE: source-domain registry + citation classification
    v1.34.0 (slice a — isTrustedThirdParty now derived from source class).
-   NEXT slices, in order:
-   b. Non-branded mention + recommendation rate endpoints (needs
-      prompts.brand_in_prompt populated on real panels) + Recommendation
-      SoV.
+   DONE: non-branded mention/recommendation rate endpoints +
+   Recommendation SoV v1.35.0 (slice b — deployed 2026-07-15; needs
+   prompts.brand_in_prompt populated on real panels before the numbers
+   mean anything). NEXT slices, in order:
    c. prompt_generation_runs provenance tables (prompt-gen doc Phase 4).
    d. Human-override endpoint/UI for recommendations (store method
       setHumanStatus already exists).
+   Alternative next: B-28 F1 token accounting (quick standalone win).
 3. Known gaps deferred by design: core_services has no UI yet;
    generation-source display awaits provenance tables.
 3. Factory Slice 2 (DEFERRED behind YLG work): Search Console integration
@@ -1491,6 +1548,23 @@ Confirmed decisions:
   per-domain class dropdown + required rationale field posting to PUT
   /api/source-domains/:domain, plus a registry list filterable by class.
   Powers the spec's monthly review of newly observed domains.
+- B-28 Optimize AI/LLM API calls (GitHub issue #2, filed 2026-07-15,
+  labeled priority: medium). Full audit in the issue: 3 call paths, 7
+  findings (F1-F7). Suggested order: F1 token accounting first (usage
+  blocks already persisted unread in responses_raw.raw_payload -
+  backfillable), then F2 output caps (6 of 7 adapters send none) + F4
+  utility-model tier (anthropic default is claude-opus-4-5 even for
+  internal calls), F3 retry/timeout tuning, F6 per-client budget guard,
+  F5 CSV run caching. Non-goals: methodology changes, caching
+  measurement runs.
+- B-29 Efficiency: parse-response chains a per-response
+  aggregate-snapshot-daily job, so an N-response re-parse enqueues N
+  identical same-day aggregate recomputations (870 observed on the
+  2026-07-15 batch, ~40% of chained job volume). Add a
+  seedRecurring-style dedupe guard (skip enqueue when one is already
+  queued for the same client+date). Same question applies to
+  sentiment-classify chaining (per-response is correct there, but
+  verify).
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
 - B-06 Session store: session expiry cleanup configuration review
 - B-15 v1 DONE (v1.15.0): Client Run-Readiness badges on /ai/clients (Ready /
