@@ -1,7 +1,68 @@
 ## Resume From
 
-Last session: 2026-07-15
-Branch: main | Version: v1.41.0 | 920 tests passing
+Last session: 2026-07-16
+Branch: main | Version: v1.43.1 | 973 tests passing
+
+Session 2026-07-16: FOUR versions shipped AND deployed same-day
+(v1.41.0, v1.42.0, v1.43.0, v1.43.1). All QA'd live.
+- v1.41.0 DEPLOYED (carried v1.39.0+v1.40.0; migration 0021 live).
+  TD-16 zombie (8h49m, PID 3882232) killed before enqueueing the
+  parser-1.1 FULL RE-PARSE: all 3,169 complete responses inserted
+  directly into the jobs table via SSH. TD-23 was a non-issue (zero
+  human overrides existed). Drain STILL RUNNING at checkpoint (~5,600
+  jobs incl. chained — B-29 amplification observed live; ~10/min).
+- v1.42.0 E2b SHIPPED+DEPLOYED: run comparability. compareManifests
+  service, GET /api/runs/:id/comparability (default baseline = previous
+  run of same client+collection with a manifest; ?against=<runId>
+  override), manifestStore.getPreviousManifest, RunDetail verdict
+  banner. SEVERITY MAP LOCKED 2026-07-16: methodology/prompt-set-or-
+  text/platform-set/replicate changes = blocking (not_comparable);
+  parser/scoring/classifier/panel-version/brand-set/alias/prompt-
+  metadata changes = warnings. QA pending: needs two post-v1.40.0 runs
+  of one collection (recipe: run, edit an alias, run again -> amber
+  aliases_changed banner).
+- GitHub issue #4 (prompt-gen hardening) groomed vs current direction:
+  NO architecture conflict, BUT (a) redefines locked v1.35.0
+  non-branded definition (brandContext) and (b) adds 9th intent
+  'educational' to the locked 8-type taxonomy — BOTH must open with an
+  explicit methodology re-lock/version bump; (c) issue #4 IS the
+  implementation spec for issue #3 Epic 4 (cross-linked, do not execute
+  Epic 4 separately); (d) adding brandContext to manifest snapshots
+  changes config hashes — needs a snapshot-schema versioning decision
+  or E2b false-flags everything; (e) 'priority' field undefined
+  (funnelStage EXISTS since v1.31.0 — grooming comment corrected);
+  (f) "activation" gating needs a product decision. SEQUENCING AGREED:
+  E2c first (done), then #4 Phase 1.
+- v1.43.0 E2c SHIPPED+DEPLOYED: prompt generation provenance
+  (migration 0022). prompt_generation_runs immutable table (adapter,
+  model, methodology, context snapshot, raw output, diagnostics,
+  user), prompts.generation_run_id, generate-prompts persists run +
+  returns generationRunId, bulk save stamps it, GET /api/prompt-
+  collections/:id/generation-runs + /api/generation-runs/:id
+  (EDITOR_ROLES), "AI generated" badge with provenance tooltip on
+  PromptCollectionDetail. QA: generate + save on any collection, check
+  badge + run detail endpoint. Per-candidate edit/decision audit
+  deferred to issue #4 Section G by user decision.
+- TD-24 FOUND (user: Salvo SoV 106%), ROOT-CAUSED, FIXED as v1.43.1,
+  DEPLOYED, VERIFIED (Salvo 106.4% -> 92.1% -> 90%, drifting down
+  correctly as competitor canonical mentions land mid-drain). See tech
+  debt register for full forensics. Overview + /metrics/sov now use
+  metricStore.aggregateLiveForPeriod (raw tables, captured_at window);
+  trend timeseries still snapshot-based (self-consistent per point).
+- Ops: Bash(git *) added to workspace .claude/settings.local.json —
+  project startup now runs prompt-free.
+NEXT SESSION: (1) verify drain complete (SELECT COUNT(*) FROM jobs
+WHERE status IN ('queued','running') AND kind != 'schedule-tick' — 
+expect 0), then final Salvo SoV glance + spot-check a previously
+alias-less competitor (client 9: United Rentals/United Site Services/
+Portable Restroom Trailers) now has mentions; (2) E2b + E2c production
+QA per recipes above; (3) next dev slice = issue #4 Phase 1, OPENING
+WITH the methodology/definition re-lock (educational intent +
+brandContext + non-branded redefinition = methodology v2.0 event;
+decide manifest snapshot-schema versioning in the same slice);
+(4) user-owned: B-20 GBP API quota check, Groq access, Anthropic
+billing (verify scheduled runs stopped failing with credit-balance
+400s).
 
 Session 2026-07-15 (post-v1.40.0-deploy): user's "Setup incomplete"
 badge report on Royal Porta Johns exposed the TD-14 failure class at
