@@ -17,6 +17,14 @@
 
 import type { ResponseMention, ResponseCitation } from "@shared/schema";
 
+// Structural subsets of the mention/citation shapes the score actually
+// reads — lets callers pass raw query rows without full hydration
+// (section stays a plain string; the score only compares it to "summary").
+export type ScoringMention = Pick<ResponseMention, "brandId" | "recommendationRank"> & {
+  section: string;
+};
+export type ScoringCitation = Pick<ResponseCitation, "ownedByBrandId" | "isTrustedThirdParty">;
+
 // Bumped whenever the scoring formula or default weights change — recorded
 // on run manifests for comparability (issue #3 Epic 2).
 export const SCORING_VERSION = "1.0";
@@ -36,8 +44,8 @@ export type ScoringWeights = typeof DEFAULT_WEIGHTS;
  * clientBrandId identifies which brand in the mention/citation lists is the tracked client.
  */
 export function computeVisibilityScore(
-  mentions: ResponseMention[],
-  citations: ResponseCitation[],
+  mentions: ScoringMention[],
+  citations: ScoringCitation[],
   clientBrandId: number,
   weights: ScoringWeights = DEFAULT_WEIGHTS
 ): number {

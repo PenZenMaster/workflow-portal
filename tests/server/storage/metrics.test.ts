@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { eq } from "drizzle-orm";
-import { brands, prompts, responsesRaw } from "@shared/schema";
+import { brands, prompts, responsesRaw, responseMentions, responseCitations } from "@shared/schema";
 import { SCHEMA_SQL } from "../../../server/storage";
 import { MentionStore } from "../../../server/storage/mentionStore";
 import { CitationStore } from "../../../server/storage/citationStore";
@@ -342,6 +342,137 @@ describe("MetricStore", () => {
     expect(agg.totalClientBrandMentions).toBe(6);
     expect(agg.totalVisibilityScore).toBe(35);
     expect(agg.totalResponses).toBe(15);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TD-24: snapshot-delta period metrics assume cumulative history is
+// monotonic; re-parses and brand pruning shrink it, producing SoV > 100%.
+// aggregateLiveForPeriod computes period totals from the raw tables, so
+// client mentions are a subset of all-brand mentions by construction.
+describe("MetricStore.aggregateLiveForPeriod (TD-24)", () => {
+  const WIDE_FROM = "2000-01-01";
+  const WIDE_TO = "2100-01-01";
+
+  async function seed() {
+    const db = makeDb();
+    const store = new MetricStore(db);
+    const runStore = new RunStore(db);
+    const responseStore = new ResponseStore(db);
+    const mentionStore = new MentionStore(db);
+
+    const now = Date.now();
+    db.insert(brands).values([
+      { id: 10, clientId: 1, canonicalName: "Acme", kind: "client", createdAt: now },
+      { id: 11, clientId: 1, canonicalName: "Rival", kind: "competitor", createdAt: now },
+      { id: 20, clientId: 2, canonicalName: "Other Co", kind: "client", createdAt: now },
+    ]).run();
+
+    const run = await runStore.create({ clientId: 1, collectionId: 1, batchId: "b1", totalPrompts: 5, triggeredBy: "manual" });
+    const runOther = await runStore.create({ clientId: 2, collectionId: 2, batchId: "b2", totalPrompts: 1, triggeredBy: "manual" });
+
+    async function completeResponse(runId: number): Promise<number> {
+      const r = await responseStore.create({ runId, promptId: 100, platformId: 1, queryText: "q" });
+      await responseStore.updateResult(r.id, { status: "complete", responseText: "text" });
+      return r.id;
+    }
+
+    return { db, store, mentionStore, responseStore, run, runOther, completeResponse };
+  }
+
+  it("computes mention totals from raw rows, staying consistent when history shrinks", async () => {
+    const { db, store, mentionStore, run, completeResponse } = await seed();
+    const resp1 = await completeResponse(run.id);
+    const resp2 = await completeResponse(run.id);
+    await completeResponse(run.id); // no mentions
+
+    await mentionStore.create({ responseId: resp1, brandId: 10, matchedText: "Acme", matchType: "exact", section: "summary", confidence: 1 });
+    await mentionStore.create({ responseId: resp1, brandId: 10, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+    await mentionStore.create({ responseId: resp1, brandId: 11, matchedText: "Rival", matchType: "exact", section: "body", confidence: 1 });
+    await mentionStore.create({ responseId: resp2, brandId: 11, matchedText: "Rival", matchType: "exact", section: "body", confidence: 1 });
+
+    const agg = await store.aggregateLiveForPeriod(1, WIDE_FROM, WIDE_TO);
+    expect(agg.totalResponses).toBe(3);
+    expect(agg.totalAllBrandMentions).toBe(4);
+    expect(agg.totalClientBrandMentions).toBe(2);
+    expect(agg.totalMentions).toBe(1); // only resp1 mentions the client
+
+    // Simulate the 2026-07-15 history rewrite: competitor mention rows
+    // vanish (brand pruning + re-parse). The live aggregate must stay
+    // internally consistent — client can never exceed all-brand.
+    db.delete(responseMentions).where(eq(responseMentions.brandId, 11)).run();
+
+    const after = await store.aggregateLiveForPeriod(1, WIDE_FROM, WIDE_TO);
+    expect(after.totalAllBrandMentions).toBe(2);
+    expect(after.totalClientBrandMentions).toBe(2);
+    expect(after.totalClientBrandMentions).toBeLessThanOrEqual(after.totalAllBrandMentions);
+  });
+
+  it("counts citation responses and recomputes the visibility score (M+S+R+C+T)", async () => {
+    const { db, store, mentionStore, run, completeResponse } = await seed();
+    const resp = await completeResponse(run.id);
+
+    // Client mention in the summary at rank 1 (M=1, S=2, R=3), a
+    // client-owned citation (C=2), and a trusted third-party source (T=1).
+    await mentionStore.create({ responseId: resp, brandId: 10, matchedText: "Acme", matchType: "exact", section: "summary", recommendationRank: 1, confidence: 1 });
+    db.insert(responseCitations).values([
+      { responseId: resp, url: "https://acme.com/about", rootDomain: "acme.com", ownedByBrandId: 10, position: 1, isTrustedThirdParty: 0 },
+      { responseId: resp, url: "https://trusted.org/review", rootDomain: "trusted.org", ownedByBrandId: null, position: 2, isTrustedThirdParty: 1 },
+    ]).run();
+
+    const agg = await store.aggregateLiveForPeriod(1, WIDE_FROM, WIDE_TO);
+    expect(agg.totalCitations).toBe(1);
+    expect(agg.totalMentions).toBe(1);
+    expect(agg.totalVisibilityScore).toBe(9);
+  });
+
+  it("filters responses by capturedAt within the period window", async () => {
+    const { db, store, mentionStore, run, completeResponse } = await seed();
+    const inWindow = await completeResponse(run.id);
+    const outOfWindow = await completeResponse(run.id);
+
+    db.update(responsesRaw).set({ capturedAt: Date.parse("2026-01-15T12:00:00.000Z") }).where(eq(responsesRaw.id, inWindow)).run();
+    db.update(responsesRaw).set({ capturedAt: Date.parse("2026-03-01T12:00:00.000Z") }).where(eq(responsesRaw.id, outOfWindow)).run();
+    await mentionStore.create({ responseId: inWindow, brandId: 10, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+    await mentionStore.create({ responseId: outOfWindow, brandId: 10, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+
+    const agg = await store.aggregateLiveForPeriod(1, "2026-01-01", "2026-01-31");
+    expect(agg.totalResponses).toBe(1);
+    expect(agg.totalClientBrandMentions).toBe(1);
+    expect(agg.totalAllBrandMentions).toBe(1);
+  });
+
+  it("excludes responses that are not complete", async () => {
+    const { store, responseStore, run, completeResponse } = await seed();
+    await completeResponse(run.id);
+    const queued = await responseStore.create({ runId: run.id, promptId: 100, platformId: 1, queryText: "q" });
+    await responseStore.updateResult(queued.id, { status: "failed", errorMessage: "boom" });
+
+    const agg = await store.aggregateLiveForPeriod(1, WIDE_FROM, WIDE_TO);
+    expect(agg.totalResponses).toBe(1);
+  });
+
+  it("never mixes another client's data into the aggregate", async () => {
+    const { store, mentionStore, runOther, completeResponse } = await seed();
+    const other = await completeResponse(runOther.id);
+    await mentionStore.create({ responseId: other, brandId: 20, matchedText: "Other Co", matchType: "exact", section: "body", confidence: 1 });
+
+    const agg = await store.aggregateLiveForPeriod(1, WIDE_FROM, WIDE_TO);
+    expect(agg.totalResponses).toBe(0);
+    expect(agg.totalAllBrandMentions).toBe(0);
+  });
+
+  it("returns zeros for a client with no responses", async () => {
+    const { store } = await seed();
+    const agg = await store.aggregateLiveForPeriod(3, WIDE_FROM, WIDE_TO);
+    expect(agg).toEqual({
+      totalCitations: 0,
+      totalMentions: 0,
+      totalAllBrandMentions: 0,
+      totalClientBrandMentions: 0,
+      totalVisibilityScore: 0,
+      totalResponses: 0,
+    });
   });
 });
 

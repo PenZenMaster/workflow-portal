@@ -312,6 +312,22 @@ per-candidate analyst edit/decision audit lands with issue #4.
 
 ### 2.2 Metric Definitions and Formulas
 
+**Period metric data source (changed v1.43.1, TD-24):** the Overview and
+Share of Voice endpoints compute period totals (citation frequency,
+mention rate, AI SoV, average visibility score) **live from the raw
+response/mention/citation tables**, windowed on response capture time.
+They previously used deltas between cumulative daily snapshots, which
+assumed history only grows — re-parses and competitor pruning delete and
+recreate mention rows, shrinking cumulative totals and producing
+impossible ratios (observed: AI SoV 106% for Salvo Metal Works on
+2026-07-16 after the parser 1.1 re-parse). Daily snapshots remain the
+source for the Trend timeseries, where each point is a self-consistent
+cumulative ratio. **Client meaning:** overview ratios now always reflect
+exactly the responses captured in the selected period, under the current
+parser/registry state — they are internally consistent by construction
+and change retroactively when a re-parse improves detection (disclose
+alongside the run-comparability warnings above).
+
 **Methodology versioning (added v1.31.0):** every daily metric snapshot row
 (`metric_snapshots_daily.methodology_version`) records the YLG methodology
 version that was active when it was aggregated. Historical snapshots keep

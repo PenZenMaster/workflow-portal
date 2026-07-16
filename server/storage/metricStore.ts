@@ -22,6 +22,7 @@ import {
   promptRuns,
   responsesRaw,
   responseMentions,
+  responseCitations,
   responseRecommendations,
   RECOMMENDED_STATUSES,
 } from "@shared/schema";
@@ -29,6 +30,7 @@ import type { MetricSnapshotDaily } from "@shared/schema";
 import { eq, and, gte, lt, lte, desc, sql, inArray, isNull } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
+import { computeVisibilityScore } from "../services/scoring";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
 type Row = typeof metricSnapshotsDaily.$inferSelect;
@@ -79,6 +81,7 @@ export interface IMetricStore {
   upsert(data: SnapshotInput): Promise<MetricSnapshotDaily>;
   listByClient(clientId: number, fromDate: string, toDate: string): Promise<MetricSnapshotDaily[]>;
   aggregateForPeriod(clientId: number, fromDate: string, toDate: string): Promise<AggregateResult>;
+  aggregateLiveForPeriod(clientId: number, fromDate: string, toDate: string): Promise<AggregateResult>;
   aggregateNonBranded(clientId: number, fromDate: string, toDate: string): Promise<NonBrandedAggregate>;
 }
 
@@ -204,6 +207,110 @@ export class MetricStore implements IMetricStore {
       totalVisibilityScore: (end?.visibilityScoreSum ?? 0) - (baseline?.visibilityScoreSum ?? 0),
       totalResponses: (end?.promptResponseCount ?? 0) - (baseline?.promptResponseCount ?? 0),
     };
+  }
+
+  // TD-24: period totals computed directly from the raw tables instead of
+  // snapshot deltas. Cumulative snapshots are rewritten by re-parses and
+  // brand pruning (history can shrink), which made delta-based ratios
+  // exceed 100%. Here client mentions are a subset of all-brand mentions
+  // by construction, so the derived ratios are always internally
+  // consistent regardless of history rewrites.
+  async aggregateLiveForPeriod(
+    clientId: number,
+    fromDate: string,
+    toDate: string
+  ): Promise<AggregateResult> {
+    const fromMs = Date.parse(`${fromDate}T00:00:00.000Z`);
+    const toExclusiveMs = Date.parse(`${toDate}T00:00:00.000Z`) + 86_400_000;
+
+    const inPeriod = and(
+      eq(promptRuns.clientId, clientId),
+      eq(responsesRaw.status, "complete"),
+      gte(responsesRaw.capturedAt, fromMs),
+      lt(responsesRaw.capturedAt, toExclusiveMs)
+    );
+
+    const responseRows = this._db
+      .select({ id: responsesRaw.id })
+      .from(responsesRaw)
+      .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+      .where(inPeriod)
+      .all();
+
+    const empty: AggregateResult = {
+      totalCitations: 0,
+      totalMentions: 0,
+      totalAllBrandMentions: 0,
+      totalClientBrandMentions: 0,
+      totalVisibilityScore: 0,
+      totalResponses: 0,
+    };
+    if (responseRows.length === 0) return empty;
+
+    const clientBrand = this._db
+      .select({ id: brands.id })
+      .from(brands)
+      .where(and(eq(brands.clientId, clientId), eq(brands.kind, "client")))
+      .get();
+    // No client brand configured: mentions cannot be attributed, so the
+    // client-side counts stay 0 (mirrors the aggregate-snapshot handler).
+    const clientBrandId = clientBrand?.id ?? -1;
+
+    const mentionRows = this._db
+      .select({
+        responseId: responseMentions.responseId,
+        brandId: responseMentions.brandId,
+        section: responseMentions.section,
+        recommendationRank: responseMentions.recommendationRank,
+      })
+      .from(responseMentions)
+      .innerJoin(responsesRaw, eq(responseMentions.responseId, responsesRaw.id))
+      .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+      .where(inPeriod)
+      .all();
+
+    const citationRows = this._db
+      .select({
+        responseId: responseCitations.responseId,
+        ownedByBrandId: responseCitations.ownedByBrandId,
+        isTrustedThirdParty: responseCitations.isTrustedThirdParty,
+      })
+      .from(responseCitations)
+      .innerJoin(responsesRaw, eq(responseCitations.responseId, responsesRaw.id))
+      .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+      .where(inPeriod)
+      .all();
+
+    const mentionsByResponse = new Map<number, typeof mentionRows>();
+    for (const m of mentionRows) {
+      const list = mentionsByResponse.get(m.responseId);
+      if (list) list.push(m);
+      else mentionsByResponse.set(m.responseId, [m]);
+    }
+    const citationsByResponse = new Map<number, typeof citationRows>();
+    for (const c of citationRows) {
+      const list = citationsByResponse.get(c.responseId);
+      if (list) list.push(c);
+      else citationsByResponse.set(c.responseId, [c]);
+    }
+
+    const result: AggregateResult = { ...empty, totalResponses: responseRows.length };
+    for (const { id } of responseRows) {
+      const mentions = mentionsByResponse.get(id) ?? [];
+      const citations = (citationsByResponse.get(id) ?? []).map((c) => ({
+        ownedByBrandId: c.ownedByBrandId,
+        isTrustedThirdParty: c.isTrustedThirdParty === 1,
+      }));
+
+      const hasClientMention = mentions.some((m) => m.brandId === clientBrandId);
+      const hasClientCitation = citations.some((c) => c.ownedByBrandId === clientBrandId);
+      if (hasClientMention || hasClientCitation) result.totalMentions += 1;
+      if (hasClientCitation) result.totalCitations += 1;
+      result.totalAllBrandMentions += mentions.length;
+      result.totalClientBrandMentions += mentions.filter((m) => m.brandId === clientBrandId).length;
+      result.totalVisibilityScore += computeVisibilityScore(mentions, citations, clientBrandId);
+    }
+    return result;
   }
 
   async aggregateNonBranded(

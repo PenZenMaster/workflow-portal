@@ -6,7 +6,7 @@ import { buildAuthApp } from "./_helpers/buildAuthApp";
 
 const mockMentionStore = { listByResponse: vi.fn(), listByClient: vi.fn(), countByClient: vi.fn(), bulkCreate: vi.fn(), deleteByResponse: vi.fn(), create: vi.fn() };
 const mockCitationStore = { listByResponse: vi.fn(), bulkCreate: vi.fn(), deleteByResponse: vi.fn(), create: vi.fn() };
-const mockMetricStore = { upsert: vi.fn(), listByClient: vi.fn(), aggregateForPeriod: vi.fn(), aggregateNonBranded: vi.fn() };
+const mockMetricStore = { upsert: vi.fn(), listByClient: vi.fn(), aggregateForPeriod: vi.fn(), aggregateLiveForPeriod: vi.fn(), aggregateNonBranded: vi.fn() };
 const mockResponseStore = { get: vi.fn(), aggregateTokensByClient: vi.fn() };
 const mockBrandStore = { listByClient: vi.fn() };
 const mockAliasStore = { listByBrand: vi.fn() };
@@ -54,7 +54,7 @@ describe("GET /api/clients/:id/metrics/overview", () => {
   });
 
   it("returns 200 with aggregate metrics", async () => {
-    mockMetricStore.aggregateForPeriod.mockResolvedValue({
+    mockMetricStore.aggregateLiveForPeriod.mockResolvedValue({
       totalCitations: 5, totalMentions: 8, totalAllBrandMentions: 20,
       totalClientBrandMentions: 6,
       totalVisibilityScore: 42.5, totalResponses: 10,
@@ -68,7 +68,7 @@ describe("GET /api/clients/:id/metrics/overview", () => {
   });
 
   it("computes aiSoV from client brand mentions, not response-count mentions, so it cannot exceed 100", async () => {
-    mockMetricStore.aggregateForPeriod.mockResolvedValue({
+    mockMetricStore.aggregateLiveForPeriod.mockResolvedValue({
       totalCitations: 5, totalMentions: 8, totalAllBrandMentions: 20,
       totalClientBrandMentions: 6,
       totalVisibilityScore: 42.5, totalResponses: 10,
@@ -76,6 +76,18 @@ describe("GET /api/clients/:id/metrics/overview", () => {
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/overview?period=30d");
     expect(res.status).toBe(200);
     expect(res.body.data.aiSoV).toBe(30);
+  });
+
+  it("uses the live aggregate, never snapshot deltas, for overview ratios (TD-24)", async () => {
+    mockMetricStore.aggregateLiveForPeriod.mockResolvedValue({
+      totalCitations: 0, totalMentions: 0, totalAllBrandMentions: 0,
+      totalClientBrandMentions: 0,
+      totalVisibilityScore: 0, totalResponses: 0,
+    });
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/overview?period=30d");
+    expect(res.status).toBe(200);
+    expect(mockMetricStore.aggregateLiveForPeriod).toHaveBeenCalledWith(1, expect.any(String), expect.any(String));
+    expect(mockMetricStore.aggregateForPeriod).not.toHaveBeenCalled();
   });
 });
 
@@ -189,7 +201,7 @@ describe("GET /api/clients/:id/metrics/sov", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns 200 with SoV data", async () => {
-    mockMetricStore.aggregateForPeriod.mockResolvedValue({
+    mockMetricStore.aggregateLiveForPeriod.mockResolvedValue({
       totalCitations: 0, totalMentions: 8, totalAllBrandMentions: 20,
       totalClientBrandMentions: 5,
       totalVisibilityScore: 0, totalResponses: 10,
@@ -199,8 +211,8 @@ describe("GET /api/clients/:id/metrics/sov", () => {
     expect(res.body.data).toHaveProperty("aiSoV");
   });
 
-  it("derives aiSoV and clientMentions from clientBrandMentions, capping the ratio at <=100", async () => {
-    mockMetricStore.aggregateForPeriod.mockResolvedValue({
+  it("derives aiSoV and clientMentions from clientBrandMentions via the live aggregate (TD-24)", async () => {
+    mockMetricStore.aggregateLiveForPeriod.mockResolvedValue({
       totalCitations: 0, totalMentions: 8, totalAllBrandMentions: 20,
       totalClientBrandMentions: 5,
       totalVisibilityScore: 0, totalResponses: 10,
@@ -210,6 +222,7 @@ describe("GET /api/clients/:id/metrics/sov", () => {
     expect(res.body.data.aiSoV).toBe(25);
     expect(res.body.data.clientMentions).toBe(5);
     expect(res.body.data.allBrandMentions).toBe(20);
+    expect(mockMetricStore.aggregateForPeriod).not.toHaveBeenCalled();
   });
 });
 

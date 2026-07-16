@@ -63,7 +63,9 @@ export function registerMetricRoutes(app: Express): void {
     const { fromDate, toDate } = periodToDates(
       typeof req.query.period === "string" ? req.query.period : "30d"
     );
-    const agg = await metricStore.aggregateForPeriod(clientId, fromDate, toDate);
+    // TD-24: live aggregate over raw tables — snapshot deltas break when
+    // re-parses or brand pruning rewrite cumulative history.
+    const agg = await metricStore.aggregateLiveForPeriod(clientId, fromDate, toDate);
 
     ok(res, {
       citationFrequency: computeCitationFrequency(agg.totalCitations, agg.totalResponses),
@@ -121,7 +123,8 @@ export function registerMetricRoutes(app: Express): void {
     const { fromDate, toDate } = periodToDates(
       typeof req.query.period === "string" ? req.query.period : "30d"
     );
-    const agg = await metricStore.aggregateForPeriod(clientId, fromDate, toDate);
+    // TD-24: live aggregate — see the overview endpoint note.
+    const agg = await metricStore.aggregateLiveForPeriod(clientId, fromDate, toDate);
 
     ok(res, {
       aiSoV: computeAISoV(agg.totalClientBrandMentions, agg.totalAllBrandMentions),
