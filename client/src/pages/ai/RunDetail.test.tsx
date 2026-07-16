@@ -150,6 +150,75 @@ describe("RunDetail — Token usage totals", () => {
   });
 });
 
+describe("RunDetail — Comparability panel (E2b)", () => {
+  beforeEach(() => {
+    runApiResponse = {
+      data: {
+        run: { ...BASE_RUN, status: "complete", completedPrompts: 1, failedPrompts: 0 },
+        responses: [COMPLETE_RESPONSE],
+      },
+    };
+  });
+
+  function mockComparability(payload: unknown, status = 200) {
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "GET" && url === "/api/runs/1/comparability") {
+        return {
+          ok: status < 400,
+          status,
+          json: async () => payload,
+          text: async () => JSON.stringify(payload),
+        } as Response;
+      }
+      return base(url, init);
+    });
+  }
+
+  it("shows a warning verdict with reasons versus the previous run", async () => {
+    mockComparability({
+      data: {
+        status: "comparable_with_warning",
+        baseRunId: 3,
+        currentRunId: 1,
+        reasons: [
+          { code: "parser_changed", severity: "warning", detail: "parser 1.0 -> 1.1" },
+        ],
+      },
+    });
+    renderRunDetail();
+
+    expect(await screen.findByText(/Comparable with warnings/i)).toBeInTheDocument();
+    expect(screen.getByText(/vs run #3/i)).toBeInTheDocument();
+    expect(screen.getByText(/parser 1\.0 -> 1\.1/)).toBeInTheDocument();
+  });
+
+  it("shows a not-comparable verdict", async () => {
+    mockComparability({
+      data: {
+        status: "not_comparable",
+        baseRunId: 3,
+        currentRunId: 1,
+        reasons: [
+          { code: "platforms_changed", severity: "blocking", detail: "platforms [1] -> [1, 2]" },
+        ],
+      },
+    });
+    renderRunDetail();
+
+    expect(await screen.findByText(/Not comparable/i)).toBeInTheDocument();
+    expect(screen.getByText(/platforms \[1\] -> \[1, 2\]/)).toBeInTheDocument();
+  });
+
+  it("renders no comparability panel when there is no baseline (404)", async () => {
+    mockComparability({ error: "No earlier run with a manifest", code: "NO_BASELINE" }, 404);
+    renderRunDetail();
+
+    await screen.findByRole("heading", { name: "Responses" });
+    expect(screen.queryByText(/comparable/i)).not.toBeInTheDocument();
+  });
+});
+
 describe("RunDetail — Recommendations panel", () => {
   const RECOMMENDATION = {
     id: 5,

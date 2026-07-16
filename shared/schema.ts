@@ -943,6 +943,31 @@ export type MeasurementRunManifest = {
   createdAt: number;
 };
 
+// Run comparability (issue #3 Epic 2 slice E2b): classification of the
+// differences between two run manifests. Severity map locked 2026-07-16:
+// methodology, prompt set/text, platform set, and replicate changes are
+// blocking (not_comparable); parser/scoring/classifier/panel version,
+// brand set, alias, and prompt-metadata changes are warnings.
+export const COMPARABILITY_STATUSES = [
+  "fully_comparable",
+  "comparable_with_warning",
+  "not_comparable",
+] as const;
+export type ComparabilityStatus = (typeof COMPARABILITY_STATUSES)[number];
+
+export type ComparabilityReason = {
+  code: string;
+  severity: "blocking" | "warning";
+  detail: string;
+};
+
+export type ComparabilityResult = {
+  status: ComparabilityStatus;
+  baseRunId: number;
+  currentRunId: number;
+  reasons: ComparabilityReason[];
+};
+
 export const promptRuns = sqliteTable("prompt_runs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   clientId: integer("client_id").notNull(),

@@ -17,7 +17,7 @@
 
 import { measurementRunManifests } from "@shared/schema";
 import type { MeasurementRunManifest, RunPurpose } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import type { ManifestCreateInput } from "../services/manifest";
 
@@ -49,6 +49,11 @@ function hydrate(row: Row): MeasurementRunManifest {
 export interface IManifestStore {
   create(data: ManifestCreateInput): Promise<MeasurementRunManifest>;
   getByRunId(runId: number): Promise<MeasurementRunManifest | undefined>;
+  getPreviousManifest(
+    clientId: number,
+    collectionId: number,
+    beforeRunId: number
+  ): Promise<MeasurementRunManifest | undefined>;
 }
 
 export class ManifestStore implements IManifestStore {
@@ -85,6 +90,29 @@ export class ManifestStore implements IManifestStore {
       .select()
       .from(measurementRunManifests)
       .where(eq(measurementRunManifests.runId, runId))
+      .get();
+    return row ? hydrate(row) : undefined;
+  }
+
+  // E2b: comparability baseline — the most recent earlier run of the same
+  // client+collection that has a manifest (runs before v1.40.0 have none).
+  async getPreviousManifest(
+    clientId: number,
+    collectionId: number,
+    beforeRunId: number
+  ): Promise<MeasurementRunManifest | undefined> {
+    const row = this._db
+      .select()
+      .from(measurementRunManifests)
+      .where(
+        and(
+          eq(measurementRunManifests.clientId, clientId),
+          eq(measurementRunManifests.collectionId, collectionId),
+          lt(measurementRunManifests.runId, beforeRunId)
+        )
+      )
+      .orderBy(desc(measurementRunManifests.runId))
+      .limit(1)
       .get();
     return row ? hydrate(row) : undefined;
   }

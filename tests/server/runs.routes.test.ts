@@ -36,6 +36,7 @@ const mockBrandStore = { listByClient: vi.fn() };
 const mockManifestStore = {
   create: vi.fn().mockResolvedValue({ id: 1 }),
   getByRunId: vi.fn(),
+  getPreviousManifest: vi.fn(),
 };
 
 vi.mock("../../server/storage", () => ({
@@ -246,6 +247,113 @@ describe("GET /api/runs/:id/manifest", () => {
     );
     const queryTexts = mockResponseStore.create.mock.calls.map(([arg]) => arg.queryText);
     expect(queryTexts).toEqual(["Alternatives to Globex Plumbing", "Alternatives to Initech Plumbing"]);
+  });
+});
+
+describe("GET /api/runs/:id/comparability (E2b)", () => {
+  const SNAPSHOT = JSON.stringify({
+    methodologyVersion: "1.0",
+    panelVersion: "3",
+    scoringVersion: "1.0",
+    parserVersion: "1.0",
+    classifierVersion: "rules-1.0",
+    platformIds: [1],
+    prompts: [{ id: 50, text: "Prompt 1", intentType: null, brandInPrompt: null, geo: null, service: null }],
+    brands: [],
+  });
+
+  const MANIFEST = {
+    id: 7,
+    runId: 5,
+    clientId: 10,
+    collectionId: 5,
+    purpose: "ad_hoc",
+    methodologyVersion: "1.0",
+    panelVersion: "3",
+    scoringVersion: "1.0",
+    parserVersion: "1.0",
+    classifierVersion: "rules-1.0",
+    platformIds: [1],
+    promptCount: 1,
+    replicateCount: 1,
+    expectedResponseCount: 1,
+    configSnapshot: SNAPSHOT,
+    configHash: "aa",
+    createdAt: Date.now(),
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/runs/5/comparability");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 MANIFEST_NOT_FOUND when the run has no manifest", async () => {
+    mockManifestStore.getByRunId.mockResolvedValue(undefined);
+    const res = await request(buildApp("analyst")).get("/api/runs/5/comparability");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("MANIFEST_NOT_FOUND");
+  });
+
+  it("returns 404 NO_BASELINE when no earlier run with a manifest exists", async () => {
+    mockManifestStore.getByRunId.mockResolvedValue(MANIFEST);
+    mockManifestStore.getPreviousManifest.mockResolvedValue(undefined);
+    const res = await request(buildApp("analyst")).get("/api/runs/5/comparability");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("NO_BASELINE");
+  });
+
+  it("compares against the previous run of the same client+collection by default", async () => {
+    mockManifestStore.getByRunId.mockResolvedValue(MANIFEST);
+    mockManifestStore.getPreviousManifest.mockResolvedValue({
+      ...MANIFEST,
+      id: 6,
+      runId: 3,
+      parserVersion: "0.9",
+      configSnapshot: SNAPSHOT.replace('"parserVersion":"1.0"', '"parserVersion":"0.9"'),
+      configHash: "bb",
+    });
+
+    const res = await request(buildApp("analyst")).get("/api/runs/5/comparability");
+    expect(res.status).toBe(200);
+    expect(mockManifestStore.getPreviousManifest).toHaveBeenCalledWith(10, 5, 5);
+    expect(res.body.data.status).toBe("comparable_with_warning");
+    expect(res.body.data.baseRunId).toBe(3);
+    expect(res.body.data.currentRunId).toBe(5);
+    expect(res.body.data.reasons).toContainEqual(
+      expect.objectContaining({ code: "parser_changed", severity: "warning" })
+    );
+  });
+
+  it("uses an explicit baseline run when ?against= is given", async () => {
+    mockManifestStore.getByRunId.mockImplementation(async (runId: number) => {
+      if (runId === 5) return MANIFEST;
+      if (runId === 2) return { ...MANIFEST, id: 4, runId: 2 };
+      return undefined;
+    });
+
+    const res = await request(buildApp("analyst")).get("/api/runs/5/comparability?against=2");
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("fully_comparable");
+    expect(res.body.data.baseRunId).toBe(2);
+    expect(mockManifestStore.getPreviousManifest).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 BASELINE_MANIFEST_NOT_FOUND when the ?against= run has no manifest", async () => {
+    mockManifestStore.getByRunId.mockImplementation(async (runId: number) =>
+      runId === 5 ? MANIFEST : undefined
+    );
+    const res = await request(buildApp("analyst")).get("/api/runs/5/comparability?against=2");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("BASELINE_MANIFEST_NOT_FOUND");
+  });
+
+  it("returns 400 for a non-numeric ?against=", async () => {
+    mockManifestStore.getByRunId.mockResolvedValue(MANIFEST);
+    const res = await request(buildApp("analyst")).get("/api/runs/5/comparability?against=abc");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_AGAINST");
   });
 });
 

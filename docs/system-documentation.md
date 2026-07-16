@@ -234,7 +234,8 @@ valuable for short forms and variants ("Salvo" for "Salvo Metal Works")
 — the readiness check message now says exactly that. Runs parsed under
 parser 1.0 need one re-parse to pick up canonical-name mentions;
 manifests record parserVersion, so pre/post-1.1 runs are flagged as
-non-comparable by the Epic 2 comparability work.
+"comparable with warnings" (parser_changed) by the run comparability
+check added in v1.42.0.
 
 #### Run Manifests (added v1.40.0)
 
@@ -251,6 +252,42 @@ comparability service (fully_comparable / comparable_with_warning /
 not_comparable with named reasons) builds on these hashes in slice E2b.
 Runs created before v1.40.0 have no manifest (404) — comparisons
 involving them are inherently unverifiable.
+
+#### Run Comparability (added v1.42.0)
+
+`GET /api/runs/:id/comparability` compares a run's manifest against the
+previous run of the same client + collection that has a manifest
+(`?against=<runId>` compares an explicit pair instead) and returns one
+of three statuses with itemized reasons. RunDetail shows the verdict as
+a colored banner under the run header.
+
+Severity map (locked 2026-07-16): changes to *what was asked or where*
+are **blocking** — the runs are `not_comparable` and must not be read
+as an uninterrupted trend:
+
+- `methodology_changed` — different methodology version
+- `prompts_changed` — prompts added, removed, or reworded
+- `platforms_changed` — different platform set
+- `replicates_changed` — different replicate count
+
+Honest recomputations and tracking-set edits are **warnings** — the
+runs are `comparable_with_warning`; trend movement may partly reflect
+the change rather than real visibility shift:
+
+- `parser_changed` / `scoring_changed` / `classifier_changed` — a
+  version bump (e.g. parser 1.0 -> 1.1 canonical-name matching)
+- `panel_version_changed` — collection version bump
+- `brands_changed` / `aliases_changed` — competitor set or alias edits
+  (SoV denominators shift when competitors are added or removed)
+- `prompt_metadata_changed` — intent/geo/service/branded metadata
+  edited with prompt text unchanged
+
+Identical config hashes and replicate counts yield `fully_comparable`.
+**Client meaning:** a "Not comparable" banner between two reporting
+periods means the measurement itself changed — explain the change
+before explaining the numbers. Warnings should be disclosed as
+footnotes on trend charts. Runs without a manifest (pre-v1.40.0, or no
+earlier run) show no banner: comparability is unknown, not asserted.
 
 ### 2.2 Metric Definitions and Formulas
 

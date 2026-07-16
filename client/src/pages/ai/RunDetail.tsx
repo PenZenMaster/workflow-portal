@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { PromptRun, ResponseRaw, RecommendationStatus, ResponseRecommendation } from "@shared/schema";
+import type { ComparabilityResult, PromptRun, ResponseRaw, RecommendationStatus, ResponseRecommendation } from "@shared/schema";
 import { RECOMMENDATION_STATUSES } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, CheckCircle2, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
+import { RefreshCw, CheckCircle2, RotateCcw, ChevronDown, ChevronRight, AlertTriangle, XCircle } from "lucide-react";
 import { isReparseComplete, reparseProgressLabel, type ReparseStatus } from "./reparseStatus";
 import { Breadcrumbs, useClientName } from "@/components/Breadcrumbs";
 
@@ -129,6 +129,15 @@ export default function RunDetail() {
     },
   });
 
+  // E2b: methodology comparability versus the previous run. 404 (no
+  // manifest / no baseline) throws, leaving data unset — panel hidden.
+  const comparabilityQuery = useQuery<{ data: ComparabilityResult }>({
+    queryKey: [`/api/runs/${runId}/comparability`],
+    enabled: !!runId,
+    retry: false,
+  });
+  const comparability = comparabilityQuery.data?.data;
+
   const reparseStatus = reparseStatusQuery.data?.data;
   const reparseDone = !!reparseStatus && isReparseComplete(reparseStatus);
   const reparseRefreshedRef = useRef<number | null>(null);
@@ -248,6 +257,46 @@ export default function RunDetail() {
           )}
         </div>
       </div>
+
+      {comparability && (
+        <div
+          className={`mb-6 rounded-md border px-3 py-2 text-sm ${
+            comparability.status === "fully_comparable"
+              ? "border-green-200 bg-green-50 text-green-800"
+              : comparability.status === "comparable_with_warning"
+                ? "border-amber-200 bg-amber-50 text-amber-800"
+                : "border-red-200 bg-red-50 text-red-800"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {comparability.status === "fully_comparable" ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+            ) : comparability.status === "comparable_with_warning" ? (
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+            ) : (
+              <XCircle className="h-4 w-4 shrink-0" />
+            )}
+            <span className="font-medium">
+              {comparability.status === "fully_comparable"
+                ? "Fully comparable"
+                : comparability.status === "comparable_with_warning"
+                  ? "Comparable with warnings"
+                  : "Not comparable"}
+            </span>
+            <span className="opacity-80">vs run #{comparability.baseRunId}</span>
+          </div>
+          {comparability.reasons.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5 pl-6 text-xs">
+              {comparability.reasons.map((r) => (
+                <li key={`${r.code}-${r.detail}`}>
+                  <span className="font-medium">{r.severity === "blocking" ? "blocking: " : "warning: "}</span>
+                  {r.detail}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {reparseStatus && reparseStatus.total > 0 && (
         <div

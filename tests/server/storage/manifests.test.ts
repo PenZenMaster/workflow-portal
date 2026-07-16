@@ -71,4 +71,29 @@ describe("ManifestStore", () => {
     await store.create(SAMPLE);
     await expect(store.create({ ...SAMPLE, configHash: "different" })).rejects.toThrow();
   });
+
+  describe("getPreviousManifest (E2b)", () => {
+    it("returns the closest earlier manifest for the same client and collection", async () => {
+      await store.create({ ...SAMPLE, runId: 90, configHash: "hash-90" });
+      await store.create({ ...SAMPLE, runId: 95, configHash: "hash-95" });
+      await store.create({ ...SAMPLE, runId: 99, configHash: "hash-99" });
+
+      const prev = await store.getPreviousManifest(10, 5, 99);
+      expect(prev?.runId).toBe(95);
+      expect(prev?.configHash).toBe("hash-95");
+    });
+
+    it("ignores manifests from other clients or collections", async () => {
+      await store.create({ ...SAMPLE, runId: 90, clientId: 99 });
+      await store.create({ ...SAMPLE, runId: 91, collectionId: 77 });
+      await store.create({ ...SAMPLE, runId: 99 });
+
+      expect(await store.getPreviousManifest(10, 5, 99)).toBeUndefined();
+    });
+
+    it("returns undefined when there is no earlier manifest", async () => {
+      await store.create({ ...SAMPLE, runId: 99 });
+      expect(await store.getPreviousManifest(10, 5, 99)).toBeUndefined();
+    });
+  });
 });

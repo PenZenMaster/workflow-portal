@@ -38,6 +38,7 @@ import { jobRunner } from "../jobs/runner";
 import { computeNextFireAt } from "../services/scheduling";
 import { buildPromptTokenContext, expandPromptText, type ClientBrandContext } from "../services/promptTokens";
 import { assembleManifest } from "../services/manifest";
+import { compareManifests } from "../services/comparability";
 import { SCORING_VERSION } from "../services/scoring";
 import { PARSER_VERSION } from "../services/parser";
 import { RECOMMENDATION_CLASSIFIER_VERSION } from "../services/recommendation";
@@ -173,6 +174,38 @@ export function registerRunRoutes(app: Express): void {
     if (!manifest)
       throw new AppError(404, "Manifest not found", "MANIFEST_NOT_FOUND");
     ok(res, manifest);
+  });
+
+  // E2b: methodology comparability of this run versus a baseline run.
+  // Default baseline is the previous run of the same client+collection
+  // that has a manifest; ?against=<runId> compares an explicit pair.
+  app.get("/api/runs/:id/comparability", requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+
+    const manifest = await manifestStore.getByRunId(id);
+    if (!manifest)
+      throw new AppError(404, "Manifest not found", "MANIFEST_NOT_FOUND");
+
+    let baseline;
+    if (req.query.against !== undefined) {
+      const againstId = Number(req.query.against);
+      if (Number.isNaN(againstId))
+        throw new AppError(400, "Invalid against run id", "INVALID_AGAINST");
+      baseline = await manifestStore.getByRunId(againstId);
+      if (!baseline)
+        throw new AppError(404, "Baseline manifest not found", "BASELINE_MANIFEST_NOT_FOUND");
+    } else {
+      baseline = await manifestStore.getPreviousManifest(
+        manifest.clientId,
+        manifest.collectionId,
+        manifest.runId
+      );
+      if (!baseline)
+        throw new AppError(404, "No earlier run with a manifest", "NO_BASELINE");
+    }
+
+    ok(res, compareManifests(baseline, manifest));
   });
 
   app.get(
