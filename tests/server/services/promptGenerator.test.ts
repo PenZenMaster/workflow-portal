@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockGetAdapter } = vi.hoisted(() => ({
+const { mockGetAdapter, mockGetUtilityAdapter } = vi.hoisted(() => ({
   mockGetAdapter: vi.fn(),
+  mockGetUtilityAdapter: vi.fn(),
 }));
 
 vi.mock("../../../server/adapters/registry", () => ({
   getAdapter: mockGetAdapter,
+  getUtilityAdapter: mockGetUtilityAdapter,
 }));
 
 import {
@@ -44,6 +46,7 @@ function rawItem(overrides: Record<string, unknown> = {}) {
 describe("promptGenerator", () => {
   beforeEach(() => {
     mockGetAdapter.mockReset();
+    mockGetUtilityAdapter.mockReset();
   });
 
   describe("buildGenerationPrompt", () => {
@@ -200,19 +203,21 @@ describe("promptGenerator", () => {
   });
 
   describe("pickGenerationAdapter", () => {
-    it("returns the first configured adapter by preference order", () => {
+    it("returns the first configured UTILITY-tier adapter by preference order (F4)", () => {
       const anthropicAdapter = { id: "anthropic", run: vi.fn() };
-      mockGetAdapter.mockImplementation((slug: string) =>
+      mockGetUtilityAdapter.mockImplementation((slug: string) =>
         slug === "anthropic" ? anthropicAdapter : undefined,
       );
 
       const adapter = pickGenerationAdapter();
 
       expect(adapter).toBe(anthropicAdapter);
+      expect(mockGetUtilityAdapter).toHaveBeenCalled();
+      expect(mockGetAdapter).not.toHaveBeenCalled();
     });
 
     it("throws AppError NO_GENERATION_ADAPTER when none configured", () => {
-      mockGetAdapter.mockReturnValue(undefined);
+      mockGetUtilityAdapter.mockReturnValue(undefined);
 
       expect(() => pickGenerationAdapter()).toThrow(AppError);
       try {
@@ -236,7 +241,7 @@ describe("promptGenerator", () => {
         latencyMs: 10,
         rawPayload: {},
       });
-      mockGetAdapter.mockImplementation((slug: string) => (slug === "openai" ? { id: "openai", run } : undefined));
+      mockGetUtilityAdapter.mockImplementation((slug: string) => (slug === "openai" ? { id: "openai", run } : undefined));
 
       const result = await generatePrompts({ ...BASE_CONTEXT, count: 1 });
 
@@ -257,7 +262,7 @@ describe("promptGenerator", () => {
         latencyMs: 10,
         rawPayload: {},
       });
-      mockGetAdapter.mockImplementation((slug: string) => (slug === "openai" ? { id: "openai", run } : undefined));
+      mockGetUtilityAdapter.mockImplementation((slug: string) => (slug === "openai" ? { id: "openai", run } : undefined));
 
       const result = await generatePrompts({
         ...BASE_CONTEXT,

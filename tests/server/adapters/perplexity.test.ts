@@ -45,6 +45,14 @@ describe("PerplexityAdapter", () => {
     expect(result.latencyMs).toBeTypeOf("number");
   });
 
+  it("sends the default 1500 max_tokens output cap (F2)", async () => {
+    const f = mockFetch([{ status: 200, body: MOCK_SUCCESS_RESPONSE }]);
+    vi.stubGlobal("fetch", f);
+    await new PerplexityAdapter("test-key").run("p");
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.max_tokens).toBe(1500);
+  });
+
   it("extracts token usage from the usage block", async () => {
     vi.stubGlobal("fetch", mockFetch([{ status: 200, body: MOCK_SUCCESS_RESPONSE }]));
     const result = await new PerplexityAdapter("test-key").run("p");

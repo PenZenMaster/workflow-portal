@@ -36,6 +36,9 @@ vi.mock("../../server/storage", () => ({
 const mockGetAdapter = vi.fn();
 vi.mock("../../server/adapters/registry", () => ({
   getAdapter: (slug: string) => mockGetAdapter(slug),
+  // Route-level tests exercise the same adapter regardless of tier; the
+  // tier split itself is covered in workflowFileRun.test.ts.
+  getUtilityAdapter: (slug: string) => mockGetAdapter(slug),
   getConfiguredSlugs: () => [],
 }));
 

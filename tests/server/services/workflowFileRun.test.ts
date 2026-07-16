@@ -18,8 +18,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGetAdapter = vi.fn();
+const mockGetUtilityAdapter = vi.fn();
 vi.mock("../../../server/adapters/registry", () => ({
   getAdapter: (slug: string) => mockGetAdapter(slug),
+  getUtilityAdapter: (slug: string) => mockGetUtilityAdapter(slug),
   getConfiguredSlugs: () => [],
 }));
 
@@ -98,10 +100,11 @@ describe("buildCsvRunPrompt", () => {
 describe("runWorkflowWithCsv", () => {
   beforeEach(() => {
     mockGetAdapter.mockReset();
+    mockGetUtilityAdapter.mockReset();
   });
 
   it("throws AppError 503 NO_GENERATION_ADAPTER when no adapter is configured", async () => {
-    mockGetAdapter.mockReturnValue(undefined);
+    mockGetUtilityAdapter.mockReturnValue(undefined);
     await expect(runWorkflowWithCsv("Analyze.", CSV)).rejects.toMatchObject({
       statusCode: 503,
       code: "NO_GENERATION_ADAPTER",
@@ -118,7 +121,7 @@ describe("runWorkflowWithCsv", () => {
       latencyMs: 42,
       rawPayload: {},
     });
-    mockGetAdapter.mockImplementation((slug: string) =>
+    mockGetUtilityAdapter.mockImplementation((slug: string) =>
       slug === "openai" ? { id: "openai", run } : undefined
     );
 
@@ -142,7 +145,7 @@ describe("runWorkflowWithCsv", () => {
       latencyMs: 1,
       rawPayload: {},
     });
-    mockGetAdapter.mockImplementation((slug: string) =>
+    mockGetUtilityAdapter.mockImplementation((slug: string) =>
       slug === "openai" ? { id: "openai", run } : undefined
     );
 
@@ -165,7 +168,7 @@ describe("runWorkflowWithCsv", () => {
       rawPayload: {},
     });
     const openaiRun = vi.fn();
-    mockGetAdapter.mockImplementation((slug: string) => {
+    mockGetUtilityAdapter.mockImplementation((slug: string) => {
       if (slug === "anthropic") return { id: "anthropic", run: anthropicRun };
       if (slug === "openai") return { id: "openai", run: openaiRun };
       return undefined;
@@ -179,7 +182,7 @@ describe("runWorkflowWithCsv", () => {
   });
 
   it("throws 503 ADAPTER_NOT_CONFIGURED when the chosen adapter has no API key", async () => {
-    mockGetAdapter.mockImplementation((slug: string) =>
+    mockGetUtilityAdapter.mockImplementation((slug: string) =>
       slug === "openai" ? { id: "openai", run: vi.fn() } : undefined
     );
 

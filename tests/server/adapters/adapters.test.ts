@@ -45,7 +45,51 @@ function mockFetch(responses: Array<{ status: number; body: unknown }>) {
   });
 }
 
-afterEach(() => { vi.restoreAllMocks(); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
+
+// ---------------------------------------------------------------------------
+describe("Output caps (F2)", () => {
+  it("openai-compatible sends the default 1500 max_tokens cap", async () => {
+    const f = mockFetch([{ status: 200, body: OPENAI_BODY }]);
+    vi.stubGlobal("fetch", f);
+    await new OpenAIAdapter("sk-test", { retryDelayMs: 0 }).run("p");
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.max_tokens).toBe(1500);
+  });
+
+  it("honors a custom maxTokens option", async () => {
+    const f = mockFetch([{ status: 200, body: OPENAI_BODY }]);
+    vi.stubGlobal("fetch", f);
+    await new OpenAIAdapter("sk-test", { retryDelayMs: 0, maxTokens: 4096 }).run("p");
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.max_tokens).toBe(4096);
+  });
+
+  it("honors the LLM_MAX_OUTPUT_TOKENS env override", async () => {
+    vi.stubEnv("LLM_MAX_OUTPUT_TOKENS", "800");
+    const f = mockFetch([{ status: 200, body: OPENAI_BODY }]);
+    vi.stubGlobal("fetch", f);
+    await new OpenAIAdapter("sk-test", { retryDelayMs: 0 }).run("p");
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.max_tokens).toBe(800);
+  });
+
+  it("anthropic sends the shared default cap instead of the old hardcoded 1024", async () => {
+    const f = mockFetch([{ status: 200, body: ANTHROPIC_BODY }]);
+    vi.stubGlobal("fetch", f);
+    await new AnthropicAdapter("sk-ant-test", { retryDelayMs: 0 }).run("p");
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.max_tokens).toBe(1500);
+  });
+
+  it("gemini sends generationConfig.maxOutputTokens", async () => {
+    const f = mockFetch([{ status: 200, body: GEMINI_BODY }]);
+    vi.stubGlobal("fetch", f);
+    await new GeminiAdapter("AIza-test", { retryDelayMs: 0 }).run("p");
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.generationConfig.maxOutputTokens).toBe(1500);
+  });
+});
 
 // ---------------------------------------------------------------------------
 describe("OpenAIAdapter", () => {

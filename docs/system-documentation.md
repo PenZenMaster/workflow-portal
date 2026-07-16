@@ -201,6 +201,22 @@ the full provider payload is stored in `raw_payload`. RunDetail shows
 per-run totals ("Tokens: N in / M out"). Per-client aggregation,
 estimated cost, and budget guards are later slices of GitHub issue #2.
 
+**Output caps and the utility tier (v1.38.0, issue #2 F2+F4):** every
+adapter now sends an output cap — default 1500 tokens, overridable with
+the `LLM_MAX_OUTPUT_TOKENS` env var. 1500 bounds runaway generations
+without truncating typical answers (lifetime average is ~583 output
+tokens; Mistral, the most verbose surface, averages ~1,007). CAUTION:
+lowering the cap below typical answer length truncates what the parser
+sees (mentions/citations near the end of answers disappear) — treat cap
+changes as methodology-comparability events. Internal utility calls
+(prompt generation, workflow CSV "Run with AI") no longer use
+measurement-surface models: they run on an economy tier
+(openai gpt-4o-mini, anthropic claude-haiku-4-5-20251001,
+mistral mistral-small-latest; other providers' defaults are already
+economy) with a 4096-token cap for long JSON output, overridable per
+provider with `UTILITY_MODEL_<SLUG>` env vars. Measurement runs are
+unaffected — surface fidelity is methodology, not waste.
+
 ### 2.2 Metric Definitions and Formulas
 
 **Methodology versioning (added v1.31.0):** every daily metric snapshot row

@@ -25,7 +25,7 @@
  */
 
 import { z } from "zod";
-import { getAdapter } from "../adapters/registry";
+import { getUtilityAdapter } from "../adapters/registry";
 import type { PlatformAdapter } from "../adapters/types";
 import { AppError } from "../errors";
 import {
@@ -101,8 +101,10 @@ export function normalizePromptText(text: string): string {
 }
 
 export function pickGenerationAdapter(): PlatformAdapter {
+  // F4: internal generation uses the economy utility tier, never the
+  // measurement-surface models.
   for (const slug of GENERATION_ADAPTER_ORDER) {
-    const adapter = getAdapter(slug);
+    const adapter = getUtilityAdapter(slug);
     if (adapter) return adapter;
   }
   throw new AppError(503, "No AI platform is configured for prompt generation", "NO_GENERATION_ADAPTER");

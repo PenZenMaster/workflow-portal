@@ -15,7 +15,7 @@
  */
 
 import type { PlatformAdapter, RawResponse, RunOptions, CitationRef } from "./types";
-import { extractOpenAiUsage } from "./openaiCompatible";
+import { extractOpenAiUsage, resolveMaxOutputTokens } from "./openaiCompatible";
 import { logger } from "../logger";
 
 const PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions";
@@ -28,6 +28,7 @@ interface PerplexityAdapterOptions {
   model?: string;
   timeoutMs?: number;
   retryDelayMs?: number;
+  maxTokens?: number;
 }
 
 interface PerplexityApiResponse {
@@ -45,12 +46,14 @@ export class PerplexityAdapter implements PlatformAdapter {
   private readonly model: string;
   private readonly timeoutMs: number;
   private readonly retryDelayMs: number;
+  private readonly maxTokens: number;
 
   constructor(apiKey: string, opts: PerplexityAdapterOptions = {}) {
     this.apiKey = apiKey;
     this.model = opts.model ?? DEFAULT_MODEL;
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.retryDelayMs = opts.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
+    this.maxTokens = resolveMaxOutputTokens(opts.maxTokens);
   }
 
   async run(prompt: string, opts: RunOptions = {}): Promise<RawResponse> {
@@ -64,6 +67,7 @@ export class PerplexityAdapter implements PlatformAdapter {
 
     const body = {
       model: this.model,
+      max_tokens: this.maxTokens,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: prompt },

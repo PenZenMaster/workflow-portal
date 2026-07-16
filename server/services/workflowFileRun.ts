@@ -20,7 +20,7 @@
  */
 
 import type { RawResponse } from "../adapters/types";
-import { getAdapter } from "../adapters/registry";
+import { getUtilityAdapter } from "../adapters/registry";
 import { AppError } from "../errors";
 import { pickGenerationAdapter } from "./promptGenerator";
 
@@ -85,7 +85,8 @@ export async function runWorkflowWithCsv(
 ): Promise<RawResponse> {
   let adapter;
   if (adapterSlug) {
-    adapter = getAdapter(adapterSlug);
+    // F4: the workflow picks the platform; the utility tier picks the model.
+    adapter = getUtilityAdapter(adapterSlug);
     if (!adapter) {
       throw new AppError(
         503,

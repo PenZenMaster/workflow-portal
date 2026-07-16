@@ -1,5 +1,5 @@
 import type { PlatformAdapter, RawResponse, RunOptions } from "./types";
-import { extractUrlCitations } from "./openaiCompatible";
+import { extractUrlCitations, resolveMaxOutputTokens } from "./openaiCompatible";
 import { logger } from "../logger";
 
 const DEFAULT_MODEL = "gemini-2.0-flash";
@@ -23,12 +23,14 @@ export class GeminiAdapter implements PlatformAdapter {
   private readonly model: string;
   private readonly timeoutMs: number;
   private readonly retryDelayMs: number;
+  private readonly maxTokens: number;
 
-  constructor(apiKey: string, opts: { model?: string; timeoutMs?: number; retryDelayMs?: number } = {}) {
+  constructor(apiKey: string, opts: { model?: string; timeoutMs?: number; retryDelayMs?: number; maxTokens?: number } = {}) {
     this.apiKey = apiKey;
     this.model = opts.model ?? DEFAULT_MODEL;
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.retryDelayMs = opts.retryDelayMs ?? 1_000;
+    this.maxTokens = resolveMaxOutputTokens(opts.maxTokens);
   }
 
   async run(prompt: string, opts: RunOptions = {}): Promise<RawResponse> {
@@ -36,7 +38,10 @@ export class GeminiAdapter implements PlatformAdapter {
 
     const fullPrompt = opts.geo ? `[Focus on results relevant to ${opts.geo}]\n\n${prompt}` : prompt;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
-    const body = { contents: [{ parts: [{ text: fullPrompt }] }] };
+    const body = {
+      contents: [{ parts: [{ text: fullPrompt }] }],
+      generationConfig: { maxOutputTokens: this.maxTokens },
+    };
 
     let lastError: Error = new Error("Unknown error");
     const startMs = Date.now();

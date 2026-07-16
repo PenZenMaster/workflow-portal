@@ -1,5 +1,5 @@
 import type { PlatformAdapter, RawResponse, RunOptions } from "./types";
-import { extractUrlCitations } from "./openaiCompatible";
+import { extractUrlCitations, resolveMaxOutputTokens } from "./openaiCompatible";
 import { logger } from "../logger";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
@@ -24,12 +24,14 @@ export class AnthropicAdapter implements PlatformAdapter {
   private readonly model: string;
   private readonly timeoutMs: number;
   private readonly retryDelayMs: number;
+  private readonly maxTokens: number;
 
-  constructor(apiKey: string, opts: { model?: string; timeoutMs?: number; retryDelayMs?: number } = {}) {
+  constructor(apiKey: string, opts: { model?: string; timeoutMs?: number; retryDelayMs?: number; maxTokens?: number } = {}) {
     this.apiKey = apiKey;
     this.model = opts.model ?? DEFAULT_MODEL;
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.retryDelayMs = opts.retryDelayMs ?? 1_000;
+    this.maxTokens = resolveMaxOutputTokens(opts.maxTokens);
   }
 
   async run(prompt: string, opts: RunOptions = {}): Promise<RawResponse> {
@@ -41,7 +43,7 @@ export class AnthropicAdapter implements PlatformAdapter {
 
     const body = {
       model: this.model,
-      max_tokens: 1024,
+      max_tokens: this.maxTokens,
       system: systemPrompt,
       messages: [{ role: "user", content: prompt }],
     };

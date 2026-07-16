@@ -20,6 +20,20 @@ const MAX_RETRIES = 3;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_RETRY_DELAY_MS = 1_000;
 
+// F2: default output cap for measurement calls. 1500 sits at the top of
+// issue #2's recommended range — it bounds runaway generations without
+// truncating typical answers (lifetime avg is ~583 output tokens;
+// mistral, the most verbose surface, averages ~1,007). Lowering this
+// below typical answer length changes what the parser sees and is a
+// methodology-comparability event.
+const DEFAULT_MAX_OUTPUT_TOKENS = 1500;
+
+export function resolveMaxOutputTokens(override?: number): number {
+  if (typeof override === "number" && override > 0) return override;
+  const env = Number(process.env.LLM_MAX_OUTPUT_TOKENS);
+  return Number.isInteger(env) && env > 0 ? env : DEFAULT_MAX_OUTPUT_TOKENS;
+}
+
 const URL_REGEX = /https?:\/\/[^\s\)\]\>"']+/g;
 
 export function extractUrlCitations(text: string): CitationRef[] {
@@ -40,6 +54,7 @@ interface OpenAICompatibleOptions {
   model?: string;
   timeoutMs?: number;
   retryDelayMs?: number;
+  maxTokens?: number;
 }
 
 interface OpenAIResponse {
@@ -55,6 +70,7 @@ export class OpenAICompatibleAdapter implements PlatformAdapter {
   private readonly model: string;
   private readonly timeoutMs: number;
   private readonly retryDelayMs: number;
+  private readonly maxTokens: number;
 
   constructor(
     id: string,
@@ -69,6 +85,7 @@ export class OpenAICompatibleAdapter implements PlatformAdapter {
     this.model = opts.model ?? defaultModel;
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.retryDelayMs = opts.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
+    this.maxTokens = resolveMaxOutputTokens(opts.maxTokens);
   }
 
   async run(prompt: string, opts: RunOptions = {}): Promise<RawResponse> {
@@ -82,6 +99,7 @@ export class OpenAICompatibleAdapter implements PlatformAdapter {
 
     const body = {
       model: this.model,
+      max_tokens: this.maxTokens,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: prompt },
