@@ -69,6 +69,11 @@ const {
   mockSourceDomainStore: { getMapForDomains: vi.fn() },
 }));
 
+const mockGetAdapter = vi.hoisted(() => vi.fn());
+vi.mock("../../../server/adapters/registry", () => ({
+  getAdapter: mockGetAdapter,
+}));
+
 vi.mock("../../../server/storage", () => ({
   runStore: mockRunStore,
   responseStore: mockResponseStore,
@@ -103,6 +108,41 @@ function buildRunner(): { runner: JobRunner; handlers: Map<string, Handler>; enq
   };
   return { runner: runner as unknown as JobRunner, handlers, enqueue };
 }
+
+describe("prompt-run handler", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("persists token usage from the adapter result", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 200, runId: 99, platformId: 1, queryText: "Best SEO agency", geo: null, locale: null,
+    });
+    mockPlatformStore.get.mockResolvedValue({ id: 1, slug: "openai" });
+    mockGetAdapter.mockReturnValue({
+      id: "openai",
+      run: vi.fn().mockResolvedValue({
+        text: "Acme SEO is the top agency.",
+        summaryBlock: null,
+        citations: [],
+        modelVariant: "gpt-4o",
+        latencyMs: 1000,
+        rawPayload: {},
+        usage: { inputTokens: 42, outputTokens: 117 },
+      }),
+    });
+    mockRunStore.get.mockResolvedValue({ id: 99, completedPrompts: 1, failedPrompts: 0, totalPrompts: 2 });
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+    await handlers.get("prompt-run")!({ responseId: 200 }, 1);
+
+    expect(mockResponseStore.updateResult).toHaveBeenCalledWith(
+      200,
+      expect.objectContaining({ status: "complete", inputTokens: 42, outputTokens: 117 })
+    );
+  });
+});
 
 describe("schedule-tick handler", () => {
   beforeEach(() => {

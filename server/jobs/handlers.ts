@@ -100,6 +100,8 @@ export function registerJobHandlers(runner: JobRunner): void {
             modelVariant: result.modelVariant,
             latencyMs: result.latencyMs,
             rawPayload: result.rawPayload,
+            inputTokens: result.usage?.inputTokens ?? null,
+            outputTokens: result.usage?.outputTokens ?? null,
           });
           await runStore.incrementCompleted(response.runId);
           // Chain: parse the response for mentions, citations, and metrics.

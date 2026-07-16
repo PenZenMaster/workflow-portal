@@ -9,6 +9,12 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 interface GeminiResponse {
   candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
   modelVersion?: string;
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+}
+
+function extractGeminiUsage(meta: GeminiResponse["usageMetadata"]): { inputTokens: number; outputTokens: number } | null {
+  if (typeof meta?.promptTokenCount !== "number" || typeof meta?.candidatesTokenCount !== "number") return null;
+  return { inputTokens: meta.promptTokenCount, outputTokens: meta.candidatesTokenCount };
 }
 
 export class GeminiAdapter implements PlatformAdapter {
@@ -59,6 +65,7 @@ export class GeminiAdapter implements PlatformAdapter {
             modelVariant: data.modelVersion ?? this.model,
             latencyMs: Date.now() - startMs,
             rawPayload: data,
+            usage: extractGeminiUsage(data.usageMetadata),
           };
         }
 

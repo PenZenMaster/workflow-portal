@@ -183,6 +183,17 @@ export default function RunDetail() {
 
   const { run, responses } = data.data;
   const completedCount = responses.filter((r) => r.status === "complete").length;
+  const tokenTotals = responses.reduce(
+    (acc, r) => {
+      if (r.inputTokens != null || r.outputTokens != null) {
+        acc.any = true;
+        acc.input += r.inputTokens ?? 0;
+        acc.output += r.outputTokens ?? 0;
+      }
+      return acc;
+    },
+    { input: 0, output: 0, any: false }
+  );
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -203,6 +214,11 @@ export default function RunDetail() {
             <span>Status: <strong className="text-foreground">{run.status}</strong></span>
             <span>{run.completedPrompts}/{run.totalPrompts} complete</span>
             {run.failedPrompts > 0 && <span className="text-red-600">{run.failedPrompts} failed</span>}
+            {tokenTotals.any && (
+              <span title="Total LLM tokens billed for this run (input / output)">
+                Tokens: {tokenTotals.input.toLocaleString()} in / {tokenTotals.output.toLocaleString()} out
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2">

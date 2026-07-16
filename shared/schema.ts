@@ -930,6 +930,10 @@ export const responsesRaw = sqliteTable("responses_raw", {
   rawPayload: text("raw_payload"), // JSON
   errorMessage: text("error_message"),
   capturedAt: integer("captured_at").notNull(),
+  // Token usage from the provider's usage block (issue #2 F1); null when
+  // the provider omitted it or the row predates capture.
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
 });
 
 export const runSchedules = sqliteTable("run_schedules", {
@@ -1002,6 +1006,8 @@ export type ResponseRaw = {
   rawPayload: unknown;
   errorMessage: string | null;
   capturedAt: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
 };
 
 export type RunSchedule = {

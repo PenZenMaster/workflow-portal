@@ -18,6 +18,11 @@ export interface CitationRef {
   position: number;
 }
 
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface RawResponse {
   text: string;
   summaryBlock: string | null;
@@ -25,6 +30,8 @@ export interface RawResponse {
   modelVariant: string | null;
   latencyMs: number;
   rawPayload: unknown;
+  // null when the provider did not return a usage block
+  usage: TokenUsage | null;
 }
 
 export interface RunOptions {

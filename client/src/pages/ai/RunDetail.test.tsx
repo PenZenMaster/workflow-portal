@@ -49,6 +49,8 @@ const COMPLETE_RESPONSE = {
   status: "complete",
   responseText: "Salvo Metal Works has a strong reputation...",
   errorMessage: null,
+  inputTokens: 42,
+  outputTokens: 117,
 };
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -115,6 +117,36 @@ describe("RunDetail — Retry failed", () => {
 
     await screen.findByRole("heading", { name: "Responses" });
     expect(screen.queryByRole("button", { name: /Retry failed/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("RunDetail — Token usage totals", () => {
+  it("sums input/output tokens across responses in the run header", async () => {
+    runApiResponse = {
+      data: {
+        run: { ...BASE_RUN, status: "complete", completedPrompts: 2, failedPrompts: 0 },
+        responses: [
+          COMPLETE_RESPONSE,
+          { ...COMPLETE_RESPONSE, id: 12, inputTokens: 8, outputTokens: 3 },
+        ],
+      },
+    };
+    renderRunDetail();
+
+    expect(await screen.findByText(/Tokens: 50 in \/ 120 out/)).toBeInTheDocument();
+  });
+
+  it("omits the token line when no response has usage data", async () => {
+    runApiResponse = {
+      data: {
+        run: { ...BASE_RUN, status: "complete", completedPrompts: 1, failedPrompts: 0 },
+        responses: [{ ...COMPLETE_RESPONSE, inputTokens: null, outputTokens: null }],
+      },
+    };
+    renderRunDetail();
+
+    await screen.findByRole("heading", { name: "Responses" });
+    expect(screen.queryByText(/Tokens:/)).not.toBeInTheDocument();
   });
 });
 

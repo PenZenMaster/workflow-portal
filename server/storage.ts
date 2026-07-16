@@ -250,7 +250,9 @@ export const SCHEMA_SQL = `
     latency_ms INTEGER,
     raw_payload TEXT,
     error_message TEXT,
-    captured_at INTEGER NOT NULL
+    captured_at INTEGER NOT NULL,
+    input_tokens INTEGER,
+    output_tokens INTEGER
   );
   CREATE TABLE IF NOT EXISTS integrations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

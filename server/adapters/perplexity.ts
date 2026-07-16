@@ -15,6 +15,7 @@
  */
 
 import type { PlatformAdapter, RawResponse, RunOptions, CitationRef } from "./types";
+import { extractOpenAiUsage } from "./openaiCompatible";
 import { logger } from "../logger";
 
 const PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions";
@@ -34,6 +35,7 @@ interface PerplexityApiResponse {
   model: string;
   choices: Array<{ message: { content: string } }>;
   citations?: string[];
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
 export class PerplexityAdapter implements PlatformAdapter {
@@ -102,6 +104,7 @@ export class PerplexityAdapter implements PlatformAdapter {
             modelVariant: data.model ?? this.model,
             latencyMs: Date.now() - startMs,
             rawPayload: data,
+            usage: extractOpenAiUsage(data.usage),
           };
         }
 

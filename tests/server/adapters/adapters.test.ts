@@ -14,12 +14,14 @@ const OPENAI_BODY = {
   id: "chatcmpl-test",
   model: "gpt-4o",
   choices: [{ message: { content: "Acme SEO is the top agency. See https://acme.com for details." } }],
+  usage: { prompt_tokens: 42, completion_tokens: 117, total_tokens: 159 },
 };
 
 const ANTHROPIC_BODY = {
   id: "msg_test",
   model: "claude-opus-4-5",
   content: [{ type: "text", text: "Acme SEO leads the market. Visit https://acme.com." }],
+  usage: { input_tokens: 42, output_tokens: 117 },
 };
 
 const GEMINI_BODY = {
@@ -27,6 +29,7 @@ const GEMINI_BODY = {
     content: { parts: [{ text: "Acme SEO is highly recommended. Check https://acme.com." }] },
   }],
   modelVersion: "gemini-2.0-flash",
+  usageMetadata: { promptTokenCount: 42, candidatesTokenCount: 117, totalTokenCount: 159 },
 };
 
 function mockFetch(responses: Array<{ status: number; body: unknown }>) {
@@ -75,6 +78,19 @@ describe("OpenAIAdapter", () => {
   it("throws when API key is empty", async () => {
     await expect(new OpenAIAdapter("").run("p")).rejects.toThrow(/key/i);
   });
+
+  it("extracts token usage from the OpenAI usage block", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: OPENAI_BODY }]));
+    const r = await new OpenAIAdapter("sk-test", { retryDelayMs: 0 }).run("p");
+    expect(r.usage).toEqual({ inputTokens: 42, outputTokens: 117 });
+  });
+
+  it("returns null usage when the provider omits the usage block", async () => {
+    const { usage: _usage, ...bodyWithoutUsage } = OPENAI_BODY;
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: bodyWithoutUsage }]));
+    const r = await new OpenAIAdapter("sk-test", { retryDelayMs: 0 }).run("p");
+    expect(r.usage).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -99,6 +115,12 @@ describe("AnthropicAdapter", () => {
   it("throws when API key is empty", async () => {
     await expect(new AnthropicAdapter("").run("p")).rejects.toThrow(/key/i);
   });
+
+  it("extracts token usage from the Anthropic usage block", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: ANTHROPIC_BODY }]));
+    const r = await new AnthropicAdapter("sk-ant-test", { retryDelayMs: 0 }).run("p");
+    expect(r.usage).toEqual({ inputTokens: 42, outputTokens: 117 });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -122,6 +144,12 @@ describe("GeminiAdapter", () => {
 
   it("throws when API key is empty", async () => {
     await expect(new GeminiAdapter("").run("p")).rejects.toThrow(/key/i);
+  });
+
+  it("extracts token usage from the Gemini usageMetadata block", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: GEMINI_BODY }]));
+    const r = await new GeminiAdapter("AIza-test", { retryDelayMs: 0 }).run("p");
+    expect(r.usage).toEqual({ inputTokens: 42, outputTokens: 117 });
   });
 });
 

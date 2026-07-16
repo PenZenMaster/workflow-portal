@@ -12,6 +12,7 @@ const MOCK_SUCCESS_RESPONSE = {
     },
   ],
   citations: ["https://example.com/acme", "https://review-site.com/acme"],
+  usage: { prompt_tokens: 42, completion_tokens: 117, total_tokens: 159 },
 };
 
 function mockFetch(responses: Array<{ status: number; body: unknown }>) {
@@ -42,6 +43,12 @@ describe("PerplexityAdapter", () => {
     expect(result.citations[0].position).toBe(1);
     expect(result.modelVariant).toBe("sonar");
     expect(result.latencyMs).toBeTypeOf("number");
+  });
+
+  it("extracts token usage from the usage block", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: MOCK_SUCCESS_RESPONSE }]));
+    const result = await new PerplexityAdapter("test-key").run("p");
+    expect(result.usage).toEqual({ inputTokens: 42, outputTokens: 117 });
   });
 
   it("extracts citations in order", async () => {

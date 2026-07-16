@@ -13,7 +13,7 @@
  * - v1.00 Multi-LLM sprint
  */
 
-import type { PlatformAdapter, RawResponse, RunOptions, CitationRef } from "./types";
+import type { PlatformAdapter, RawResponse, RunOptions, CitationRef, TokenUsage } from "./types";
 import { logger } from "../logger";
 
 const MAX_RETRIES = 3;
@@ -27,6 +27,15 @@ export function extractUrlCitations(text: string): CitationRef[] {
   return Array.from(new Set(matches)).map((url, idx) => ({ url, position: idx + 1 }));
 }
 
+// OpenAI-style usage block ({ prompt_tokens, completion_tokens }) — also
+// returned by Groq, Mistral, DeepSeek, and Perplexity.
+export function extractOpenAiUsage(usage: unknown): TokenUsage | null {
+  if (typeof usage !== "object" || usage === null) return null;
+  const u = usage as { prompt_tokens?: unknown; completion_tokens?: unknown };
+  if (typeof u.prompt_tokens !== "number" || typeof u.completion_tokens !== "number") return null;
+  return { inputTokens: u.prompt_tokens, outputTokens: u.completion_tokens };
+}
+
 interface OpenAICompatibleOptions {
   model?: string;
   timeoutMs?: number;
@@ -36,6 +45,7 @@ interface OpenAICompatibleOptions {
 interface OpenAIResponse {
   model: string;
   choices: Array<{ message: { content: string } }>;
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
 export class OpenAICompatibleAdapter implements PlatformAdapter {
@@ -108,6 +118,7 @@ export class OpenAICompatibleAdapter implements PlatformAdapter {
             modelVariant: data.model ?? this.model,
             latencyMs: Date.now() - startMs,
             rawPayload: data,
+            usage: extractOpenAiUsage(data.usage),
           };
         }
 

@@ -188,6 +188,19 @@ When a run is triggered:
 
 ---
 
+#### Token Usage Capture (added v1.37.0)
+
+Every adapter extracts the provider's token-usage block (OpenAI-style
+`usage.prompt_tokens`/`completion_tokens` for OpenAI, Groq, Mistral,
+DeepSeek, and Perplexity; Anthropic `usage.input_tokens`/`output_tokens`;
+Gemini `usageMetadata.promptTokenCount`/`candidatesTokenCount`) and the
+prompt-run handler persists it to `responses_raw.input_tokens` /
+`output_tokens` (issue #2 F1). Null means the provider omitted the block
+or the row predates capture — historical rows are backfillable because
+the full provider payload is stored in `raw_payload`. RunDetail shows
+per-run totals ("Tokens: N in / M out"). Per-client aggregation,
+estimated cost, and budget guards are later slices of GitHub issue #2.
+
 ### 2.2 Metric Definitions and Formulas
 
 **Methodology versioning (added v1.31.0):** every daily metric snapshot row

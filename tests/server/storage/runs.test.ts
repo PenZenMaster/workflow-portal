@@ -152,6 +152,23 @@ describe("ResponseStore", () => {
     expect(failed).toHaveLength(1);
     expect(failed[0].errorMessage).toBe("timeout");
   });
+
+  it("persists token usage on updateResult and defaults it to null", async () => {
+    const run = await runStore.create(SAMPLE_RUN_DATA);
+    const resp = await store.create({ ...SAMPLE_RESPONSE_DATA, runId: run.id });
+    expect(resp.inputTokens).toBeNull();
+    expect(resp.outputTokens).toBeNull();
+
+    await store.updateResult(resp.id, {
+      status: "complete",
+      responseText: "text",
+      inputTokens: 42,
+      outputTokens: 117,
+    });
+    const updated = await store.get(resp.id);
+    expect(updated?.inputTokens).toBe(42);
+    expect(updated?.outputTokens).toBe(117);
+  });
 });
 
 // ---------------------------------------------------------------------------

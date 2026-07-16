@@ -10,6 +10,12 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 interface AnthropicResponse {
   model: string;
   content: Array<{ type: string; text: string }>;
+  usage?: { input_tokens?: number; output_tokens?: number };
+}
+
+function extractAnthropicUsage(usage: AnthropicResponse["usage"]): { inputTokens: number; outputTokens: number } | null {
+  if (typeof usage?.input_tokens !== "number" || typeof usage?.output_tokens !== "number") return null;
+  return { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens };
 }
 
 export class AnthropicAdapter implements PlatformAdapter {
@@ -71,6 +77,7 @@ export class AnthropicAdapter implements PlatformAdapter {
             modelVariant: data.model ?? this.model,
             latencyMs: Date.now() - startMs,
             rawPayload: data,
+            usage: extractAnthropicUsage(data.usage),
           };
         }
 

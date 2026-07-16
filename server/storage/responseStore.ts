@@ -38,6 +38,8 @@ function hydrate(row: Row): ResponseRaw {
     rawPayload: row.rawPayload ? JSON.parse(row.rawPayload) : null,
     errorMessage: row.errorMessage,
     capturedAt: row.capturedAt,
+    inputTokens: row.inputTokens,
+    outputTokens: row.outputTokens,
   };
 }
 
@@ -63,6 +65,8 @@ export interface IResponseStore {
       latencyMs?: number | null;
       rawPayload?: unknown;
       errorMessage?: string | null;
+      inputTokens?: number | null;
+      outputTokens?: number | null;
     }
   ): Promise<void>;
 }
@@ -132,6 +136,8 @@ export class ResponseStore implements IResponseStore {
       latencyMs?: number | null;
       rawPayload?: unknown;
       errorMessage?: string | null;
+      inputTokens?: number | null;
+      outputTokens?: number | null;
     }
   ): Promise<void> {
     this._db
@@ -145,6 +151,8 @@ export class ResponseStore implements IResponseStore {
         rawPayload:
           result.rawPayload != null ? JSON.stringify(result.rawPayload) : null,
         errorMessage: result.errorMessage ?? null,
+        inputTokens: result.inputTokens ?? null,
+        outputTokens: result.outputTokens ?? null,
       })
       .where(eq(responsesRaw.id, id))
       .run();
