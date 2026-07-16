@@ -1,7 +1,30 @@
 ## Resume From
 
 Last session: 2026-07-15
-Branch: main | Version: v1.40.0 | 918 tests passing
+Branch: main | Version: v1.41.0 | 920 tests passing
+
+Session 2026-07-15 (post-v1.40.0-deploy): user's "Setup incomplete"
+badge report on Royal Porta Johns exposed the TD-14 failure class at
+scale: mention detection matched ONLY brand_aliases rows, and 56 of 84
+brands (incl. all 2026-07-15 bulk-added competitors) had none — they
+were invisible in answer text, contributing citation-ownership only.
+FIXED in v1.41.0 (SHIPPED, NOT yet deployed): BrandInput requires
+canonicalName; parseResponse injects it as an implicit exact alias
+(PARSER_VERSION 1.0 -> 1.1 — first real comparability event the v1.40.0
+manifests will record). Readiness message softened accordingly (badge
+still shows for alias-less competitors, correctly, as a short-form
+recall hint). ALSO: user intentionally PRUNED competitor brands via UI
+(client 9 from ~20 down to 3: United Rentals, United Site Services,
+Portable Restroom Trailers; one brand each removed from clients 1 and
+3) — respect these competitive sets, do not re-add.
+DEPLOY+DATA SEQUENCE NEXT SESSION: (1) verify batch-2 drain done,
+(2) deploy v1.41.0 (carries v1.39.0+v1.40.0 if not yet deployed;
+TD-16 check), (3) ONE full re-parse of all completed responses under
+parser 1.1 (SSH jobs-table method) so canonical-name mentions land for
+all alias-less brands — expect competitor mention counts and SoV to
+shift visibly, (4) aggregate-snapshot-daily picks up recomputed scores.
+NOTE TD-23: re-parse wipes any human recommendation overrides made via
+the v1.36.0 UI.
 
 Session 2026-07-15 (late): v1.39.0 AND v1.40.0 SHIPPED (packaged +
 tagged, NOT yet deployed — tarballs ready one level above repo root).
