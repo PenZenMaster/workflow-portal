@@ -17,6 +17,10 @@
  * - v1.02 TD-21: ownership matching accepts URL-formatted brand primary domains
  */
 
+// Bumped whenever mention/citation extraction behavior changes — recorded
+// on run manifests for comparability (issue #3 Epic 2).
+export const PARSER_VERSION = "1.0";
+
 export interface AliasInput {
   aliasText: string;
   matchType: "exact" | "fuzzy" | "regex";

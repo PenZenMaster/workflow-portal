@@ -897,6 +897,52 @@ export type MetricSnapshotDaily = {
 
 // --- AI Visibility: Runs, Responses, Schedules ----------------------------
 
+// Immutable measurement run manifest (issue #3 Epic 2 slice E2a): what a
+// run was configured to execute, hashed for comparability. One per run,
+// written at run creation, never updated.
+export const RUN_PURPOSES = ["full_panel", "sentinel", "ad_hoc"] as const;
+export type RunPurpose = (typeof RUN_PURPOSES)[number];
+
+export const measurementRunManifests = sqliteTable("measurement_run_manifests", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runId: integer("run_id").notNull().unique(),
+  clientId: integer("client_id").notNull(),
+  collectionId: integer("collection_id").notNull(),
+  purpose: text("purpose").notNull().default("ad_hoc"),
+  methodologyVersion: text("methodology_version").notNull(),
+  panelVersion: text("panel_version"),
+  scoringVersion: text("scoring_version").notNull(),
+  parserVersion: text("parser_version").notNull(),
+  classifierVersion: text("classifier_version").notNull(),
+  platformIds: text("platform_ids").notNull().default("[]"), // JSON number[]
+  promptCount: integer("prompt_count").notNull(),
+  replicateCount: integer("replicate_count").notNull().default(1),
+  expectedResponseCount: integer("expected_response_count").notNull(),
+  configSnapshot: text("config_snapshot").notNull(), // JSON, immutable
+  configHash: text("config_hash").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
+export type MeasurementRunManifest = {
+  id: number;
+  runId: number;
+  clientId: number;
+  collectionId: number;
+  purpose: RunPurpose;
+  methodologyVersion: string;
+  panelVersion: string | null;
+  scoringVersion: string;
+  parserVersion: string;
+  classifierVersion: string;
+  platformIds: number[];
+  promptCount: number;
+  replicateCount: number;
+  expectedResponseCount: number;
+  configSnapshot: string;
+  configHash: string;
+  createdAt: number;
+};
+
 export const promptRuns = sqliteTable("prompt_runs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   clientId: integer("client_id").notNull(),

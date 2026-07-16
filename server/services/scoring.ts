@@ -17,6 +17,10 @@
 
 import type { ResponseMention, ResponseCitation } from "@shared/schema";
 
+// Bumped whenever the scoring formula or default weights change — recorded
+// on run manifests for comparability (issue #3 Epic 2).
+export const SCORING_VERSION = "1.0";
+
 export const DEFAULT_WEIGHTS = {
   mentionPresent: 1,      // M — mentioned anywhere in the response
   summaryBlock: 2,        // S — mentioned in the opening summary block

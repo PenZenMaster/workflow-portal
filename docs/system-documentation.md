@@ -222,6 +222,22 @@ economy) with a 4096-token cap for long JSON output, overridable per
 provider with `UTILITY_MODEL_<SLUG>` env vars. Measurement runs are
 unaffected — surface fidelity is methodology, not waste.
 
+#### Run Manifests (added v1.40.0)
+
+Every run — manual or scheduled — gets an immutable manifest row
+(`measurement_run_manifests`, one per run, written at creation, never
+updated) recording exactly what the run was configured to execute:
+methodology/panel/scoring/parser/classifier versions, platforms, prompt
+and expected-response counts, purpose (`full_panel` for monthly
+schedules, `sentinel` for weekly, `ad_hoc` for manual runs), a canonical
+config snapshot (prompts + metadata, brands + aliases, sorted for order
+independence), and a deterministic SHA-256 `config_hash`. Read via
+`GET /api/runs/:id/manifest`. This is issue #3 Epic 2 slice E2a; the
+comparability service (fully_comparable / comparable_with_warning /
+not_comparable with named reasons) builds on these hashes in slice E2b.
+Runs created before v1.40.0 have no manifest (404) — comparisons
+involving them are inherently unverifiable.
+
 ### 2.2 Metric Definitions and Formulas
 
 **Methodology versioning (added v1.31.0):** every daily metric snapshot row

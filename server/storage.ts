@@ -29,6 +29,7 @@ import { IntegrationStore } from "./storage/integrationStore";
 import { JobStore } from "./storage/jobStore";
 import { WorkflowInputValueStore } from "./storage/workflowInputValueStore";
 import { FactoryJobStore } from "./storage/factoryJobStore";
+import { ManifestStore } from "./storage/manifestStore";
 
 export type { IWorkflowStore } from "./storage/workflowStore";
 export type { IUserStore } from "./storage/userStore";
@@ -253,6 +254,25 @@ export const SCHEMA_SQL = `
     captured_at INTEGER NOT NULL,
     input_tokens INTEGER,
     output_tokens INTEGER
+  );
+  CREATE TABLE IF NOT EXISTS measurement_run_manifests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL UNIQUE,
+    client_id INTEGER NOT NULL,
+    collection_id INTEGER NOT NULL,
+    purpose TEXT NOT NULL DEFAULT 'ad_hoc',
+    methodology_version TEXT NOT NULL,
+    panel_version TEXT,
+    scoring_version TEXT NOT NULL,
+    parser_version TEXT NOT NULL,
+    classifier_version TEXT NOT NULL,
+    platform_ids TEXT NOT NULL DEFAULT '[]',
+    prompt_count INTEGER NOT NULL,
+    replicate_count INTEGER NOT NULL DEFAULT 1,
+    expected_response_count INTEGER NOT NULL,
+    config_snapshot TEXT NOT NULL,
+    config_hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS integrations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -506,3 +526,4 @@ export const integrationStore = new IntegrationStore(db);
 export const jobStore = new JobStore(db);
 export const workflowInputValueStore = new WorkflowInputValueStore(db);
 export const factoryJobStore = new FactoryJobStore(db);
+export const manifestStore = new ManifestStore(db);

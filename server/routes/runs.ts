@@ -24,6 +24,10 @@ import {
   jobStore,
   clientStore,
   brandStore,
+  aliasStore,
+  promptCollectionStore,
+  promptMethodologyStore,
+  manifestStore,
 } from "../storage";
 import { JOB_STATUSES } from "@shared/schema";
 import { triggerRunSchema, insertScheduleSchema } from "@shared/schema";
@@ -33,6 +37,10 @@ import { AppError } from "../errors";
 import { jobRunner } from "../jobs/runner";
 import { computeNextFireAt } from "../services/scheduling";
 import { buildPromptTokenContext, expandPromptText, type ClientBrandContext } from "../services/promptTokens";
+import { assembleManifest } from "../services/manifest";
+import { SCORING_VERSION } from "../services/scoring";
+import { PARSER_VERSION } from "../services/parser";
+import { RECOMMENDATION_CLASSIFIER_VERSION } from "../services/recommendation";
 
 const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
 const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
@@ -80,6 +88,46 @@ export function registerRunRoutes(app: Express): void {
         triggeredByUserId: req.session.user?.id ?? null,
       });
 
+      // E2a: immutable manifest of what this run was configured to execute.
+      const [collection, methodology, aliasLists] = await Promise.all([
+        promptCollectionStore.get(collectionId),
+        promptMethodologyStore.getActive(),
+        Promise.all(brands.map((b) => aliasStore.listByBrand(b.id))),
+      ]);
+      await manifestStore.create(
+        assembleManifest({
+          runId: run.id,
+          clientId,
+          collectionId,
+          purpose: "ad_hoc",
+          expectedResponseCount: totalPrompts,
+          replicateCount: 1,
+          config: {
+            methodologyVersion: methodology?.version ?? "unknown",
+            panelVersion: collection?.version != null ? String(collection.version) : null,
+            scoringVersion: SCORING_VERSION,
+            parserVersion: PARSER_VERSION,
+            classifierVersion: RECOMMENDATION_CLASSIFIER_VERSION,
+            platformIds,
+            prompts: prompts.map((p) => ({
+              id: p.id,
+              text: p.text,
+              intentType: p.intentType ?? null,
+              brandInPrompt: p.brandInPrompt ?? null,
+              geo: p.geo ?? null,
+              service: p.service ?? null,
+            })),
+            brands: brands.map((b, i) => ({
+              id: b.id,
+              canonicalName: b.canonicalName,
+              kind: b.kind,
+              primaryDomain: b.primaryDomain,
+              aliases: (aliasLists[i] ?? []).map((a) => a.aliasText),
+            })),
+          },
+        })
+      );
+
       for (const { prompt, queryTexts } of expandedPrompts) {
         for (const queryText of queryTexts) {
           for (const platformId of platformIds) {
@@ -116,6 +164,15 @@ export function registerRunRoutes(app: Express): void {
     if (!run) throw new AppError(404, "Run not found", "RUN_NOT_FOUND");
     const responses = await responseStore.listByRun(id);
     ok(res, { run, responses });
+  });
+
+  app.get("/api/runs/:id/manifest", requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+    const manifest = await manifestStore.getByRunId(id);
+    if (!manifest)
+      throw new AppError(404, "Manifest not found", "MANIFEST_NOT_FOUND");
+    ok(res, manifest);
   });
 
   app.get(

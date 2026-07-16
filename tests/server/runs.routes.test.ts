@@ -33,10 +33,16 @@ const mockJobRunner = { register: vi.fn(), enqueue: vi.fn() };
 const mockClientStore = { get: vi.fn() };
 const mockBrandStore = { listByClient: vi.fn() };
 
+const mockManifestStore = {
+  create: vi.fn().mockResolvedValue({ id: 1 }),
+  getByRunId: vi.fn(),
+};
+
 vi.mock("../../server/storage", () => ({
   storage: { countUsers: vi.fn() },
   platformStore: { seedDefaults: vi.fn().mockResolvedValue(undefined), list: vi.fn() },
-  promptCollectionStore: { get: vi.fn() },
+  promptCollectionStore: { get: vi.fn().mockResolvedValue({ id: 5, version: "3" }) },
+  promptMethodologyStore: { getActive: vi.fn().mockResolvedValue({ version: "1.0" }) },
   promptStore: mockPromptStore,
   runStore: mockRunStore,
   responseStore: mockResponseStore,
@@ -44,7 +50,8 @@ vi.mock("../../server/storage", () => ({
   jobStore: mockJobStore,
   clientStore: mockClientStore,
   brandStore: mockBrandStore,
-  aliasStore: {},
+  aliasStore: { listByBrand: vi.fn().mockResolvedValue([]) },
+  manifestStore: mockManifestStore,
   competitorStore: {},
   clientUserStore: {},
 }));
@@ -162,6 +169,56 @@ describe("POST /api/clients/:id/runs", () => {
       .post("/api/clients/10/runs")
       .send({ collectionId: 5, platformIds: [1] });
     expect(res.status).toBe(404);
+  });
+
+  it("writes an immutable run manifest with ad_hoc purpose and a config hash (E2a)", async () => {
+    mockClientStore.get.mockResolvedValue(SAMPLE_CLIENT);
+    mockBrandStore.listByClient.mockResolvedValue([]);
+    mockPromptStore.listByCollection.mockResolvedValue([
+      { id: 50, text: "Prompt 1", geo: null },
+    ]);
+    mockRunStore.create.mockResolvedValue(SAMPLE_RUN);
+    mockResponseStore.create.mockResolvedValue(SAMPLE_RESPONSE);
+
+    const res = await request(buildApp("agency_admin"))
+      .post("/api/clients/10/runs")
+      .send({ collectionId: 5, platformIds: [1] });
+    expect(res.status).toBe(202);
+
+    expect(mockManifestStore.create).toHaveBeenCalledTimes(1);
+    const manifest = mockManifestStore.create.mock.calls[0][0];
+    expect(manifest.runId).toBe(SAMPLE_RUN.id);
+    expect(manifest.purpose).toBe("ad_hoc");
+    expect(manifest.methodologyVersion).toBe("1.0");
+    expect(manifest.panelVersion).toBe("3");
+    expect(manifest.configHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(manifest.expectedResponseCount).toBe(1);
+  });
+});
+
+describe("GET /api/runs/:id/manifest", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/runs/1/manifest");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 when the run has no manifest", async () => {
+    mockManifestStore.getByRunId.mockResolvedValue(undefined);
+    const res = await request(buildApp("analyst")).get("/api/runs/1/manifest");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("MANIFEST_NOT_FOUND");
+  });
+
+  it("returns the manifest for a run", async () => {
+    mockManifestStore.getByRunId.mockResolvedValue({
+      id: 7, runId: 1, purpose: "ad_hoc", configHash: "aa", platformIds: [1],
+    });
+    const res = await request(buildApp("analyst")).get("/api/runs/1/manifest");
+    expect(res.status).toBe(200);
+    expect(res.body.data.runId).toBe(1);
+    expect(res.body.data.configHash).toBe("aa");
   });
 
   it("expands {{competitor}} into one response per configured competitor and reflects it in totalPrompts", async () => {

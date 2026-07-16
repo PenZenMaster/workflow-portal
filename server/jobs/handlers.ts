@@ -41,12 +41,15 @@ import {
   clientStore,
   promptMethodologyStore,
   sourceDomainStore,
+  manifestStore,
+  promptCollectionStore,
 } from "../storage";
 import { getAdapter } from "../adapters/registry";
-import { parseResponse } from "../services/parser";
+import { parseResponse, PARSER_VERSION } from "../services/parser";
 import { classifyRecommendation, RECOMMENDATION_CLASSIFIER_VERSION } from "../services/recommendation";
 import { classifyCitationSource, isTrustedSourceClass, type CitationOwnerKind } from "../services/sourceClassifier";
-import { computeVisibilityScore } from "../services/scoring";
+import { computeVisibilityScore, SCORING_VERSION } from "../services/scoring";
+import { assembleManifest } from "../services/manifest";
 import { classifySentiment } from "../services/sentiment";
 import { generateCsvLines } from "../services/csv";
 import { Ga4Service } from "../services/ga4";
@@ -483,6 +486,47 @@ export function registerJobHandlers(runner: JobRunner): void {
           totalPrompts,
           triggeredBy: "schedule",
         });
+
+        // E2a: immutable manifest. Weekly cadence is the sentinel panel;
+        // monthly is the full panel.
+        const [collection, methodology, aliasLists] = await Promise.all([
+          promptCollectionStore.get(schedule.collectionId),
+          promptMethodologyStore.getActive(),
+          Promise.all(brands.map((b) => aliasStore.listByBrand(b.id))),
+        ]);
+        await manifestStore.create(
+          assembleManifest({
+            runId: run.id,
+            clientId: schedule.clientId,
+            collectionId: schedule.collectionId,
+            purpose: schedule.cadence === "weekly" ? "sentinel" : "full_panel",
+            expectedResponseCount: totalPrompts,
+            replicateCount: 1,
+            config: {
+              methodologyVersion: methodology?.version ?? "unknown",
+              panelVersion: collection?.version != null ? String(collection.version) : null,
+              scoringVersion: SCORING_VERSION,
+              parserVersion: PARSER_VERSION,
+              classifierVersion: RECOMMENDATION_CLASSIFIER_VERSION,
+              platformIds: schedule.platformIds,
+              prompts: prompts.map((p) => ({
+                id: p.id,
+                text: p.text,
+                intentType: p.intentType ?? null,
+                brandInPrompt: p.brandInPrompt ?? null,
+                geo: p.geo ?? null,
+                service: p.service ?? null,
+              })),
+              brands: brands.map((b, i) => ({
+                id: b.id,
+                canonicalName: b.canonicalName,
+                kind: b.kind,
+                primaryDomain: b.primaryDomain,
+                aliases: (aliasLists[i] ?? []).map((a) => a.aliasText),
+              })),
+            },
+          })
+        );
 
         for (const { prompt, queryTexts } of expandedPrompts) {
           for (const queryText of queryTexts) {

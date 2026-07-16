@@ -4,6 +4,8 @@ import { SCHEDULE_TICK_INTERVAL_MS } from "../../../server/services/scheduling";
 import type { JobRunner } from "../../../server/jobs/runner";
 
 const {
+  mockManifestStore,
+  mockPromptCollectionStore,
   mockScheduleStore,
   mockPromptStore,
   mockRunStore,
@@ -67,6 +69,8 @@ const {
   mockPromptMethodologyStore: { getActive: vi.fn() },
   mockRecommendationStore: { deleteByResponse: vi.fn(), bulkCreate: vi.fn() },
   mockSourceDomainStore: { getMapForDomains: vi.fn() },
+  mockManifestStore: { create: vi.fn(), getByRunId: vi.fn() },
+  mockPromptCollectionStore: { get: vi.fn() },
 }));
 
 const mockGetAdapter = vi.hoisted(() => vi.fn());
@@ -92,6 +96,8 @@ vi.mock("../../../server/storage", () => ({
   promptMethodologyStore: mockPromptMethodologyStore,
   recommendationStore: mockRecommendationStore,
   sourceDomainStore: mockSourceDomainStore,
+  manifestStore: mockManifestStore,
+  promptCollectionStore: mockPromptCollectionStore,
 }));
 
 type Handler = (payload: unknown, jobId: number) => Promise<void>;
@@ -205,6 +211,9 @@ describe("schedule-tick handler", () => {
     });
     mockBrandStore.listByClient.mockResolvedValue([]);
     mockRunStore.create.mockResolvedValue({ id: 99 });
+    mockPromptMethodologyStore.getActive.mockResolvedValue({ version: "1.0" });
+    mockPromptCollectionStore.get.mockResolvedValue({ id: 5, version: "2" });
+    mockManifestStore.create.mockResolvedValue({ id: 1 });
     mockResponseStore.create
       .mockResolvedValueOnce({ id: 200 })
       .mockResolvedValueOnce({ id: 201 });
@@ -213,6 +222,14 @@ describe("schedule-tick handler", () => {
     registerJobHandlers(runner);
 
     await handlers.get("schedule-tick")!({}, 1);
+
+    // E2a: every scheduled run gets an immutable manifest; weekly cadence
+    // is the sentinel purpose.
+    expect(mockManifestStore.create).toHaveBeenCalledTimes(1);
+    const manifest = mockManifestStore.create.mock.calls[0][0];
+    expect(manifest.runId).toBe(99);
+    expect(manifest.purpose).toBe("sentinel");
+    expect(manifest.configHash).toMatch(/^[0-9a-f]{64}$/);
 
     expect(mockRunStore.create).toHaveBeenCalledWith(
       expect.objectContaining({
