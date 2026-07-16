@@ -22,6 +22,8 @@ import {
   promptStore,
   clientStore,
   brandStore,
+  promptMethodologyStore,
+  promptGenerationRunStore,
 } from "../storage";
 import {
   insertPromptCollectionSchema,
@@ -251,7 +253,7 @@ export function registerPromptRoutes(app: Express): void {
 
       const existingPrompts = await promptStore.listByCollection(collectionId);
 
-      const result = await generatePrompts({
+      const context = {
         clientName: client.name,
         primaryDomain: client.primaryDomain,
         geographies: client.geographies,
@@ -261,9 +263,61 @@ export function registerPromptRoutes(app: Express): void {
         exclusions: client.exclusions,
         existingPromptTexts: existingPrompts.map((p) => p.text),
         count: parsed.data.count,
+      };
+      const { provenance, ...result } = await generatePrompts(context);
+
+      // E2c: immutable provenance record for this generation event. The
+      // snapshot stores the audit-relevant context; existing prompt texts
+      // are reduced to a count (they live in the prompts table).
+      const methodology = await promptMethodologyStore.getActive();
+      const { existingPromptTexts, ...auditContext } = context;
+      const run = await promptGenerationRunStore.create({
+        clientId,
+        collectionId,
+        requestedCount: parsed.data.count,
+        adapterSlug: provenance.adapterSlug,
+        modelVariant: provenance.modelVariant,
+        methodologyVersion: methodology?.version ?? "unknown",
+        contextSnapshot: JSON.stringify({
+          ...auditContext,
+          existingPromptCount: existingPromptTexts.length,
+        }),
+        rawOutput: provenance.rawText,
+        validCount: result.candidates.length,
+        invalidCount: result.invalid.length,
+        warnings: result.warnings,
+        invalidItems: result.invalid,
+        createdByUserId: req.session.user?.id ?? null,
       });
 
-      ok(res, result);
+      ok(res, { ...result, generationRunId: run.id });
+    }
+  );
+
+  // --- Generation provenance (E2c) ------------------------------------------
+
+  app.get(
+    "/api/prompt-collections/:id/generation-runs",
+    requireRole(...EDITOR_ROLES),
+    async (req, res) => {
+      const collectionId = Number(req.params.id);
+      if (Number.isNaN(collectionId))
+        throw new AppError(400, "Invalid id", "INVALID_ID");
+      const runs = await promptGenerationRunStore.listByCollection(collectionId);
+      ok(res, runs);
+    }
+  );
+
+  app.get(
+    "/api/generation-runs/:id",
+    requireRole(...EDITOR_ROLES),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+      const run = await promptGenerationRunStore.get(id);
+      if (!run)
+        throw new AppError(404, "Generation run not found", "GENERATION_RUN_NOT_FOUND");
+      ok(res, run);
     }
   );
 
@@ -308,7 +362,8 @@ export function registerPromptRoutes(app: Express): void {
         throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
       const created_prompts = await promptStore.bulkCreate(
         collectionId,
-        parsed.data.prompts
+        parsed.data.prompts,
+        parsed.data.generationRunId
       );
       created(res, created_prompts);
     }

@@ -65,6 +65,17 @@ export interface ParseOptions {
   existingPromptTexts?: string[];
 }
 
+// E2c provenance: which adapter and model produced the raw output.
+export interface GenerationProvenance {
+  adapterSlug: string;
+  modelVariant: string | null;
+  rawText: string;
+}
+
+export type GenerationOutcome = GenerationResult & {
+  provenance: GenerationProvenance;
+};
+
 // Legacy category kept during migration so the bulk-import endpoint and
 // existing category-based reports remain valid while the UI moves to
 // intent types.
@@ -233,11 +244,19 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
   return { candidates, invalid, warnings };
 }
 
-export async function generatePrompts(ctx: GenerationContext): Promise<GenerationResult> {
+export async function generatePrompts(ctx: GenerationContext): Promise<GenerationOutcome> {
   const adapter = pickGenerationAdapter();
   const response = await adapter.run(buildGenerationPrompt(ctx));
-  return parseGeneratedPrompts(response.text, {
+  const result = parseGeneratedPrompts(response.text, {
     requestedCount: ctx.count,
     existingPromptTexts: ctx.existingPromptTexts,
   });
+  return {
+    ...result,
+    provenance: {
+      adapterSlug: adapter.id,
+      modelVariant: response.modelVariant,
+      rawText: response.text,
+    },
+  };
 }

@@ -36,6 +36,11 @@ const mockPromptStore = {
 const mockStorage = { countUsers: vi.fn() };
 const mockClientStore = { get: vi.fn() };
 const mockBrandStore = { listByClient: vi.fn() };
+const mockGenerationRunStore = {
+  create: vi.fn().mockResolvedValue({ id: 55 }),
+  get: vi.fn(),
+  listByCollection: vi.fn(),
+};
 
 vi.mock("../../server/storage", () => ({
   storage: mockStorage,
@@ -44,6 +49,8 @@ vi.mock("../../server/storage", () => ({
   promptStore: mockPromptStore,
   clientStore: mockClientStore,
   brandStore: mockBrandStore,
+  promptMethodologyStore: { getActive: vi.fn().mockResolvedValue({ version: "1.0" }) },
+  promptGenerationRunStore: mockGenerationRunStore,
   // Sprint 1 stores (not used in these routes but present in the barrel)
   aliasStore: {},
   competitorStore: {},
@@ -555,6 +562,7 @@ describe("POST /api/clients/:clientId/prompt-collections/:id/generate-prompts", 
       ],
       invalid: [{ item: { text: "" }, errors: ["Prompt text is required"] }],
       warnings: ["Only 1 of 5 requested prompts were valid"],
+      provenance: { adapterSlug: "openai", modelVariant: "gpt-4o-mini", rawText: "RAW_LLM_OUTPUT" },
     });
 
     const res = await request(buildApp("analyst"))
@@ -576,6 +584,145 @@ describe("POST /api/clients/:clientId/prompt-collections/:id/generate-prompts", 
       existingPromptTexts: ["Best SEO agency in Seattle"],
       count: 5,
     });
+  });
+
+  it("persists a generation run with provenance and returns generationRunId (E2c)", async () => {
+    mockClientStore.get.mockResolvedValue(SAMPLE_CLIENT);
+    mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION);
+    mockBrandStore.listByClient.mockResolvedValue([]);
+    mockPromptStore.listByCollection.mockResolvedValue([]);
+    mockGeneratePrompts.mockResolvedValue({
+      candidates: [
+        {
+          text: "Who fixes leaky faucets in Seattle?",
+          category: "problem_aware",
+          funnelStage: "awareness",
+          intentType: "problem_solution",
+          brandInPrompt: false,
+          service: null,
+          geo: null,
+          rationale: null,
+        },
+      ],
+      invalid: [{ item: { text: "" }, errors: ["Prompt text is required"] }],
+      warnings: [],
+      provenance: { adapterSlug: "openai", modelVariant: "gpt-4o-mini", rawText: "RAW_LLM_OUTPUT" },
+    });
+
+    const res = await request(buildApp("analyst"))
+      .post("/api/clients/10/prompt-collections/1/generate-prompts")
+      .send({ count: 5 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.generationRunId).toBe(55);
+    expect(mockGenerationRunStore.create).toHaveBeenCalledTimes(1);
+    const run = mockGenerationRunStore.create.mock.calls[0][0];
+    expect(run).toMatchObject({
+      clientId: 10,
+      collectionId: 1,
+      requestedCount: 5,
+      adapterSlug: "openai",
+      modelVariant: "gpt-4o-mini",
+      methodologyVersion: "1.0",
+      rawOutput: "RAW_LLM_OUTPUT",
+      validCount: 1,
+      invalidCount: 1,
+    });
+    expect(run.contextSnapshot).toContain("Acme Plumbing");
+    expect(run.invalidItems).toHaveLength(1);
+  });
+});
+
+describe("GET /api/prompt-collections/:id/generation-runs (E2c)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const SAMPLE_GEN_RUN = {
+    id: 55,
+    clientId: 10,
+    collectionId: 1,
+    requestedCount: 12,
+    adapterSlug: "openai",
+    modelVariant: "gpt-4o-mini",
+    methodologyVersion: "1.0",
+    contextSnapshot: "{}",
+    rawOutput: "RAW",
+    validCount: 10,
+    invalidCount: 2,
+    warnings: [],
+    invalidItems: [],
+    createdByUserId: 1,
+    createdAt: Date.now(),
+  };
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/prompt-collections/1/generation-runs");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for client_viewer", async () => {
+    const res = await request(buildApp("client_viewer")).get("/api/prompt-collections/1/generation-runs");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns the collection's generation runs", async () => {
+    mockGenerationRunStore.listByCollection.mockResolvedValue([SAMPLE_GEN_RUN]);
+    const res = await request(buildApp("analyst")).get("/api/prompt-collections/1/generation-runs");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0].adapterSlug).toBe("openai");
+    expect(mockGenerationRunStore.listByCollection).toHaveBeenCalledWith(1);
+  });
+
+  it("returns run detail by id including raw output and diagnostics", async () => {
+    mockGenerationRunStore.get.mockResolvedValue(SAMPLE_GEN_RUN);
+    const res = await request(buildApp("analyst")).get("/api/generation-runs/55");
+    expect(res.status).toBe(200);
+    expect(res.body.data.rawOutput).toBe("RAW");
+    expect(res.body.data.methodologyVersion).toBe("1.0");
+  });
+
+  it("returns 404 GENERATION_RUN_NOT_FOUND for a missing run", async () => {
+    mockGenerationRunStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("analyst")).get("/api/generation-runs/999");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("GENERATION_RUN_NOT_FOUND");
+  });
+
+  it("returns 403 for client_viewer on run detail", async () => {
+    const res = await request(buildApp("client_viewer")).get("/api/generation-runs/55");
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("POST /api/prompt-collections/:id/prompts/bulk — generationRunId (E2c)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const BULK_PROMPT = { text: "Who fixes leaky faucets?", category: "problem_aware" };
+
+  it("passes generationRunId through to bulkCreate so saved prompts are stamped", async () => {
+    mockPromptStore.bulkCreate.mockResolvedValue([{ ...SAMPLE_PROMPT, generationRunId: 42 }]);
+    const res = await request(buildApp("analyst"))
+      .post("/api/prompt-collections/1/prompts/bulk")
+      .send({ prompts: [BULK_PROMPT], generationRunId: 42 });
+    expect(res.status).toBe(201);
+    expect(mockPromptStore.bulkCreate).toHaveBeenCalledWith(
+      1,
+      expect.arrayContaining([expect.objectContaining({ text: "Who fixes leaky faucets?" })]),
+      42
+    );
+  });
+
+  it("omits the run id for manual bulk imports", async () => {
+    mockPromptStore.bulkCreate.mockResolvedValue([SAMPLE_PROMPT]);
+    const res = await request(buildApp("analyst"))
+      .post("/api/prompt-collections/1/prompts/bulk")
+      .send({ prompts: [BULK_PROMPT] });
+    expect(res.status).toBe(201);
+    expect(mockPromptStore.bulkCreate).toHaveBeenCalledWith(
+      1,
+      expect.anything(),
+      undefined
+    );
   });
 });
 

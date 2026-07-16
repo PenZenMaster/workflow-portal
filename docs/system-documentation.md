@@ -289,6 +289,27 @@ before explaining the numbers. Warnings should be disclosed as
 footnotes on trend charts. Runs without a manifest (pre-v1.40.0, or no
 earlier run) show no banner: comparability is unknown, not asserted.
 
+#### Prompt Generation Provenance (added v1.43.0)
+
+Every "Generate with AI" event writes an immutable
+`prompt_generation_runs` record: adapter slug and model variant that
+produced the candidates, active methodology version, a context snapshot
+(client facts, brands, competitors, services, exclusions, requested
+count — never credentials), the raw LLM output, and full validation
+diagnostics (valid/invalid counts, per-item rejection reasons,
+warnings). Prompts saved from the review panel carry a
+`generation_run_id` link; manually added prompts have none. In the
+collection UI, generated prompts show an "AI generated" badge whose
+tooltip names the adapter, model, methodology version, and date.
+Analysts can list a collection's runs via
+`GET /api/prompt-collections/:id/generation-runs` and fetch full detail
+(including raw output) via `GET /api/generation-runs/:id` (analyst+).
+**Client meaning:** every AI-suggested panel question is auditable back
+to exactly what model proposed it, from what inputs, under which
+methodology — no prompt enters measurement from an unrecorded source.
+This is issue #3 Epic 2 slice E2c (YLG prompt-gen spec Phase 4);
+per-candidate analyst edit/decision audit lands with issue #4.
+
 ### 2.2 Metric Definitions and Formulas
 
 **Methodology versioning (added v1.31.0):** every daily metric snapshot row

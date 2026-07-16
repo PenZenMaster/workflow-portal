@@ -63,6 +63,7 @@ const GENERATION_RESULT = {
   candidates: CANDIDATES,
   invalid: [{ item: { text: "" }, errors: ["Prompt text is required"] }],
   warnings: ["Only 2 of 12 requested prompts were valid"],
+  generationRunId: 42,
 };
 
 const EXISTING_PROMPT = {
@@ -247,6 +248,75 @@ describe("PromptCollectionDetail — AI prompt generation", () => {
     expect(body.prompts[0]).not.toHaveProperty("geo");
     expect(body.prompts[1]).toMatchObject({ geo: "Seattle, WA", intentType: "geographic_discovery" });
     expect(body.prompts[1]).not.toHaveProperty("service");
+  });
+
+  it("Save selected includes the generationRunId so saved prompts carry provenance (E2c)", async () => {
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Generate with AI/i }));
+    await screen.findByDisplayValue("What is the best way to fix a leaky faucet?");
+
+    await userEvent.click(screen.getByRole("button", { name: /Save selected/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        BULK_URL,
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+
+    const [, init] = fetchMock.mock.calls.find(([url, reqInit]) => url === BULK_URL && reqInit?.method === "POST")!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.generationRunId).toBe(42);
+  });
+});
+
+describe("PromptCollectionDetail — generation provenance badge (E2c)", () => {
+  const GENERATION_RUN = {
+    id: 42,
+    clientId: 10,
+    collectionId: 1,
+    requestedCount: 12,
+    adapterSlug: "openai",
+    modelVariant: "gpt-4o-mini",
+    methodologyVersion: "1.0",
+    contextSnapshot: "{}",
+    rawOutput: "RAW",
+    validCount: 10,
+    invalidCount: 2,
+    warnings: [],
+    invalidItems: [],
+    createdByUserId: 1,
+    createdAt: Date.now(),
+  };
+
+  beforeEach(() => {
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "GET" && url === "/api/prompt-collections/1/generation-runs") {
+        const body = { data: [GENERATION_RUN] };
+        return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
+      }
+      return base(url, init);
+    });
+  });
+
+  it("shows an AI generated badge with adapter provenance on generated prompts", async () => {
+    promptsResponse = { data: [{ ...EXISTING_PROMPT, generationRunId: 42 }] };
+    renderPage();
+
+    const badge = await screen.findByText(/AI generated/i);
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveAttribute("title", expect.stringContaining("openai"));
+    expect(badge).toHaveAttribute("title", expect.stringContaining("1.0"));
+  });
+
+  it("shows no badge on manually added prompts", async () => {
+    promptsResponse = { data: [{ ...EXISTING_PROMPT, generationRunId: null }] };
+    renderPage();
+
+    await screen.findByText("Best plumber in Seattle");
+    expect(screen.queryByText(/AI generated/i)).not.toBeInTheDocument();
   });
 });
 

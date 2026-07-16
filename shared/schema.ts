@@ -369,9 +369,51 @@ export const prompts = sqliteTable("prompts", {
   promptFamily: text("prompt_family"),
   commercialValue: text("commercial_value"),
   measurementPurpose: text("measurement_purpose"),
+  // E2c provenance: which generation run produced this prompt (null = manual)
+  generationRunId: integer("generation_run_id"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+// E2c (YLG prompt-gen Phase 4): immutable provenance record for every AI
+// prompt-generation event — adapter, model, methodology, context, raw
+// output, and validation diagnostics. Written once at generation, never
+// updated; saved prompts link back via prompts.generation_run_id.
+export const promptGenerationRuns = sqliteTable("prompt_generation_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  collectionId: integer("collection_id").notNull(),
+  requestedCount: integer("requested_count").notNull(),
+  adapterSlug: text("adapter_slug").notNull(),
+  modelVariant: text("model_variant"),
+  methodologyVersion: text("methodology_version").notNull(),
+  contextSnapshot: text("context_snapshot").notNull().default("{}"), // JSON
+  rawOutput: text("raw_output").notNull(),
+  validCount: integer("valid_count").notNull().default(0),
+  invalidCount: integer("invalid_count").notNull().default(0),
+  warnings: text("warnings").notNull().default("[]"),        // JSON string[]
+  invalidItems: text("invalid_items").notNull().default("[]"), // JSON GenerationInvalidItem[]
+  createdByUserId: integer("created_by_user_id"),
+  createdAt: integer("created_at").notNull(),
+});
+
+export type PromptGenerationRun = {
+  id: number;
+  clientId: number;
+  collectionId: number;
+  requestedCount: number;
+  adapterSlug: string;
+  modelVariant: string | null;
+  methodologyVersion: string;
+  contextSnapshot: string;
+  rawOutput: string;
+  validCount: number;
+  invalidCount: number;
+  warnings: string[];
+  invalidItems: GenerationInvalidItem[];
+  createdByUserId: number | null;
+  createdAt: number;
+};
 
 export const promptMethodologies = sqliteTable("prompt_methodologies", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -411,6 +453,8 @@ export const bulkInsertPromptsSchema = z.object({
     .array(insertPromptSchema)
     .min(1, "At least one prompt required")
     .max(200, "Maximum 200 prompts per bulk import"),
+  // E2c: present when the prompts came from an AI generation run
+  generationRunId: z.number().int().positive().optional(),
 });
 
 export const generatePromptsSchema = z.object({
@@ -508,6 +552,7 @@ export type Prompt = {
   promptFamily: string | null;
   commercialValue: CommercialValue | null;
   measurementPurpose: MeasurementPurpose | null;
+  generationRunId: number | null;
   createdAt: number;
   updatedAt: number;
 };

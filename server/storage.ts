@@ -30,6 +30,7 @@ import { JobStore } from "./storage/jobStore";
 import { WorkflowInputValueStore } from "./storage/workflowInputValueStore";
 import { FactoryJobStore } from "./storage/factoryJobStore";
 import { ManifestStore } from "./storage/manifestStore";
+import { PromptGenerationRunStore } from "./storage/promptGenerationRunStore";
 
 export type { IWorkflowStore } from "./storage/workflowStore";
 export type { IUserStore } from "./storage/userStore";
@@ -208,8 +209,26 @@ export const SCHEMA_SQL = `
     prompt_family TEXT,
     commercial_value TEXT,
     measurement_purpose TEXT,
+    generation_run_id INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS prompt_generation_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    collection_id INTEGER NOT NULL,
+    requested_count INTEGER NOT NULL,
+    adapter_slug TEXT NOT NULL,
+    model_variant TEXT,
+    methodology_version TEXT NOT NULL,
+    context_snapshot TEXT NOT NULL DEFAULT '{}',
+    raw_output TEXT NOT NULL,
+    valid_count INTEGER NOT NULL DEFAULT 0,
+    invalid_count INTEGER NOT NULL DEFAULT 0,
+    warnings TEXT NOT NULL DEFAULT '[]',
+    invalid_items TEXT NOT NULL DEFAULT '[]',
+    created_by_user_id INTEGER,
+    created_at INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS prompt_methodologies (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -527,3 +546,4 @@ export const jobStore = new JobStore(db);
 export const workflowInputValueStore = new WorkflowInputValueStore(db);
 export const factoryJobStore = new FactoryJobStore(db);
 export const manifestStore = new ManifestStore(db);
+export const promptGenerationRunStore = new PromptGenerationRunStore(db);

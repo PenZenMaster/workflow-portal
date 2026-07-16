@@ -48,6 +48,7 @@ function hydrate(row: Row): Prompt {
     promptFamily: row.promptFamily,
     commercialValue: row.commercialValue as CommercialValue | null,
     measurementPurpose: row.measurementPurpose as MeasurementPurpose | null,
+    generationRunId: row.generationRunId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -58,7 +59,12 @@ function brandInPromptToDb(value: boolean | undefined): number | null {
   return value ? 1 : 0;
 }
 
-function toValues(collectionId: number, data: InsertPrompt, now: number) {
+function toValues(
+  collectionId: number,
+  data: InsertPrompt,
+  now: number,
+  generationRunId?: number
+) {
   return {
     collectionId,
     text: data.text,
@@ -76,6 +82,7 @@ function toValues(collectionId: number, data: InsertPrompt, now: number) {
     promptFamily: data.promptFamily ?? null,
     commercialValue: data.commercialValue ?? null,
     measurementPurpose: data.measurementPurpose ?? null,
+    generationRunId: generationRunId ?? null,
     createdAt: now,
     updatedAt: now,
   };
@@ -84,7 +91,11 @@ function toValues(collectionId: number, data: InsertPrompt, now: number) {
 export interface IPromptStore {
   listByCollection(collectionId: number): Promise<Prompt[]>;
   create(collectionId: number, data: InsertPrompt): Promise<Prompt>;
-  bulkCreate(collectionId: number, data: InsertPrompt[]): Promise<Prompt[]>;
+  bulkCreate(
+    collectionId: number,
+    data: InsertPrompt[],
+    generationRunId?: number
+  ): Promise<Prompt[]>;
   update(id: number, data: InsertPrompt): Promise<Prompt | undefined>;
   delete(id: number): Promise<boolean>;
 }
@@ -111,13 +122,17 @@ export class PromptStore implements IPromptStore {
     return hydrate(row);
   }
 
-  async bulkCreate(collectionId: number, data: InsertPrompt[]): Promise<Prompt[]> {
+  async bulkCreate(
+    collectionId: number,
+    data: InsertPrompt[],
+    generationRunId?: number
+  ): Promise<Prompt[]> {
     const now = Date.now();
     const created: Prompt[] = [];
     for (const item of data) {
       const row = this._db
         .insert(prompts)
-        .values(toValues(collectionId, item, now))
+        .values(toValues(collectionId, item, now, generationRunId))
         .returning()
         .get();
       created.push(hydrate(row));

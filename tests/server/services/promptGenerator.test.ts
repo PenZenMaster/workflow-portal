@@ -252,6 +252,28 @@ describe("promptGenerator", () => {
       expect(result.warnings).toEqual([]);
     });
 
+    it("returns provenance identifying the adapter, model variant, and raw output (E2c)", async () => {
+      const raw = JSON.stringify([rawItem()]);
+      const run = vi.fn().mockResolvedValue({
+        text: raw,
+        summaryBlock: null,
+        citations: [],
+        modelVariant: "gpt-4o-mini",
+        latencyMs: 10,
+        rawPayload: {},
+        usage: null,
+      });
+      mockGetUtilityAdapter.mockImplementation((slug: string) => (slug === "openai" ? { id: "openai", run } : undefined));
+
+      const result = await generatePrompts({ ...BASE_CONTEXT, count: 1 });
+
+      expect(result.provenance).toEqual({
+        adapterSlug: "openai",
+        modelVariant: "gpt-4o-mini",
+        rawText: raw,
+      });
+    });
+
     it("passes existing prompt texts through to duplicate detection", async () => {
       const raw = JSON.stringify([rawItem({ text: "Best plumber in Seattle" })]);
       const run = vi.fn().mockResolvedValue({
