@@ -132,6 +132,31 @@ export function registerMetricRoutes(app: Express): void {
     });
   });
 
+  // --- Token usage (issue #2 F1) --------------------------------------------
+  // Spend data is internal ops: analyst roles and up only.
+
+  app.get(
+    "/api/clients/:id/metrics/token-usage",
+    requireRole(...ANALYST_ROLES),
+    async (req, res) => {
+      const clientId = Number(req.params.id);
+      if (Number.isNaN(clientId))
+        throw new AppError(400, "Invalid client id", "INVALID_ID");
+
+      const { fromDate, toDate } = periodToDates(
+        typeof req.query.period === "string" ? req.query.period : "30d"
+      );
+      const agg = await responseStore.aggregateTokensByClient(clientId, fromDate, toDate);
+
+      ok(res, {
+        ...agg,
+        period: req.query.period ?? "30d",
+        fromDate,
+        toDate,
+      });
+    }
+  );
+
   // --- Non-branded panel metrics (YLG slice b) ------------------------------
   // Rates over responses to non-branded prompts only (brand_in_prompt = 0);
   // Recommendation SoV counts effective (human-override-first) statuses at

@@ -198,8 +198,13 @@ prompt-run handler persists it to `responses_raw.input_tokens` /
 `output_tokens` (issue #2 F1). Null means the provider omitted the block
 or the row predates capture — historical rows are backfillable because
 the full provider payload is stored in `raw_payload`. RunDetail shows
-per-run totals ("Tokens: N in / M out"). Per-client aggregation,
-estimated cost, and budget guards are later slices of GitHub issue #2.
+per-run totals ("Tokens: N in / M out"). Per-client aggregation
+(v1.39.0): `GET /api/clients/:id/metrics/token-usage?period=` returns
+per-platform response counts and input/output token sums for the period
+(analyst roles and up — spend data is internal ops and never client
+facing); ClientDetail shows it as the Token Usage section, hidden for
+client_viewer sessions. Estimated cost and budget guards are later
+slices of GitHub issue #2.
 
 **Output caps and the utility tier (v1.38.0, issue #2 F2+F4):** every
 adapter now sends an output cap — default 1500 tokens, overridable with

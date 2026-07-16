@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
+import { eq } from "drizzle-orm";
+import { platforms, responsesRaw } from "@shared/schema";
 import { SCHEMA_SQL } from "../../../server/storage";
 import { RunStore } from "../../../server/storage/runStore";
 import { ResponseStore } from "../../../server/storage/responseStore";
@@ -151,6 +153,53 @@ describe("ResponseStore", () => {
     const failed = await store.listFailedByRun(run.id);
     expect(failed).toHaveLength(1);
     expect(failed[0].errorMessage).toBe("timeout");
+  });
+
+  it("aggregateTokensByClient sums tokens per platform for one client within the period", async () => {
+    db.insert(platforms).values([
+      { id: 1, slug: "openai", displayName: "OpenAI" },
+      { id: 2, slug: "mistral", displayName: "Mistral" },
+    ]).run();
+
+    const run = await runStore.create(SAMPLE_RUN_DATA); // clientId from SAMPLE_RUN_DATA
+    const otherRun = await runStore.create({ ...SAMPLE_RUN_DATA, clientId: 99, batchId: "other" });
+
+    async function completed(runId: number, platformId: number, input: number, output: number) {
+      const r = await store.create({ ...SAMPLE_RESPONSE_DATA, runId, platformId });
+      await store.updateResult(r.id, { status: "complete", responseText: "t", inputTokens: input, outputTokens: output });
+    }
+    await completed(run.id, 1, 10, 100);
+    await completed(run.id, 1, 20, 200);
+    await completed(run.id, 2, 5, 50);
+    await completed(otherRun.id, 1, 999, 999); // other client — excluded
+
+    const agg = await store.aggregateTokensByClient(SAMPLE_RUN_DATA.clientId, "2000-01-01", "2100-01-01");
+    expect(agg.totalInputTokens).toBe(35);
+    expect(agg.totalOutputTokens).toBe(350);
+    expect(agg.byPlatform).toEqual([
+      { platformId: 1, platformSlug: "openai", responses: 2, inputTokens: 30, outputTokens: 300 },
+      { platformId: 2, platformSlug: "mistral", responses: 1, inputTokens: 5, outputTokens: 50 },
+    ]);
+  });
+
+  it("aggregateTokensByClient ignores responses without token data and outside the period", async () => {
+    db.insert(platforms).values([{ id: 1, slug: "openai", displayName: "OpenAI" }]).run();
+    const run = await runStore.create(SAMPLE_RUN_DATA);
+
+    const noTokens = await store.create({ ...SAMPLE_RESPONSE_DATA, runId: run.id });
+    await store.updateResult(noTokens.id, { status: "complete", responseText: "t" });
+
+    const outOfRange = await store.create({ ...SAMPLE_RESPONSE_DATA, runId: run.id });
+    await store.updateResult(outOfRange.id, { status: "complete", responseText: "t", inputTokens: 7, outputTokens: 70 });
+    db.update(responsesRaw)
+      .set({ capturedAt: Date.parse("2020-01-01T00:00:00Z") })
+      .where(eq(responsesRaw.id, outOfRange.id))
+      .run();
+
+    const agg = await store.aggregateTokensByClient(SAMPLE_RUN_DATA.clientId, "2026-01-01", "2100-01-01");
+    expect(agg.totalInputTokens).toBe(0);
+    expect(agg.totalOutputTokens).toBe(0);
+    expect(agg.byPlatform).toEqual([]);
   });
 
   it("persists token usage on updateResult and defaults it to null", async () => {

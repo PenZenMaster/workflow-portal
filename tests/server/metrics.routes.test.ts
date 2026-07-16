@@ -7,7 +7,7 @@ import { buildAuthApp } from "./_helpers/buildAuthApp";
 const mockMentionStore = { listByResponse: vi.fn(), listByClient: vi.fn(), countByClient: vi.fn(), bulkCreate: vi.fn(), deleteByResponse: vi.fn(), create: vi.fn() };
 const mockCitationStore = { listByResponse: vi.fn(), bulkCreate: vi.fn(), deleteByResponse: vi.fn(), create: vi.fn() };
 const mockMetricStore = { upsert: vi.fn(), listByClient: vi.fn(), aggregateForPeriod: vi.fn(), aggregateNonBranded: vi.fn() };
-const mockResponseStore = { get: vi.fn() };
+const mockResponseStore = { get: vi.fn(), aggregateTokensByClient: vi.fn() };
 const mockBrandStore = { listByClient: vi.fn() };
 const mockAliasStore = { listByBrand: vi.fn() };
 
@@ -98,6 +98,40 @@ describe("GET /api/clients/:id/metrics/trend", () => {
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/trend?metric=aiSoV&period=30d");
     expect(res.status).toBe(200);
     expect(res.body.data[0].value).toBe(20);
+  });
+});
+
+describe("GET /api/clients/:id/metrics/token-usage", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const AGG = {
+    totalInputTokens: 35,
+    totalOutputTokens: 350,
+    byPlatform: [
+      { platformId: 1, platformSlug: "openai", responses: 2, inputTokens: 30, outputTokens: 300 },
+      { platformId: 2, platformSlug: "mistral", responses: 1, inputTokens: 5, outputTokens: 50 },
+    ],
+  };
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/clients/1/metrics/token-usage");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for client_viewer (spend data is internal)", async () => {
+    const res = await request(buildApp("client_viewer")).get("/api/clients/1/metrics/token-usage");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns the per-platform aggregation for analyst roles", async () => {
+    mockResponseStore.aggregateTokensByClient.mockResolvedValue(AGG);
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/token-usage?period=90d");
+    expect(res.status).toBe(200);
+    expect(mockResponseStore.aggregateTokensByClient).toHaveBeenCalledWith(1, expect.any(String), expect.any(String));
+    expect(res.body.data.totalInputTokens).toBe(35);
+    expect(res.body.data.totalOutputTokens).toBe(350);
+    expect(res.body.data.byPlatform).toHaveLength(2);
+    expect(res.body.data.period).toBe("90d");
   });
 });
 
