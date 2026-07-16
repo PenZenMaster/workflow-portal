@@ -1,7 +1,22 @@
 ## Resume From
 
 Last session: 2026-07-15
-Branch: main | Version: v1.36.0 | 878 tests passing
+Branch: main | Version: v1.37.0 | 887 tests passing
+
+Session 2026-07-15 (evening): v1.37.0 SHIPPED, DEPLOYED, QA PASSED —
+token usage capture (issue #2 F1 first slice / issue #3 Epic 1 start).
+All 7 adapters extract provider usage into RawResponse.usage; prompt-run
+persists responses_raw.input_tokens/output_tokens (migration 0020);
+RunDetail shows per-run totals. Production BACKFILL done from
+raw_payload: 3,121/3,121 completed responses, zero gaps. FIRST SPEND
+PICTURE (lifetime): 1.82M output / 75K input tokens; output is 96% of
+volume; mistral avg 1,007 out/response vs capped anthropic 314 —
+confirms F2 (output caps) as the top lever; absolute spend modest.
+Registry batch-2 spot-checks PASSED mid-drain (competitor_owned 366->570+,
+industry_authority 125 live, client 7 "Overhead Door Joliet" alias
+detecting 57 previously-missed mentions). IN PROGRESS at checkpoint:
+F2+F4 slice (output caps + utility-model tier, targeting v1.38.0).
+Queue drain still running (watcher armed).
 
 Session 2026-07-15 (afternoon): v1.36.0 SHIPPED, DEPLOYED, QA PASSED
 (slice d — GET /api/responses/:id/recommendations + PATCH
