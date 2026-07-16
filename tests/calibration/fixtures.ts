@@ -9,6 +9,7 @@ import type { CitationInput } from "../../server/services/parser";
 
 export const CLIENT_BRAND: BrandInput = {
   id: 1,
+  canonicalName: "Acme SEO",
   primaryDomain: "acme-seo.com",
   aliases: [
     { aliasText: "Acme SEO", matchType: "exact" },
@@ -18,6 +19,7 @@ export const CLIENT_BRAND: BrandInput = {
 
 export const COMPETITOR_BRAND: BrandInput = {
   id: 2,
+  canonicalName: "Rival SEO",
   primaryDomain: "rival-seo.com",
   aliases: [{ aliasText: "Rival SEO", matchType: "exact" }],
 };

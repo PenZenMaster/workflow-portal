@@ -222,6 +222,20 @@ economy) with a 4096-token cap for long JSON output, overridable per
 provider with `UTILITY_MODEL_<SLUG>` env vars. Measurement runs are
 unaffected — surface fidelity is methodology, not waste.
 
+#### Canonical-Name Mention Matching (added v1.41.0, PARSER_VERSION 1.1)
+
+Mention detection previously matched only `brand_aliases` rows, so a
+brand with no aliases was completely invisible in AI answer text (the
+TD-14 failure class; it recurred at scale when 69 competitor brands were
+added via the 2026-07-15 registry review with no aliases). As of parser
+1.1 every brand's canonical name matches as an implicit exact alias
+(deduped case-insensitively against configured aliases). Aliases remain
+valuable for short forms and variants ("Salvo" for "Salvo Metal Works")
+— the readiness check message now says exactly that. Runs parsed under
+parser 1.0 need one re-parse to pick up canonical-name mentions;
+manifests record parserVersion, so pre/post-1.1 runs are flagged as
+non-comparable by the Epic 2 comparability work.
+
 #### Run Manifests (added v1.40.0)
 
 Every run — manual or scheduled — gets an immutable manifest row

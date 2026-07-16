@@ -19,7 +19,9 @@
 
 // Bumped whenever mention/citation extraction behavior changes — recorded
 // on run manifests for comparability (issue #3 Epic 2).
-export const PARSER_VERSION = "1.0";
+// 1.1: canonical brand names match implicitly; brands without alias rows
+//      are no longer invisible to mention detection (TD-14 failure class).
+export const PARSER_VERSION = "1.1";
 
 export interface AliasInput {
   aliasText: string;
@@ -28,6 +30,7 @@ export interface AliasInput {
 
 export interface BrandInput {
   id: number;
+  canonicalName: string;
   primaryDomain: string | null;
   aliases: AliasInput[];
 }
@@ -121,9 +124,21 @@ export function parseResponse(
   const mentions: ParsedMention[] = [];
 
   for (const brand of brands) {
+    // The canonical name always matches as an implicit exact alias, so a
+    // brand with no alias rows is still detectable (PARSER_VERSION 1.1).
+    // Dedupe case-insensitively against configured aliases.
+    const effectiveAliases: AliasInput[] = [...brand.aliases];
+    const canonical = brand.canonicalName.trim();
+    if (
+      canonical.length > 0 &&
+      !effectiveAliases.some((a) => a.aliasText.toLowerCase() === canonical.toLowerCase())
+    ) {
+      effectiveAliases.push({ aliasText: canonical, matchType: "exact" });
+    }
+
     // Sort aliases longest-first so a longer alias claim wins over a shorter one
     // at the same position (e.g. "Acme Corp" wins over "Acme").
-    const sortedAliases = [...brand.aliases].sort(
+    const sortedAliases = effectiveAliases.sort(
       (a, b) => b.aliasText.length - a.aliasText.length
     );
 

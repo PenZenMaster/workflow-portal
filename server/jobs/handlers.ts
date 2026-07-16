@@ -152,6 +152,7 @@ export function registerJobHandlers(runner: JobRunner): void {
       const brandInputs = await Promise.all(
         allBrands.map(async (b) => ({
           id: b.id,
+          canonicalName: b.canonicalName,
           primaryDomain: b.primaryDomain,
           aliases: await aliasStore.listByBrand(b.id),
         }))

@@ -99,7 +99,9 @@ describe("clientReadiness", () => {
 
       expect(result.competitorBrandsWithAliasCount).toBe(0);
       expect(result.ready).toBe(false);
-      expect(result.issues).toContain("Competitor brands have no aliases configured");
+      expect(result.issues).toContain(
+        "Competitor brands have no aliases configured - canonical names still match, but short-form name variants will be missed"
+      );
     });
 
     it("flags missing an active prompt collection with prompts", async () => {

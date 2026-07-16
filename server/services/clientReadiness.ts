@@ -50,7 +50,9 @@ export async function computeReadiness(clientId: number): Promise<ClientReadines
   if (competitorBrands.length === 0) {
     issues.push("No competitor brands defined - AI Share of Voice will be meaningless");
   } else if (competitorBrandsWithAliasCount === 0) {
-    issues.push("Competitor brands have no aliases configured");
+    issues.push(
+      "Competitor brands have no aliases configured - canonical names still match, but short-form name variants will be missed"
+    );
   }
   if (!hasActivePromptCollectionWithPrompts) {
     issues.push("No active prompt collection with prompts");

@@ -4,6 +4,7 @@ import type { BrandInput } from "../../../server/services/parser";
 
 const CLIENT_BRAND: BrandInput = {
   id: 1,
+  canonicalName: "Acme Corp",
   primaryDomain: "acme.com",
   aliases: [
     { aliasText: "Acme Corp", matchType: "exact" },
@@ -13,6 +14,7 @@ const CLIENT_BRAND: BrandInput = {
 
 const COMPETITOR_BRAND: BrandInput = {
   id: 2,
+  canonicalName: "Rival Co",
   primaryDomain: "rival.com",
   aliases: [
     { aliasText: "Rival Co", matchType: "exact" },
@@ -40,9 +42,39 @@ describe("parseResponse — mention detection", () => {
     expect(result.mentions[0].brandId).toBe(1);
   });
 
+  it("matches a brand with no aliases by its canonical name (implicit exact alias)", () => {
+    const aliasLess: BrandInput = {
+      id: 40,
+      canonicalName: "United Rentals",
+      primaryDomain: "https://www.unitedrentals.com/",
+      aliases: [],
+    };
+    const result = parseResponse(
+      "United Rentals offers porta potty rentals nationwide.",
+      [],
+      [aliasLess]
+    );
+    expect(result.mentions).toHaveLength(1);
+    expect(result.mentions[0].brandId).toBe(40);
+    expect(result.mentions[0].matchedText).toBe("United Rentals");
+    expect(result.mentions[0].matchType).toBe("exact");
+  });
+
+  it("does not double-count when an alias duplicates the canonical name (case-insensitive)", () => {
+    const dupBrand: BrandInput = {
+      id: 41,
+      canonicalName: "Acme Corp",
+      primaryDomain: "acme.com",
+      aliases: [{ aliasText: "acme corp", matchType: "exact" }],
+    };
+    const result = parseResponse("Acme Corp is great.", [], [dupBrand]);
+    expect(result.mentions).toHaveLength(1);
+  });
+
   it("detects a regex-match alias", () => {
     const regexBrand: BrandInput = {
       id: 3,
+      canonicalName: "Example Brand",
       primaryDomain: "example.com",
       aliases: [{ aliasText: "acme.?corp", matchType: "regex" }],
     };
@@ -145,6 +177,7 @@ describe("parseResponse — citation extraction", () => {
   it("matches ownership when the brand's primaryDomain is a full URL", () => {
     const urlBrand: BrandInput = {
       id: 5,
+      canonicalName: "Rival Co",
       primaryDomain: "https://www.rival.com/",
       aliases: [{ aliasText: "Rival Co", matchType: "exact" }],
     };
