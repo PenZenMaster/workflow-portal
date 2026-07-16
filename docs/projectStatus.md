@@ -1,7 +1,29 @@
 ## Resume From
 
 Last session: 2026-07-15
-Branch: main | Version: v1.38.0 | 898 tests passing
+Branch: main | Version: v1.40.0 | 918 tests passing
+
+Session 2026-07-15 (late): v1.39.0 AND v1.40.0 SHIPPED (packaged +
+tagged, NOT yet deployed — tarballs ready one level above repo root).
+- v1.39.0 completes issue #2 F1: responseStore.aggregateTokensByClient,
+  GET /api/clients/:id/metrics/token-usage (analyst+, hidden from
+  client_viewer), ClientDetail Token Usage section.
+- v1.40.0 = issue #3 Epic 2 slice E2a: immutable
+  measurement_run_manifests written at run creation (ad_hoc/sentinel/
+  full_panel by trigger+cadence), canonical config snapshot + SHA-256
+  config_hash, GET /api/runs/:id/manifest, migration 0021, new
+  SCORING_VERSION + PARSER_VERSION constants. Runs before v1.40.0 have
+  no manifest (404) by design.
+DEPLOY NOTE: deploy v1.39.0+v1.40.0 together (one cPanel cycle,
+migration 0021 runs on boot; TD-16 check after). QA: ClientDetail shows
+Token Usage section (analyst login); trigger any small run and GET its
+/manifest — expect config_hash and purpose ad_hoc.
+NEXT dev slices: E2b comparability service (compare manifests, status +
+reasons, surface on Runs UI), then E2c prompt_generation_runs
+provenance (closes YLG slice c). Queue drain from batch-2 still
+running at last check (~4,600 incl. chained; watcher armed; verify
+drained next session: SELECT status, COUNT(*) FROM jobs WHERE status
+IN ('queued','running')).
 
 Session 2026-07-15 (night): v1.38.0 SHIPPED, DEPLOYED, QA PASSED —
 issue #2 F2+F4. All adapters send an output cap (default 1500,
