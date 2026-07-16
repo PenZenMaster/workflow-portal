@@ -1,7 +1,20 @@
 ## Resume From
 
 Last session: 2026-07-15
-Branch: main | Version: v1.37.0 | 887 tests passing
+Branch: main | Version: v1.38.0 | 898 tests passing
+
+Session 2026-07-15 (night): v1.38.0 SHIPPED, DEPLOYED, QA PASSED —
+issue #2 F2+F4. All adapters send an output cap (default 1500,
+LLM_MAX_OUTPUT_TOKENS override; anthropic hardcoded 1024 replaced; cap
+changes documented as methodology-comparability events). Internal calls
+(prompt generation, CSV Run with AI) now use the economy utility tier
+via getUtilityAdapter (gpt-4o-mini / claude-haiku-4-5-20251001 /
+mistral-small-latest, UTILITY_MODEL_<SLUG> override, 4096 cap) —
+prompt generation can no longer fall back to Opus-class pricing.
+EXPECT post-deploy: mistral/deepseek token averages drop on next runs
+(tail capped at 1500). Issue #2 remaining: F1 per-client aggregation,
+F3 retry/timeout, F5 CSV caching, F6 budget guard. FIVE versions
+shipped today (v1.34.2-v1.38.0), four deployed same-day.
 
 Session 2026-07-15 (evening): v1.37.0 SHIPPED, DEPLOYED, QA PASSED —
 token usage capture (issue #2 F1 first slice / issue #3 Epic 1 start).
