@@ -119,7 +119,7 @@
     "autoprefixer": "^10.4.20",
     "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.8",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.1",
     "eslint": "^10.3.0",
     "jsdom": "^26.1.0",
     "postcss": "^8.4.47",
