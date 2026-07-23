@@ -685,10 +685,21 @@ only a competitor is currently (incorrectly) counted as non-branded in
 `aggregateNonBranded` — `brand_context` fixes that by giving
 `unbranded` its own value, excluding competitor-seeded prompts. This slice
 is schema/store plumbing only: the column exists and round-trips, but
-nothing derives it yet (always `null` until a later slice adds the
-deterministic classifier + production backfill), the generator does not
-yet emit `educational` prompts or brand context, and
-`aggregateNonBranded` still filters on `brand_in_prompt`. This is a
+nothing derives it yet (always `null` until a later slice adds
+production backfill), the generator does not yet emit `educational`
+prompts or brand context, and `aggregateNonBranded` still filters on
+`brand_in_prompt`.
+
+**Deterministic brand-context classifier (v1.45.0):**
+`server/services/brandContext.ts` (`deriveBrandContext`,
+`BRAND_CONTEXT_CLASSIFIER_VERSION = "rules-1.0"`) derives a prompt's
+`brand_context` from its text plus the client's brand/competitor roster,
+reusing `parser.ts`'s `matchesAlias` so mention detection and brand-context
+derivation can never disagree about whether a brand appears in the same
+text. Pure function, not yet wired into generation, backfill, or the
+`prompts` table — that lands in the next Phase 1 slices.
+
+This is a
 locked-methodology definition change (see "Methodology versioning" above)
 and will be formalized as methodology v2.0 once the full Phase 1 slice
 set lands.

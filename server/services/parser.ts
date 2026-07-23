@@ -102,7 +102,7 @@ function extractExcerpt(text: string, matchIndex: number, matchLen: number): str
   return text.slice(start, end).replace(/\s+/g, " ").trim();
 }
 
-function matchesAlias(text: string, alias: AliasInput): number {
+export function matchesAlias(text: string, alias: AliasInput): number {
   if (alias.matchType === "regex") {
     try {
       const re = new RegExp(alias.aliasText, "i");
