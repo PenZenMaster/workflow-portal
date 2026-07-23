@@ -1,12 +1,31 @@
 ## Resume From
 
 Last session: 2026-07-23
-Branch: main | Version: v1.43.2 | 973 tests passing
+Branch: main | Version: v1.43.3 | 973 tests passing | DEPLOYED to cPanel
 
-Session 2026-07-23: Anthropic billing outage (logged 2026-07-22) confirmed
-RESOLVED by user. Re-enabled `platforms.enabled = 1 WHERE slug = 'anthropic'`
-via direct SQL, then verified with a Claude-only test run (run #90, client 9
-Royal Porta Johns, "Royal Flush" collection, 12 prompts) driven via browser
+Session 2026-07-23 (part 2): v1.43.2 cPanel deploy attempt FAILED first
+try - `npm install` on the server hard-errored (exit 127, "husky: command
+not found"). Root cause: package.json's `"prepare": "husky"` lifecycle
+script runs unconditionally on any bare `npm install`, but husky is a
+devDependency and cPanel's production install omits devDependencies.
+FIXED as v1.43.3: `"prepare": "husky || true"` (husky's own documented
+pattern for this exact case). Lint/check/db:check/973 tests/build all
+verified green, committed, pushed, tagged, repackaged.
+User re-extracted and deployed v1.43.3 successfully. Post-deploy check
+done: server package.json confirmed v1.43.3; TD-16 stale worker found
+(PID predating this deploy by 1d4h50m) and killed via SSH, only the
+fresh worker remains; job queue healthy (47,012 done, 1 queued, no new
+failures); npm audit already clean pre-deploy. DEPLOY COMPLETE AND
+VERIFIED.
+NEXT SESSION: (1) GitHub issue #4 Phase 1 (methodology/definition
+re-lock) - not started, still just scoped from grooming; (2) user-owned:
+B-20 GBP API quota check, Groq API access.
+
+Session 2026-07-23 (part 1): Anthropic billing outage (logged 2026-07-22)
+confirmed RESOLVED by user. Re-enabled
+`platforms.enabled = 1 WHERE slug = 'anthropic'` via direct SQL, then
+verified with a Claude-only test run (run #90, client 9 Royal Porta
+Johns, "Royal Flush" collection, 12 prompts) driven via browser
 automation: all 12 responses completed via claude-opus-4-5-20251101, zero
 errors, normal latency (5-16s) and output tokens (195-345) - no more
 credit-balance 400s. Claude-inclusive panels (incl. the weekly scheduled
@@ -14,12 +33,6 @@ run for this collection, next due 2026-07-27) are safe to resume. NOTE: the
 Runs list UI showed stale "queued 0/12" for ~40s after the DB already had
 the run as complete - a hard reload fixed it; likely a client polling/cache
 gap, not a data bug (not investigated further, low priority).
-NEXT SESSION: (1) v1.43.2 cPanel deploy - tarball packaged this session,
-user uploading via cPanel; do the standard post-deploy check (TD-16 stale
-worker sweep, version footer, npm audit clean) once live; (2) GitHub issue
-#4 Phase 1 (methodology/definition re-lock) - not started, still just
-scoped from grooming; (3) user-owned: B-20 GBP API quota check, Groq API
-access.
 
 Session 2026-07-22: Security/dependency hardening session, then worked the
 2026-07-16 NEXT SESSION list items 1-2, then found and paused a live
