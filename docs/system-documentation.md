@@ -696,8 +696,23 @@ prompts or brand context, and `aggregateNonBranded` still filters on
 `brand_context` from its text plus the client's brand/competitor roster,
 reusing `parser.ts`'s `matchesAlias` so mention detection and brand-context
 derivation can never disagree about whether a brand appears in the same
-text. Pure function, not yet wired into generation, backfill, or the
-`prompts` table — that lands in the next Phase 1 slices.
+text. Pure function, not yet wired into generation or the `prompts` table's
+default write path — that lands in the next Phase 1 slices.
+
+**Brand-context backfill (v1.46.0):** `POST /api/admin/brand-context/backfill`
+(`super_admin`/`agency_admin` only) runs `backfillBrandContext`
+(`server/services/brandContextBackfill.ts`), which re-derives every
+prompt's `brand_context` client-by-client using `deriveBrandContext` and
+each client's own brand/competitor roster — one client's brands never
+leak into another's classification. Always recomputes (safe to re-run;
+not gated on the column being unset), so it also fixes drift after a
+brand/alias edit. This is an admin API route rather than a one-off
+script because deploy packaging only ships `dist/`, `migrations/`, and
+`package.json` — `script/` isn't included and `tsx` is a devDependency
+unavailable in the production `npm install` (the same class of gap
+fixed in v1.43.3's husky prepare-script bug), so a standalone script
+would not be runnable on the server. Trigger once after deploying this
+version to backfill the ~130 existing production prompts.
 
 This is a
 locked-methodology definition change (see "Methodology versioning" above)
