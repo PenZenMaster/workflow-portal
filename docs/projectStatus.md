@@ -1,7 +1,35 @@
 ## Resume From
 
 Last session: 2026-07-23
-Branch: main | Version: v1.47.1 | 1001 tests passing | DEPLOYED + BACKFILLED
+Branch: main | Version: v1.48.0 | 1005 tests passing | slice 6 shipped, NOT yet cPanel-deployed
+
+Session 2026-07-23 (part 4): issue #4 Phase 1 CLOSED with slice 6 (final) -
+methodology v2.0 re-lock, v1.48.0. METHODOLOGY_V2_QUOTAS: same 30-prompt
+panel and 24/6 non-branded/branded split as v1.0, but intentQuotas now
+covers all 9 canonical intents including educational (v1.0 only quota'd
+6 of its 8). promptMethodologyStore.seedDefaults() seeds v1.0 as retired
+(exact historical quotas preserved, never edited) and v2.0 as active; new
+generic activateVersion(version) method (retires whichever is active,
+activates the target - reusable for a future rollback). No handler
+changes needed: aggregate-snapshot-daily and manifest creation already
+read getActive(), so new snapshots/manifests stamp "2.0" automatically.
+9 tests updated/added. docs/system-documentation.md updated, including
+closing out the two "will be formalized as v2.0" forward-reference notes
+left in slices 1 and 4.
+Issue #4 Phase 1 now fully complete across 6 slices (v1.44.0-v1.48.0,
+one version per slice, TDD throughout): educational intent + brandContext
+schema, deterministic classifier, backfill (run and verified live on
+production in part 3), generator wiring, non-branded metrics fix, and
+now the formal methodology v2.0 record tying it together.
+NEXT SESSION: (1) package + deploy v1.48.0 to cPanel (not yet done this
+session - only slices 1-5, i.e. v1.47.1, are live; v1.48.0 is
+committed+pushed to GitHub only); (2) issue #4 Phases 2-3 (semantic
+near-duplicate detection, deterministic service/geography checks,
+revalidate-on-edit, panel types, canonical-intent-primary UI, manual-
+prompt schema upgrade, methodology summary + activation gates) - not
+started, still just scoped from the 2026-07-16 grooming; (3) B-30 UI
+work (3m/6m/12m toggle on other month-axis charts) - own slice, not
+urgent; (4) user-owned: B-20 GBP API quota check, Groq API access.
 
 Session 2026-07-23 (part 3): issue #4 Phase 1 slices 1-5 SHIPPED, DEPLOYED,
 and VERIFIED live (v1.44.0-v1.47.1, one version per slice, TDD throughout).
