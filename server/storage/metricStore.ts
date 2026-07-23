@@ -27,7 +27,7 @@ import {
   RECOMMENDED_STATUSES,
 } from "@shared/schema";
 import type { MetricSnapshotDaily } from "@shared/schema";
-import { eq, and, gte, lt, lte, desc, sql, inArray, isNull } from "drizzle-orm";
+import { eq, and, gte, lt, lte, desc, sql, inArray } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { computeVisibilityScore } from "../services/scoring";
@@ -69,8 +69,7 @@ export interface AggregateResult {
 // slice b). Not snapshot-based: metric_snapshots_daily carries no
 // branded/non-branded split, so this is computed from the raw tables.
 export interface NonBrandedAggregate {
-  nonBrandedResponses: number;   // complete responses whose prompt has brand_in_prompt = 0
-  unvalidatedResponses: number;  // complete responses whose prompt has brand_in_prompt IS NULL
+  nonBrandedResponses: number;   // complete responses whose prompt has brand_context = 'unbranded'
   mentionedNonBranded: number;   // distinct non-branded responses mentioning a client brand
   recommendedNonBranded: number; // distinct non-branded responses with effective status recommended-and-up for a client brand
   clientRecommended: number;     // recommendation rows (client brands) at recommended-and-up
@@ -327,7 +326,7 @@ export class MetricStore implements IMetricStore {
       gte(responsesRaw.capturedAt, fromMs),
       lt(responsesRaw.capturedAt, toExclusiveMs)
     );
-    const nonBranded = and(inPeriod, eq(prompts.brandInPrompt, 0));
+    const nonBranded = and(inPeriod, eq(prompts.brandContext, "unbranded"));
     // Human override wins over the machine status (FR-11).
     const effectiveRecommended = inArray(
       sql`coalesce(${responseRecommendations.humanStatus}, ${responseRecommendations.status})`,
@@ -392,7 +391,6 @@ export class MetricStore implements IMetricStore {
 
     return {
       nonBrandedResponses: countResponses(nonBranded),
-      unvalidatedResponses: countResponses(and(inPeriod, isNull(prompts.brandInPrompt))),
       mentionedNonBranded,
       recommendedNonBranded,
       clientRecommended:

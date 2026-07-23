@@ -152,7 +152,6 @@ describe("GET /api/clients/:id/metrics/non-branded", () => {
 
   const AGG = {
     nonBrandedResponses: 20,
-    unvalidatedResponses: 4,
     mentionedNonBranded: 8,
     recommendedNonBranded: 5,
     clientRecommended: 6,
@@ -179,14 +178,14 @@ describe("GET /api/clients/:id/metrics/non-branded", () => {
     expect(res.body.data.recommendationRate).toBe(25);   // 5/20
     expect(res.body.data.recommendationSoV).toBe(25);    // 6/24
     expect(res.body.data.nonBrandedResponses).toBe(20);
-    expect(res.body.data.unvalidatedResponses).toBe(4);
+    expect(res.body.data.unvalidatedResponses).toBeUndefined();
     expect(res.body.data.clientRecommended).toBe(6);
     expect(res.body.data.allBrandRecommended).toBe(24);
   });
 
   it("returns zeros rather than NaN when there are no non-branded responses", async () => {
     mockMetricStore.aggregateNonBranded.mockResolvedValue({
-      nonBrandedResponses: 0, unvalidatedResponses: 0, mentionedNonBranded: 0,
+      nonBrandedResponses: 0, mentionedNonBranded: 0,
       recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0,
     });
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/non-branded");

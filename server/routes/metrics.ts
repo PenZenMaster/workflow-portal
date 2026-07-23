@@ -161,10 +161,11 @@ export function registerMetricRoutes(app: Express): void {
   );
 
   // --- Non-branded panel metrics (YLG slice b) ------------------------------
-  // Rates over responses to non-branded prompts only (brand_in_prompt = 0);
-  // Recommendation SoV counts effective (human-override-first) statuses at
-  // recommended-and-up. unvalidatedResponses reports panel coverage: prompts
-  // whose brand_in_prompt is still NULL contribute to neither rate.
+  // Rates over responses to non-branded prompts only (brand_context =
+  // 'unbranded', deterministically derived - issue #4 Phase 1 slice 5;
+  // competitor-only prompts no longer count as non-branded). Recommendation
+  // SoV counts effective (human-override-first) statuses at
+  // recommended-and-up.
 
   app.get("/api/clients/:id/metrics/non-branded", requireAuth, async (req, res) => {
     const clientId = Number(req.params.id);
@@ -178,7 +179,6 @@ export function registerMetricRoutes(app: Express): void {
 
     ok(res, {
       nonBrandedResponses: agg.nonBrandedResponses,
-      unvalidatedResponses: agg.unvalidatedResponses,
       mentionRate: computeMentionRate(agg.mentionedNonBranded, agg.nonBrandedResponses),
       recommendationRate: computeRecommendationRate(
         agg.recommendedNonBranded,

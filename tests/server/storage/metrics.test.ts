@@ -499,9 +499,10 @@ describe("MetricStore.aggregateNonBranded", () => {
       { id: 20, clientId: 2, canonicalName: "Other Co", kind: "client", createdAt: now },
     ]).run();
     db.insert(prompts).values([
-      { id: 100, collectionId: 1, text: "best metal shop near me", brandInPrompt: 0, createdAt: now, updatedAt: now },
-      { id: 101, collectionId: 1, text: "tell me about Acme", brandInPrompt: 1, createdAt: now, updatedAt: now },
-      { id: 102, collectionId: 1, text: "legacy prompt", brandInPrompt: null, createdAt: now, updatedAt: now },
+      { id: 100, collectionId: 1, text: "best metal shop near me", brandContext: "unbranded", createdAt: now, updatedAt: now },
+      { id: 101, collectionId: 1, text: "tell me about Acme", brandContext: "client_branded", createdAt: now, updatedAt: now },
+      { id: 102, collectionId: 1, text: "legacy prompt", brandContext: null, createdAt: now, updatedAt: now },
+      { id: 103, collectionId: 1, text: "what about Rival instead", brandContext: "competitor_branded", createdAt: now, updatedAt: now },
     ]).run();
 
     const run = await runStore.create({ clientId: 1, collectionId: 1, batchId: "b1", totalPrompts: 3, triggeredBy: "manual" });
@@ -516,17 +517,17 @@ describe("MetricStore.aggregateNonBranded", () => {
     return { db, store, mentionStore, recStore, run, runOther, completeResponse };
   }
 
-  it("counts only complete non-branded responses in the denominator and reports unvalidated separately", async () => {
+  it("counts only complete responses whose prompt is deterministically unbranded; competitor-only and unclassified prompts are excluded", async () => {
     const { store, run, runOther, completeResponse } = await seed();
-    await completeResponse(run.id, 100); // non-branded
-    await completeResponse(run.id, 100); // non-branded
-    await completeResponse(run.id, 101); // branded — excluded
-    await completeResponse(run.id, 102); // unvalidated — excluded from denominator, counted separately
+    await completeResponse(run.id, 100); // unbranded
+    await completeResponse(run.id, 100); // unbranded
+    await completeResponse(run.id, 101); // client_branded — excluded
+    await completeResponse(run.id, 102); // brandContext unclassified (null) — excluded
+    await completeResponse(run.id, 103); // competitor_branded — excluded (wrongly counted under the old brandInPrompt=0 model)
     await completeResponse(runOther.id, 100); // other client — ignored entirely
 
     const agg = await store.aggregateNonBranded(1, WIDE_FROM, WIDE_TO);
     expect(agg.nonBrandedResponses).toBe(2);
-    expect(agg.unvalidatedResponses).toBe(1);
   });
 
   it("counts distinct non-branded responses mentioning the client brand, ignoring competitor-only mentions", async () => {

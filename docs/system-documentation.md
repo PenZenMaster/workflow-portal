@@ -506,7 +506,7 @@ visibility scores.
 `GET /api/clients/:id/metrics/non-branded?period=30d|90d|365d` computes
 three metrics live from the raw tables (daily snapshots carry no
 branded/non-branded split), scoped to complete responses whose prompt has
-`brand_in_prompt = 0`:
+`brand_context = 'unbranded'` (v1.47.1; see "brand-context fix" below).
 
 - **Non-branded mention rate** — % of non-branded responses mentioning a
   client brand. The defensible visibility number: the AI surfaced the
@@ -524,11 +524,21 @@ branded/non-branded split), scoped to complete responses whose prompt has
 machine classification when present (`COALESCE(human_status, status)`),
 so corrections flow into reported numbers (FR-11).
 
-**Coverage caveat:** prompts with `brand_in_prompt` still NULL
-(unvalidated legacy prompts) contribute to neither numerator nor
-denominator; the response reports them as `unvalidatedResponses`. Until a
-client's panel is classified, these metrics under-report. Populate
-`brand_in_prompt` via prompt generation (which sets it) or bulk import.
+**Brand-context fix (v1.47.1, issue #4 Phase 1 slice 5):** this endpoint
+previously scoped on `brand_in_prompt = 0`, which only tracks whether the
+*client's own* brand appears — a prompt naming only a competitor was
+indistinguishable from a genuinely unbranded discovery prompt and
+contaminated these numbers (issue #4 Problem #2). It now scopes on
+`brand_context = 'unbranded'` (see the "Methodology v2.0 taxonomy
+expansion" and "Deterministic brand-context classifier" entries above),
+which excludes competitor-seeded prompts. The response envelope's
+`unvalidatedResponses` field is retired: `brand_context` is derived
+deterministically and total (the backfill classifies every prompt, no
+NULL case going forward), so there is no longer a coverage gap to
+report separately. Prompts not yet covered by a backfill run simply have
+`brand_context IS NULL` and are excluded from the denominator like any
+other non-unbranded prompt — run the backfill
+(`POST /api/admin/brand-context/backfill`) after this version deploys.
 
 **Client meaning:** "When people ask AI tools for a
 [service] in [area] without naming anyone, you appear in X% of answers
