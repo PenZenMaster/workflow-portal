@@ -674,6 +674,25 @@ problem_solution, alternative -> alternative); `brand_in_prompt` is left
 unset until validated. The legacy categories below remain supported while
 the UI migrates to intent types.
 
+**Methodology v2.0 taxonomy expansion (schema only, v1.44.0):** issue #4
+Phase 1 slice 1 adds a 9th intent type, `educational` (maps to legacy
+category `informational`, same as `trust_validation`/`brand_validation`),
+and a new `brand_context` field
+(`unbranded`/`client_branded`/`competitor_branded`/`client_and_competitor`)
+that will replace the boolean `brand_in_prompt` model. `brand_in_prompt`
+only tracks whether the *client's own* brand appears, so a prompt naming
+only a competitor is currently (incorrectly) counted as non-branded in
+`aggregateNonBranded` — `brand_context` fixes that by giving
+`unbranded` its own value, excluding competitor-seeded prompts. This slice
+is schema/store plumbing only: the column exists and round-trips, but
+nothing derives it yet (always `null` until a later slice adds the
+deterministic classifier + production backfill), the generator does not
+yet emit `educational` prompts or brand context, and
+`aggregateNonBranded` still filters on `brand_in_prompt`. This is a
+locked-methodology definition change (see "Methodology versioning" above)
+and will be formalized as methodology v2.0 once the full Phase 1 slice
+set lands.
+
 **Generate with AI (updated v1.32.0):** generation now uses the 8-type
 intent taxonomy and the client's core services and exclusions, treats all
 client data as untrusted reference material, and can never target a

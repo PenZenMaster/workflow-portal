@@ -205,6 +205,7 @@ export const SCHEMA_SQL = `
     position INTEGER NOT NULL DEFAULT 0,
     intent_type TEXT,
     brand_in_prompt INTEGER,
+    brand_context TEXT,
     service TEXT,
     prompt_family TEXT,
     commercial_value TEXT,

@@ -312,8 +312,20 @@ export const PROMPT_INTENT_TYPES = [
   "trust_validation",
   "brand_validation",
   "alternative",
+  "educational",
 ] as const;
 export type PromptIntentType = (typeof PROMPT_INTENT_TYPES)[number];
+
+// Methodology v2.0 (issue #4 Phase 1): replaces the boolean brandInPrompt
+// model. unbranded excludes prompts that name a competitor, closing the
+// non-branded-metric contamination gap the boolean model had.
+export const BRAND_CONTEXTS = [
+  "unbranded",
+  "client_branded",
+  "competitor_branded",
+  "client_and_competitor",
+] as const;
+export type BrandContext = (typeof BRAND_CONTEXTS)[number];
 
 export const COMMERCIAL_VALUES = ["low", "medium", "high"] as const;
 export type CommercialValue = (typeof COMMERCIAL_VALUES)[number];
@@ -365,6 +377,7 @@ export const prompts = sqliteTable("prompts", {
   // YLG measurement metadata (nullable = not yet classified)
   intentType: text("intent_type"),
   brandInPrompt: integer("brand_in_prompt"), // 0 | 1 | null (null = unvalidated)
+  brandContext: text("brand_context"), // BrandContext | null (null = not yet classified)
   service: text("service"),
   promptFamily: text("prompt_family"),
   commercialValue: text("commercial_value"),
@@ -442,6 +455,7 @@ export const insertPromptSchema = z.object({
   position: z.number().int().default(0),
   intentType: z.enum(PROMPT_INTENT_TYPES).optional(),
   brandInPrompt: z.boolean().optional(),
+  brandContext: z.enum(BRAND_CONTEXTS).optional(),
   service: z.string().optional(),
   promptFamily: z.string().optional(),
   commercialValue: z.enum(COMMERCIAL_VALUES).optional(),
@@ -548,6 +562,7 @@ export type Prompt = {
   position: number;
   intentType: PromptIntentType | null;
   brandInPrompt: boolean | null;
+  brandContext: BrandContext | null;
   service: string | null;
   promptFamily: string | null;
   commercialValue: CommercialValue | null;

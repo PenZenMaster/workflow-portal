@@ -1,0 +1,1 @@
+ALTER TABLE `prompts` ADD `brand_context` text;

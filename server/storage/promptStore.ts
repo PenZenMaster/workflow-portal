@@ -20,6 +20,7 @@ import type {
   PromptCategory,
   FunnelStage,
   PromptIntentType,
+  BrandContext,
   CommercialValue,
   MeasurementPurpose,
 } from "@shared/schema";
@@ -44,6 +45,7 @@ function hydrate(row: Row): Prompt {
     position: row.position,
     intentType: row.intentType as PromptIntentType | null,
     brandInPrompt: row.brandInPrompt === null ? null : row.brandInPrompt === 1,
+    brandContext: row.brandContext as BrandContext | null,
     service: row.service,
     promptFamily: row.promptFamily,
     commercialValue: row.commercialValue as CommercialValue | null,
@@ -78,6 +80,7 @@ function toValues(
     position: data.position ?? 0,
     intentType: data.intentType ?? null,
     brandInPrompt: brandInPromptToDb(data.brandInPrompt),
+    brandContext: data.brandContext ?? null,
     service: data.service ?? null,
     promptFamily: data.promptFamily ?? null,
     commercialValue: data.commercialValue ?? null,
@@ -165,6 +168,7 @@ export class PromptStore implements IPromptStore {
           data.brandInPrompt === undefined
             ? existing.brandInPrompt
             : brandInPromptToDb(data.brandInPrompt),
+        brandContext: data.brandContext ?? existing.brandContext,
         service: data.service ?? existing.service,
         promptFamily: data.promptFamily ?? existing.promptFamily,
         commercialValue: data.commercialValue ?? existing.commercialValue,

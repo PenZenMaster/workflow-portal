@@ -87,6 +87,7 @@ const INTENT_TO_CATEGORY: Record<PromptIntentType, PromptCategory> = {
   comparison: "comparative",
   trust_validation: "informational",
   brand_validation: "informational",
+  educational: "informational",
   alternative: "alternative",
 };
 

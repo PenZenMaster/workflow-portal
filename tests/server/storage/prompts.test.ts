@@ -9,6 +9,7 @@ import { ClientStore } from "../../../server/storage/clientStore";
 import { RunStore } from "../../../server/storage/runStore";
 import { ResponseStore } from "../../../server/storage/responseStore";
 import { ScheduleStore } from "../../../server/storage/scheduleStore";
+import { insertPromptSchema } from "../../../shared/schema";
 
 function makeDb() {
   const sqlite = new Database(":memory:");
@@ -368,6 +369,40 @@ describe("PromptStore", () => {
     expect(updated?.intentType).toBe("brand_validation");
     expect(updated?.brandInPrompt).toBe(true);
     expect(updated?.measurementPurpose).toBe("validation");
+  });
+
+  it("insertPromptSchema accepts 'educational' as a valid intent type", () => {
+    const result = insertPromptSchema.safeParse({
+      ...SAMPLE_PROMPT,
+      category: "informational",
+      intentType: "educational",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("create persists brandContext", async () => {
+    const p = await store.create(collectionId, {
+      ...SAMPLE_PROMPT,
+      brandContext: "competitor_branded" as const,
+    });
+    expect(p.brandContext).toBe("competitor_branded");
+
+    const [listed] = await store.listByCollection(collectionId);
+    expect(listed.brandContext).toBe("competitor_branded");
+  });
+
+  it("create defaults brandContext to null when omitted", async () => {
+    const p = await store.create(collectionId, SAMPLE_PROMPT);
+    expect(p.brandContext).toBeNull();
+  });
+
+  it("update carries brandContext", async () => {
+    const p = await store.create(collectionId, SAMPLE_PROMPT);
+    const updated = await store.update(p.id, {
+      ...SAMPLE_PROMPT,
+      brandContext: "client_and_competitor" as const,
+    });
+    expect(updated?.brandContext).toBe("client_and_competitor");
   });
 
   it("bulkCreate inserts multiple prompts in one call", async () => {
