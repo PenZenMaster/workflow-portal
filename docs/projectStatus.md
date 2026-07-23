@@ -1822,6 +1822,13 @@ Confirmed decisions:
   queued for the same client+date). Same question applies to
   sentiment-classify chaining (per-response is correct there, but
   verify).
+- B-30 Feature (logged 2026-07-23): standardize the 3m/6m/12m period-toggle
+  buttons across every monthly-aggregated chart. The pattern already exists
+  on ClientDetail's "Sessions by AI Source — Monthly" chart (AI Traffic
+  Impact section, client/src/pages/ai/ClientDetail.tsx); any other graph
+  whose x-axis is Month and whose data is aggregated by month should get
+  the same 3/6/12-month toggle for consistency. Audit other chart sections
+  (Mention Rate trend, etc.) for month-axis charts currently missing it.
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
 - B-06 Session store: session expiry cleanup configuration review
 - B-15 v1 DONE (v1.15.0): Client Run-Readiness badges on /ai/clients (Ready /
