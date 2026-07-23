@@ -17,7 +17,7 @@
 
 import { promptMethodologies } from "@shared/schema";
 import type { PromptMethodology, MethodologyQuotas } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -25,7 +25,9 @@ type Row = typeof promptMethodologies.$inferSelect;
 
 // YLG methodology v1.0 - approved as written 2026-07-12. The 30-prompt
 // panel distribution comes from the prompt-generation spec section 4.1;
-// replicates/surfaces/cadence from the visibility spec Phase 0.
+// replicates/surfaces/cadence from the visibility spec Phase 0. RETIRED
+// by v2.0 (issue #4 Phase 1 slice 6) - never edit; historical snapshots
+// reference these exact values.
 export const METHODOLOGY_V1_QUOTAS: MethodologyQuotas = {
   panelSize: 30,
   nonBranded: 24,
@@ -37,6 +39,31 @@ export const METHODOLOGY_V1_QUOTAS: MethodologyQuotas = {
     geographic_discovery: 5,
     comparison: 3,
     brand_validation: 3,
+  },
+  replicates: { nonBranded: 3, branded: 1 },
+  surfaces: ["chatgpt-search", "google-ai", "gemini", "perplexity"],
+  cadence: { full: "monthly", sentinel: "weekly", sentinelSize: 8 },
+};
+
+// YLG methodology v2.0 - issue #4 Phase 1 re-lock (educational intent,
+// brandContext-based non-branded definition; see docs/system-
+// documentation.md "Methodology versioning"). Same 30-prompt panel size
+// and 24/6 non-branded/branded split as v1.0, but intentQuotas now
+// covers all 9 canonical intent types (v1.0 only quota'd 6 of its 8).
+export const METHODOLOGY_V2_QUOTAS: MethodologyQuotas = {
+  panelSize: 30,
+  nonBranded: 24,
+  branded: 6,
+  intentQuotas: {
+    provider_recommendation: 7,
+    service_specific: 5,
+    problem_solution: 4,
+    geographic_discovery: 4,
+    educational: 4,
+    trust_validation: 2,
+    comparison: 2,
+    brand_validation: 1,
+    alternative: 1,
   },
   replicates: { nonBranded: 3, branded: 1 },
   surfaces: ["chatgpt-search", "google-ai", "gemini", "perplexity"],
@@ -60,6 +87,7 @@ export interface IPromptMethodologyStore {
   getActive(): Promise<PromptMethodology | undefined>;
   getByVersion(version: string): Promise<PromptMethodology | undefined>;
   seedDefaults(): Promise<void>;
+  activateVersion(version: string): Promise<PromptMethodology | undefined>;
 }
 
 export class PromptMethodologyStore implements IPromptMethodologyStore {
@@ -89,11 +117,15 @@ export class PromptMethodologyStore implements IPromptMethodologyStore {
   }
 
   async seedDefaults(): Promise<void> {
+    // v1.0 is historical and retired - v2.0 is the active methodology
+    // (issue #4 Phase 1 slice 6 re-lock). Two independent idempotent
+    // inserts, not an activateVersion() call: v1.0's retired status here
+    // is a seed-time fact, not a transition.
     this._db
       .insert(promptMethodologies)
       .values({
         version: "1.0",
-        status: "active",
+        status: "retired",
         quotas: JSON.stringify(METHODOLOGY_V1_QUOTAS),
         validationRules: "{}",
         effectiveAt: Date.now(),
@@ -101,5 +133,41 @@ export class PromptMethodologyStore implements IPromptMethodologyStore {
       })
       .onConflictDoNothing()
       .run();
+
+    this._db
+      .insert(promptMethodologies)
+      .values({
+        version: "2.0",
+        status: "active",
+        quotas: JSON.stringify(METHODOLOGY_V2_QUOTAS),
+        validationRules: "{}",
+        effectiveAt: Date.now(),
+        createdAt: Date.now(),
+      })
+      .onConflictDoNothing()
+      .run();
+  }
+
+  async activateVersion(version: string): Promise<PromptMethodology | undefined> {
+    const target = this._db
+      .select()
+      .from(promptMethodologies)
+      .where(eq(promptMethodologies.version, version))
+      .get();
+    if (!target) return undefined;
+
+    this._db
+      .update(promptMethodologies)
+      .set({ status: "retired" })
+      .where(and(eq(promptMethodologies.status, "active"), ne(promptMethodologies.version, version)))
+      .run();
+
+    const row = this._db
+      .update(promptMethodologies)
+      .set({ status: "active" })
+      .where(eq(promptMethodologies.version, version))
+      .returning()
+      .get();
+    return hydrate(row);
   }
 }

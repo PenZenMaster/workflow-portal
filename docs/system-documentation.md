@@ -332,10 +332,27 @@ alongside the run-comparability warnings above).
 (`metric_snapshots_daily.methodology_version`) records the YLG methodology
 version that was active when it was aggregated. Historical snapshots keep
 the version they were calculated under, so a future scoring change never
-silently rewrites old reports. The active methodology (currently 1.0:
-30-prompt panel, 24 non-branded / 6 branded, 3 replicates on non-branded,
-monthly full run + weekly 8-prompt sentinel) lives in the
-`prompt_methodologies` table and is seeded automatically on startup.
+silently rewrites old reports. The active methodology lives in the
+`prompt_methodologies` table and is seeded automatically on startup;
+`promptMethodologyStore.activateVersion(version)` (added v1.48.0) switches
+which row is active, retiring the previous one — a version's own
+`quotas`/`validationRules` are never edited in place once seeded (a quota
+change is always a new version, so historical rows stay exact).
+
+**Methodology v2.0 (active as of v1.48.0, issue #4 Phase 1 slice 6 —
+completes the re-lock opened in slice 1):** 30-prompt panel, 24
+non-branded / 6 branded (same panel size and split as v1.0), 3 replicates
+on non-branded, monthly full run + weekly 8-prompt sentinel — but
+`intentQuotas` now covers all 9 canonical intent types including
+`educational` (v1.0 only quota'd 6 of its 8 intents: provider_recommendation
+7, service_specific 5, problem_solution 4, geographic_discovery 4,
+educational 4, trust_validation 2, comparison 2, brand_validation 1,
+alternative 1 — sums to the full 30-prompt panel). v1.0 is retired but its
+exact original quotas remain queryable via
+`promptMethodologyStore.getByVersion("1.0")` for historical snapshots.
+Quota *enforcement* (validating a generated panel against these numbers,
+retrying or blocking on mismatch — issue #4 Section D) is not yet built;
+this slice only formalizes the version record and its target numbers.
 
 #### Citation Frequency
 > What share of AI responses directly cite the client's website?
@@ -725,9 +742,8 @@ would not be runnable on the server. Trigger once after deploying this
 version to backfill the ~130 existing production prompts.
 
 This is a
-locked-methodology definition change (see "Methodology versioning" above)
-and will be formalized as methodology v2.0 once the full Phase 1 slice
-set lands.
+locked-methodology definition change, formalized as methodology v2.0 as
+of v1.48.0 (see "Methodology versioning" and "Methodology v2.0" above).
 
 **Generate with AI (updated v1.32.0):** generation now uses the 8-type
 intent taxonomy and the client's core services and exclusions, treats all
