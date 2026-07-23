@@ -1,6 +1,6 @@
 {
   "name": "workflow-portal",
-  "version": "1.43.2",
+  "version": "1.43.3",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -22,7 +22,7 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
