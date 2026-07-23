@@ -1,7 +1,65 @@
 ## Resume From
 
 Last session: 2026-07-23
-Branch: main | Version: v1.43.3 | 973 tests passing | DEPLOYED to cPanel
+Branch: main | Version: v1.47.1 | 1001 tests passing | DEPLOYED + BACKFILLED
+
+Session 2026-07-23 (part 3): issue #4 Phase 1 slices 1-5 SHIPPED, DEPLOYED,
+and VERIFIED live (v1.44.0-v1.47.1, one version per slice, TDD throughout).
+- Slice 1 (v1.44.0): educational added as 9th PROMPT_INTENT_TYPES value;
+  brandContext column (unbranded/client_branded/competitor_branded/
+  client_and_competitor) added to prompts, round-trips through
+  PromptStore. Migration 0023. Schema/store plumbing only, no derivation.
+- Slice 2 (v1.45.0): deterministic deriveBrandContext classifier
+  (server/services/brandContext.ts) - given text + client/competitor
+  brand roster, computes brandContext. Reuses parser.ts's matchesAlias
+  (now exported) so mention detection and brand-context derivation can
+  never disagree. Pure function, 11 golden-dataset tests.
+- Slice 3 (v1.46.0): backfillBrandContext service + POST /api/admin/
+  brand-context/backfill (admin-only). Re-derives brandContext
+  per-client (cross-client isolation tested), always recomputes
+  (idempotent). Exposed as an API route rather than a script/ file
+  because deploy packaging only ships dist/+migrations/+package.json
+  and tsx (devDependency) isn't installed in production - same gap
+  class as the v1.43.3 husky bug.
+- Slice 4 (v1.47.0): promptGenerator.ts asks for educational (9-type
+  taxonomy) and now derives brandContext/brandInPrompt deterministically
+  from the candidate's actual text instead of trusting the LLM's
+  self-reported brandInPrompt (issue #4 Problem #2 - a prompt naming
+  only a competitor no longer collapses into the same "false" bucket as
+  a genuinely unbranded prompt). Client's existing candidate-to-payload
+  spread picks up the new field with zero UI changes.
+- Slice 5 (v1.47.1): aggregateNonBranded now scopes on brand_context =
+  'unbranded' instead of brand_in_prompt = 0, fixing the Problem #2
+  contamination at the metrics layer too. unvalidatedResponses field
+  retired (brand_context is deterministic/total, no coverage gap to
+  report).
+DEPLOYED to cPanel and VERIFIED: v1.47.1 confirmed live (version
+footer), POST /api/admin/brand-context/backfill run successfully on
+production (142 prompts scanned+updated: 107 unbranded, 24
+client_branded, 7 competitor_branded, 4 client_and_competitor).
+GET /api/clients/7/metrics/non-branded confirmed non-zero real numbers
+post-backfill (56 non-branded responses, 41.1% mention rate, 8.9%
+recommendation rate, 55.6% Recommendation SoV) - was all zeros
+pre-backfill as expected. No regressions found on client 7's full AI
+Visibility page (all sections render correctly: Overview, Mentions,
+SoV, Sentiment, Citations, Recommendations, Traffic, Token Usage).
+NOTE: "Non-Branded Panel Metrics" has never had a UI section built -
+it's API-only since v1.35.0 (no ClientDetail.tsx wiring); this is a
+pre-existing gap, not a regression from today's work - revisit as its
+own slice if the numbers should surface in the UI.
+B-30 backlog item logged (feature request from this session): apply
+the existing AI Traffic Impact "Sessions by AI Source - Monthly"
+3m/6m/12m toggle pattern to other month-axis monthly-aggregated charts.
+NEXT SESSION: (1) issue #4 Phase 1 slice 6 (final slice) - methodology
+v2.0 quota table (9-intent + brand-context split, replacing the free-
+form 80/20 guidance), promptMethodologyStore version-activation
+(retire v1.0, activate v2.0 - doesn't exist yet), final
+docs/system-documentation.md methodology-version update; (2) Phases
+2-3 of issue #4 remain after that (deterministic service/geography
+checks, semantic near-duplicate detection, revalidate-on-edit, panel
+types, canonical-intent-primary UI, manual-prompt schema upgrade,
+methodology summary + activation gates); (3) B-30 UI work (own slice,
+not urgent); (4) user-owned: B-20 GBP API quota check, Groq API access.
 
 Session 2026-07-23 (part 2): v1.43.2 cPanel deploy attempt FAILED first
 try - `npm install` on the server hard-errored (exit 127, "husky: command
