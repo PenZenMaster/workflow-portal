@@ -50,7 +50,7 @@ describe("promptGenerator", () => {
   });
 
   describe("buildGenerationPrompt", () => {
-    it("includes client facts, all 8 intent types, and the requested count", () => {
+    it("includes client facts, all 9 intent types including educational, and the requested count", () => {
       const prompt = buildGenerationPrompt(BASE_CONTEXT);
 
       expect(prompt).toContain("Acme Plumbing");
@@ -65,6 +65,8 @@ describe("promptGenerator", () => {
       expect(prompt).toContain("trust_validation");
       expect(prompt).toContain("brand_validation");
       expect(prompt).toContain("alternative");
+      expect(prompt).toContain("educational");
+      expect(prompt).toContain("9 intent types");
       expect(prompt).toContain("12");
     });
 
@@ -103,11 +105,81 @@ describe("promptGenerator", () => {
           funnelStage: "consideration",
           intentType: "provider_recommendation",
           brandInPrompt: false,
+          brandContext: "unbranded",
           service: "commercial plumbing",
           geo: "Seattle, WA",
           rationale: "Tests independent recommendation rate",
         },
       ]);
+    });
+
+    it("derives brandContext deterministically, ignoring an incorrect LLM brandInPrompt=false claim for a competitor-only prompt", () => {
+      const raw = JSON.stringify([
+        rawItem({ text: "What are some alternatives to Best Plumbers Inc?", brandInPrompt: false }),
+      ]);
+
+      const result = parseGeneratedPrompts(raw, {
+        requestedCount: 1,
+        clientBrandNames: BASE_CONTEXT.clientBrandNames,
+        competitorNames: BASE_CONTEXT.competitorNames,
+      });
+
+      expect(result.candidates[0].brandContext).toBe("competitor_branded");
+      expect(result.candidates[0].brandInPrompt).toBe(false);
+    });
+
+    it("overrides an incorrect LLM brandInPrompt=true claim when the client brand does not actually appear", () => {
+      const raw = JSON.stringify([
+        rawItem({ text: "Who are the best plumbers in Seattle?", brandInPrompt: true }),
+      ]);
+
+      const result = parseGeneratedPrompts(raw, {
+        requestedCount: 1,
+        clientBrandNames: BASE_CONTEXT.clientBrandNames,
+        competitorNames: BASE_CONTEXT.competitorNames,
+      });
+
+      expect(result.candidates[0].brandContext).toBe("unbranded");
+      expect(result.candidates[0].brandInPrompt).toBe(false);
+    });
+
+    it("derives client_branded when the client's own brand name appears in the text", () => {
+      const raw = JSON.stringify([
+        rawItem({ text: "Is Acme Plumbing a reputable business?" }),
+      ]);
+
+      const result = parseGeneratedPrompts(raw, {
+        requestedCount: 1,
+        clientBrandNames: BASE_CONTEXT.clientBrandNames,
+        competitorNames: BASE_CONTEXT.competitorNames,
+      });
+
+      expect(result.candidates[0].brandContext).toBe("client_branded");
+      expect(result.candidates[0].brandInPrompt).toBe(true);
+    });
+
+    it("derives client_and_competitor when both the client and a competitor appear", () => {
+      const raw = JSON.stringify([
+        rawItem({ text: "Acme Plumbing vs Best Plumbers Inc: which has better reviews?" }),
+      ]);
+
+      const result = parseGeneratedPrompts(raw, {
+        requestedCount: 1,
+        clientBrandNames: BASE_CONTEXT.clientBrandNames,
+        competitorNames: BASE_CONTEXT.competitorNames,
+      });
+
+      expect(result.candidates[0].brandContext).toBe("client_and_competitor");
+      expect(result.candidates[0].brandInPrompt).toBe(true);
+    });
+
+    it("defaults to unbranded when no brand roster is provided", () => {
+      const raw = JSON.stringify([rawItem({ text: "Acme Plumbing is great" })]);
+
+      const result = parseGeneratedPrompts(raw, { requestedCount: 1 });
+
+      expect(result.candidates[0].brandContext).toBe("unbranded");
+      expect(result.candidates[0].brandInPrompt).toBe(false);
     });
 
     it("derives the right legacy category per intent type", () => {

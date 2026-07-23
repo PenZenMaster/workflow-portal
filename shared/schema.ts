@@ -485,7 +485,8 @@ export type GeneratedPromptCandidate = {
   category: PromptCategory; // legacy, derived from intentType during migration
   funnelStage: FunnelStage;
   intentType: PromptIntentType;
-  brandInPrompt: boolean;
+  brandInPrompt: boolean; // derived from brandContext, not trusted from the LLM
+  brandContext: BrandContext;
   service: string | null;
   geo: string | null;
   rationale: string | null; // analyst-facing justification, not persisted

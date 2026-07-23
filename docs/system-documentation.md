@@ -696,8 +696,8 @@ prompts or brand context, and `aggregateNonBranded` still filters on
 `brand_context` from its text plus the client's brand/competitor roster,
 reusing `parser.ts`'s `matchesAlias` so mention detection and brand-context
 derivation can never disagree about whether a brand appears in the same
-text. Pure function, not yet wired into generation or the `prompts` table's
-default write path — that lands in the next Phase 1 slices.
+text. Pure function, not yet wired into the `prompts` table's default write
+path (manual prompt creation) — that's Phase 3 (Section I).
 
 **Brand-context backfill (v1.46.0):** `POST /api/admin/brand-context/backfill`
 (`super_admin`/`agency_admin` only) runs `backfillBrandContext`
@@ -730,6 +730,26 @@ warnings (including "fewer than 80% of requested prompts were valid"),
 each candidate's intent type, branded state, service, and location, and
 the model's rationale. Saved candidates carry their measurement metadata
 into the prompts table.
+
+**Generate with AI: 9-type taxonomy + deterministic brand context
+(v1.47.0):** the generation prompt now asks for the `educational` intent
+alongside the original 8, and every candidate's `brandContext` (and the
+derived `brandInPrompt` compatibility field) is computed by
+`deriveBrandContext` from the candidate's actual text plus the client's
+brand/competitor names — the LLM's own `brandInPrompt` claim in its JSON
+response is still requested (kept for schema shape/prompting stability)
+but is no longer trusted for the persisted value (issue #4 Problem #2:
+previously a prompt naming only a competitor and a genuinely unbranded
+discovery prompt both collapsed into `brandInPrompt=false`, indistinguishable
+in metrics). `GeneratedPromptCandidate` gained a `brandContext` field;
+`PromptCollectionDetail.tsx`'s existing candidate-to-payload mapping
+(`toPayload`, a `...rest` spread) picks it up automatically with no UI
+change, so saved AI-generated prompts get a real `brandContext` from this
+version on. Known limitation: derivation at generation time uses
+canonical brand/competitor names only, not configured aliases (the
+generator's `GenerationContext` doesn't carry alias rows) — full
+alias-awareness exists in the backfill/classifier
+(`server/services/brandContext.ts`) for scraped response text.
 
 The portal supports seven prompt categories. Use each to cover different stages of the buyer journey.
 

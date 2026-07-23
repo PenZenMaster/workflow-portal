@@ -37,6 +37,8 @@ import {
   type PromptCategory,
   type PromptIntentType,
 } from "@shared/schema";
+import { deriveBrandContext } from "./brandContext";
+import type { BrandInput } from "./parser";
 
 const GENERATION_ADAPTER_ORDER = [
   "openai",
@@ -63,6 +65,15 @@ export interface GenerationContext {
 export interface ParseOptions {
   requestedCount: number;
   existingPromptTexts?: string[];
+  // Used to deterministically derive brandContext/brandInPrompt from the
+  // actual candidate text rather than trusting the LLM's self-reported
+  // brandInPrompt claim (issue #4 Problem #2).
+  clientBrandNames?: string[];
+  competitorNames?: string[];
+}
+
+function toBrandInput(canonicalName: string): BrandInput {
+  return { id: 0, canonicalName, primaryDomain: null, aliases: [] };
 }
 
 // E2c provenance: which adapter and model produced the raw output.
@@ -145,7 +156,7 @@ export function buildGenerationPrompt(ctx: GenerationContext): string {
     `Known competitors: ${competitorList}`,
     `Excluded topics/services (never generate prompts about these): ${exclusionList}`,
     "",
-    `Generate exactly ${ctx.count} prompts, distributed across these 8 intent types.`,
+    `Generate exactly ${ctx.count} prompts, distributed across these 9 intent types.`,
     "About 80% of prompts should be non-branded discovery (the client or competitor name",
     "does NOT appear in the text); about 20% may be branded or comparison prompts.",
     "",
@@ -157,6 +168,7 @@ export function buildGenerationPrompt(ctx: GenerationContext): string {
     '- trust_validation: tests proof, reputation, experience, or suitability, e.g. "Which local roofing firms have architectural metal expertise?"',
     '- brand_validation: asks directly about the client brand, e.g. "Is Acme Roofing a reputable commercial contractor?"',
     '- alternative: seeks alternatives to a named competitor, e.g. "Alternatives to Competitor X for metal roofing"',
+    '- educational: explanatory or topical-authority questions that do not necessarily request a provider, e.g. "What causes a commercial roof membrane to blister?"',
     "",
     "Only reference services from the core services list and locations from the approved",
     "geographies. Avoid duplicate or near-duplicate wording across prompts.",
@@ -196,6 +208,8 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
 
   const existingNormalized = new Set((opts.existingPromptTexts ?? []).map(normalizePromptText));
   const poolNormalized = new Set<string>();
+  const clientBrandInputs = (opts.clientBrandNames ?? []).map(toBrandInput);
+  const competitorBrandInputs = (opts.competitorNames ?? []).map(toBrandInput);
 
   const candidates: GeneratedPromptCandidate[] = [];
   const invalid: GenerationInvalidItem[] = [];
@@ -223,12 +237,20 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
     }
     poolNormalized.add(normalized);
 
+    // Deterministically derived from the actual text, not trusted from the
+    // LLM's own brandInPrompt claim (issue #4 Problem #2): a prompt naming
+    // only a competitor must not collapse into the same "false" bucket as
+    // a genuinely unbranded discovery prompt.
+    const brandContext = deriveBrandContext(result.data.text, clientBrandInputs, competitorBrandInputs);
+    const brandInPrompt = brandContext === "client_branded" || brandContext === "client_and_competitor";
+
     candidates.push({
       text: result.data.text,
       category: INTENT_TO_CATEGORY[result.data.intentType],
       funnelStage: result.data.funnelStage,
       intentType: result.data.intentType,
-      brandInPrompt: result.data.brandInPrompt,
+      brandInPrompt,
+      brandContext,
       service: result.data.service ?? null,
       geo: result.data.location ?? null,
       rationale: result.data.rationale ?? null,
@@ -251,6 +273,8 @@ export async function generatePrompts(ctx: GenerationContext): Promise<Generatio
   const result = parseGeneratedPrompts(response.text, {
     requestedCount: ctx.count,
     existingPromptTexts: ctx.existingPromptTexts,
+    clientBrandNames: ctx.clientBrandNames,
+    competitorNames: ctx.competitorNames,
   });
   return {
     ...result,
