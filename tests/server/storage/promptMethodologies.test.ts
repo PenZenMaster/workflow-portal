@@ -21,6 +21,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { SCHEMA_SQL } from "../../../server/storage";
 import { PromptMethodologyStore } from "../../../server/storage/promptMethodologyStore";
+import { promptMethodologies } from "../../../shared/schema";
 
 function makeDb() {
   const sqlite = new Database(":memory:");
@@ -30,9 +31,11 @@ function makeDb() {
 
 describe("PromptMethodologyStore", () => {
   let store: PromptMethodologyStore;
+  let db: ReturnType<typeof makeDb>;
 
   beforeEach(() => {
-    store = new PromptMethodologyStore(makeDb());
+    db = makeDb();
+    store = new PromptMethodologyStore(db);
   });
 
   it("seedDefaults inserts methodology 1.0, now retired, with its original approved YLG panel quotas preserved for historical snapshots", async () => {
@@ -102,6 +105,33 @@ describe("PromptMethodologyStore", () => {
   it("getByVersion returns undefined for unknown versions", async () => {
     await store.seedDefaults();
     expect(await store.getByVersion("9.9")).toBeUndefined();
+  });
+
+  it("seedDefaults retires a pre-existing active methodology on the upgrade path (production had 1.0 seeded active before the v2.0 re-lock shipped)", async () => {
+    // Simulates a database that already has 1.0 inserted as active from
+    // before this session's re-lock, exactly what production looked like
+    // when v1.48.0 first booted.
+    db.insert(promptMethodologies)
+      .values({
+        version: "1.0",
+        status: "active",
+        quotas: "{}",
+        validationRules: "{}",
+        effectiveAt: Date.now(),
+        createdAt: Date.now(),
+      })
+      .run();
+
+    await store.seedDefaults();
+
+    const v1 = await store.getByVersion("1.0");
+    const v2 = await store.getByVersion("2.0");
+    expect(v1?.status).toBe("retired");
+    expect(v2?.status).toBe("active");
+    expect((await store.getActive())?.version).toBe("2.0");
+
+    const list = await store.list();
+    expect(list.filter((m) => m.status === "active")).toHaveLength(1);
   });
 
   describe("activateVersion", () => {

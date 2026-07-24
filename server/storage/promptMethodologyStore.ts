@@ -10,9 +10,13 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-07-12
- * Last Modified Date: 2026-07-12
+ * Last Modified Date: 2026-07-24
  * Comments:
  * - v1.00 YLG foundation sprint initial implementation
+ * - v1.01 issue #4 Phase 1 slice 6: methodology v2.0 re-lock + activateVersion
+ * - v1.02 fix: seedDefaults now retires any pre-existing active row on the
+ *   upgrade path, so getActive() can't return two 'active' rows when an
+ *   install already had an older version seeded active before a re-lock
  */
 
 import { promptMethodologies } from "@shared/schema";
@@ -120,7 +124,11 @@ export class PromptMethodologyStore implements IPromptMethodologyStore {
     // v1.0 is historical and retired - v2.0 is the active methodology
     // (issue #4 Phase 1 slice 6 re-lock). Two independent idempotent
     // inserts, not an activateVersion() call: v1.0's retired status here
-    // is a seed-time fact, not a transition.
+    // is a seed-time fact, not a transition. onConflictDoNothing means
+    // an install that already has 1.0 seeded active from before this
+    // re-lock shipped won't have its row touched by the insert, so the
+    // trailing retire-others step below is what actually enforces the
+    // single-active invariant on that upgrade path.
     this._db
       .insert(promptMethodologies)
       .values({
@@ -145,6 +153,12 @@ export class PromptMethodologyStore implements IPromptMethodologyStore {
         createdAt: Date.now(),
       })
       .onConflictDoNothing()
+      .run();
+
+    this._db
+      .update(promptMethodologies)
+      .set({ status: "retired" })
+      .where(and(eq(promptMethodologies.status, "active"), ne(promptMethodologies.version, "2.0")))
       .run();
   }
 
