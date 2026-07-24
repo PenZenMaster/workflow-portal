@@ -627,6 +627,8 @@ Trigger phrase: **"Project shutdown"**
 | SESSION_DB_PATH   | No       | Override sessions SQLite path (use ../persistent/sessions.db on cPanel) |
 | LLM_MAX_OUTPUT_TOKENS | No   | Output-token cap for measurement LLM calls (default 1500; changing it is a methodology-comparability event) |
 | LLM_TIMEOUT_MS    | No       | Request timeout for measurement LLM calls (default 30000ms); a timed-out request is not retried, since the provider may already have billed it |
+| BUDGET_MONTHLY_TOKEN_WARN | No | Per-client month-to-date token count (input+output) at which run creation logs a warning but proceeds. Disabled (no budget enforced) unless set to a positive integer. |
+| BUDGET_MONTHLY_TOKEN_BLOCK | No | Per-client month-to-date token count at which run creation (manual trigger, retry-failed, schedule-tick) is refused with 429 BUDGET_EXCEEDED. Disabled unless set to a positive integer. |
 | UTILITY_MODEL_<SLUG> | No    | Override the economy model for internal calls per provider, e.g. UTILITY_MODEL_OPENAI=gpt-4o-mini |
 | SMTP_HOST         | No*      | SMTP server hostname (required for password reset) |
 | SMTP_PORT         | No*      | SMTP port — 465 for SSL, 587 for STARTTLS (default 465) |

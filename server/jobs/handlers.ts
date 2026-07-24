@@ -14,9 +14,11 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-09
- * Last Modified Date: 2026-05-09
+ * Last Modified Date: 2026-07-24
  * Comments:
  * - v1.00 Sprint 3 initial implementation
+ * - v1.01 issue #2 F6: monthly token budget guard on schedule-tick run
+ *   creation
  */
 
 import crypto from "node:crypto";
@@ -55,6 +57,7 @@ import { generateCsvLines } from "../services/csv";
 import { Ga4Service } from "../services/ga4";
 import { computeNextFireAt, SCHEDULE_TICK_INTERVAL_MS } from "../services/scheduling";
 import { buildPromptTokenContext, expandPromptText, type ClientBrandContext } from "../services/promptTokens";
+import { checkClientBudget } from "../services/budgetGuard";
 import { logger } from "../logger";
 
 function todayIso(): string {
@@ -477,6 +480,31 @@ export function registerJobHandlers(runner: JobRunner): void {
         if (totalPrompts === 0) {
           await scheduleStore.markFired(schedule.id, now, nextFireAt);
           continue;
+        }
+
+        // F6: a misconfigured schedule (e.g. accidentally hourly) is one of
+        // the spend vectors the budget guard is meant to catch. schedule-tick
+        // has no caller to return an error to, so a block just skips this
+        // schedule's run and marks it fired so the next tick doesn't
+        // immediately retry the same over-budget client.
+        const budget = await checkClientBudget(responseStore, schedule.clientId, new Date(now));
+        if (budget.status === "block") {
+          logger.warn("schedule-tick: run skipped, monthly token budget exceeded", {
+            scheduleId: schedule.id,
+            clientId: schedule.clientId,
+            monthToDateTokens: budget.monthToDateTokens,
+            blockThreshold: budget.thresholds.block,
+          });
+          await scheduleStore.markFired(schedule.id, now, nextFireAt);
+          continue;
+        }
+        if (budget.status === "warn") {
+          logger.warn("schedule-tick: approaching monthly token budget", {
+            scheduleId: schedule.id,
+            clientId: schedule.clientId,
+            monthToDateTokens: budget.monthToDateTokens,
+            warnThreshold: budget.thresholds.warn,
+          });
         }
 
         const batchId = crypto.randomUUID();

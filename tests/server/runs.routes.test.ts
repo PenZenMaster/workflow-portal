@@ -1,6 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 import { buildAuthApp } from "./_helpers/buildAuthApp";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 // --- mocks ------------------------------------------------------------------
 
@@ -19,6 +23,7 @@ const mockResponseStore = {
   create: vi.fn(),
   updateResult: vi.fn(),
   listFailedByRun: vi.fn(),
+  aggregateTokensByClient: vi.fn().mockResolvedValue({ totalInputTokens: 0, totalOutputTokens: 0 }),
 };
 const mockScheduleStore = {
   listByClient: vi.fn(),
@@ -170,6 +175,23 @@ describe("POST /api/clients/:id/runs", () => {
       .post("/api/clients/10/runs")
       .send({ collectionId: 5, platformIds: [1] });
     expect(res.status).toBe(404);
+  });
+
+  it("returns 429 BUDGET_EXCEEDED and does not create a run when over the monthly token budget (F6)", async () => {
+    vi.stubEnv("BUDGET_MONTHLY_TOKEN_BLOCK", "1000");
+    mockClientStore.get.mockResolvedValue(SAMPLE_CLIENT);
+    mockResponseStore.aggregateTokensByClient.mockResolvedValue({
+      totalInputTokens: 600,
+      totalOutputTokens: 500,
+    });
+
+    const res = await request(buildApp("agency_admin"))
+      .post("/api/clients/10/runs")
+      .send({ collectionId: 5, platformIds: [1] });
+
+    expect(res.status).toBe(429);
+    expect(res.body.code).toBe("BUDGET_EXCEEDED");
+    expect(mockRunStore.create).not.toHaveBeenCalled();
   });
 
   it("writes an immutable run manifest with ad_hoc purpose and a config hash (E2a)", async () => {
@@ -448,6 +470,21 @@ describe("POST /api/runs/:id/retry-failed", () => {
     expect(res.body.data.retriedCount).toBe(0);
     expect(mockRunStore.decrementFailed).not.toHaveBeenCalled();
     expect(mockRunStore.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it("returns 429 BUDGET_EXCEEDED and does not retry when over the monthly token budget (F6)", async () => {
+    vi.stubEnv("BUDGET_MONTHLY_TOKEN_BLOCK", "1000");
+    mockRunStore.get.mockResolvedValue(SAMPLE_RUN);
+    mockResponseStore.aggregateTokensByClient.mockResolvedValue({
+      totalInputTokens: 600,
+      totalOutputTokens: 500,
+    });
+
+    const res = await request(buildApp("agency_admin")).post("/api/runs/1/retry-failed");
+
+    expect(res.status).toBe(429);
+    expect(res.body.code).toBe("BUDGET_EXCEEDED");
+    expect(mockResponseStore.listFailedByRun).not.toHaveBeenCalled();
   });
 });
 

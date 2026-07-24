@@ -9,9 +9,11 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-09
- * Last Modified Date: 2026-05-09
+ * Last Modified Date: 2026-07-24
  * Comments:
  * - v1.00 Sprint 3 initial implementation
+ * - v1.01 issue #2 F6: monthly token budget guard on run creation and
+ *   retry-failed
  */
 
 import type { Express } from "express";
@@ -42,6 +44,8 @@ import { compareManifests } from "../services/comparability";
 import { SCORING_VERSION } from "../services/scoring";
 import { PARSER_VERSION } from "../services/parser";
 import { RECOMMENDATION_CLASSIFIER_VERSION } from "../services/recommendation";
+import { checkClientBudget } from "../services/budgetGuard";
+import { logger } from "../logger";
 
 const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
 const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
@@ -63,6 +67,26 @@ export function registerRunRoutes(app: Express): void {
 
       const client = await clientStore.get(clientId);
       if (!client) throw new AppError(404, "Client not found", "CLIENT_NOT_FOUND");
+
+      // F6: monthly per-client token budget guard - stops a runaway
+      // {{competitor}} fan-out or accidental repeat trigger from spending
+      // without limit. No-op unless BUDGET_MONTHLY_TOKEN_* env vars are set.
+      const budget = await checkClientBudget(responseStore, clientId);
+      if (budget.status === "block") {
+        logger.warn("run creation blocked by monthly token budget", {
+          clientId,
+          monthToDateTokens: budget.monthToDateTokens,
+          blockThreshold: budget.thresholds.block,
+        });
+        throw new AppError(429, "Monthly token budget exceeded", "BUDGET_EXCEEDED");
+      }
+      if (budget.status === "warn") {
+        logger.warn("run creation approaching monthly token budget", {
+          clientId,
+          monthToDateTokens: budget.monthToDateTokens,
+          warnThreshold: budget.thresholds.warn,
+        });
+      }
 
       const brands = await brandStore.listByClient(clientId);
       const brandContext: ClientBrandContext = {
@@ -144,7 +168,9 @@ export function registerRunRoutes(app: Express): void {
         }
       }
 
-      res.status(202).json({ data: { runId: run.id, batchId, totalJobs: totalPrompts } });
+      res.status(202).json({
+        data: { runId: run.id, batchId, totalJobs: totalPrompts, budgetStatus: budget.status },
+      });
     }
   );
 
@@ -288,6 +314,19 @@ export function registerRunRoutes(app: Express): void {
       if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
       const run = await runStore.get(id);
       if (!run) throw new AppError(404, "Run not found", "RUN_NOT_FOUND");
+
+      // F6: repeated Retry-failed clicks are one of the spend vectors the
+      // budget guard is meant to catch.
+      const budget = await checkClientBudget(responseStore, run.clientId);
+      if (budget.status === "block") {
+        logger.warn("retry-failed blocked by monthly token budget", {
+          clientId: run.clientId,
+          runId: id,
+          monthToDateTokens: budget.monthToDateTokens,
+          blockThreshold: budget.thresholds.block,
+        });
+        throw new AppError(429, "Monthly token budget exceeded", "BUDGET_EXCEEDED");
+      }
 
       const failed = await responseStore.listFailedByRun(id);
       for (const resp of failed) {

@@ -203,8 +203,31 @@ per-run totals ("Tokens: N in / M out"). Per-client aggregation
 per-platform response counts and input/output token sums for the period
 (analyst roles and up — spend data is internal ops and never client
 facing); ClientDetail shows it as the Token Usage section, hidden for
-client_viewer sessions. Estimated cost and budget guards are later
-slices of GitHub issue #2.
+client_viewer sessions. Estimated cost is a later slice of GitHub issue
+#2; the budget guard shipped in v1.50.0 (below).
+
+**Timeout handling (v1.49.0, issue #2 F3):** a request that hits the
+30s timeout (overridable via `LLM_TIMEOUT_MS`) is no longer retried —
+the provider may already have generated (and billed) the full
+response, so resending the same prompt could pay for it up to 3x on a
+slow-but-successful generation. 429/5xx responses and pre-response
+connection errors still retry with backoff as before; only the timeout
+path changed.
+
+**Monthly token budget guard (v1.50.0, issue #2 F6):** a per-client
+month-to-date token guard (input+output, via the same aggregation as
+the Token Usage section above) runs before a run is created — manual
+trigger, "Retry failed", and the recurring `schedule-tick` handler all
+consult it. Two independent thresholds, each opt-in via env var and
+disabled unless set to a positive integer: `BUDGET_MONTHLY_TOKEN_WARN`
+logs a warning and lets the run proceed (the manual-trigger response
+also carries `budgetStatus: "warn"`); `BUDGET_MONTHLY_TOKEN_BLOCK`
+refuses the run with `429 BUDGET_EXCEEDED` (manual endpoints) or, for
+`schedule-tick`, skips creating that schedule's run and marks it fired
+so the next tick doesn't immediately retry the same over-budget
+client. Guards against a misconfigured schedule, a runaway
+`{{competitor}}` fan-out, or repeated "Retry failed" clicks spending
+without limit.
 
 **Output caps and the utility tier (v1.38.0, issue #2 F2+F4):** every
 adapter now sends an output cap — default 1500 tokens, overridable with

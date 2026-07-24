@@ -39,6 +39,7 @@ const {
     get: vi.fn(),
     updateResult: vi.fn(),
     listByRun: vi.fn(),
+    aggregateTokensByClient: vi.fn().mockResolvedValue({ totalInputTokens: 0, totalOutputTokens: 0 }),
   },
   mockPlatformStore: { get: vi.fn() },
   mockMentionStore: {
@@ -157,6 +158,7 @@ describe("schedule-tick handler", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
   });
 
   it("re-enqueues itself one tick interval out even when no schedules are due", async () => {
@@ -340,6 +342,48 @@ describe("schedule-tick handler", () => {
       2,
       new Date("2026-06-15T10:00:00.000Z").getTime(),
       new Date("2026-06-20T09:00:00.000Z").getTime()
+    );
+  });
+
+  it("skips creating a run and still marks the schedule fired when the client is over its monthly token budget (F6)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-15T10:00:00.000Z")); // Monday
+    vi.stubEnv("BUDGET_MONTHLY_TOKEN_BLOCK", "1000");
+
+    const schedule = {
+      id: 4,
+      clientId: 13,
+      collectionId: 8,
+      platformIds: [1],
+      cadence: "weekly" as const,
+      dayOfWeek: 2,
+      dayOfMonth: null,
+      hourUtc: 14,
+      lastFiredAt: null,
+      nextFireAt: Date.now(),
+      enabled: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    mockScheduleStore.listDue.mockResolvedValue([schedule]);
+    mockPromptStore.listByCollection.mockResolvedValue([
+      { id: 70, text: "Prompt 1", geo: null },
+    ]);
+    mockResponseStore.aggregateTokensByClient.mockResolvedValue({
+      totalInputTokens: 600,
+      totalOutputTokens: 500,
+    });
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("schedule-tick")!({}, 1);
+
+    expect(mockRunStore.create).not.toHaveBeenCalled();
+    expect(mockScheduleStore.markFired).toHaveBeenCalledWith(
+      4,
+      new Date("2026-06-15T10:00:00.000Z").getTime(),
+      new Date("2026-06-16T14:00:00.000Z").getTime()
     );
   });
 });
