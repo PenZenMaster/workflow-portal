@@ -8,9 +8,12 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-10
- * Last Modified Date: 2026-05-10
+ * Last Modified Date: 2026-07-24
  * Comments:
  * - v1.00 Multi-LLM sprint
+ * - v1.01 issue #2 F3: resolveTimeoutMs (configurable via LLM_TIMEOUT_MS);
+ *   a timed-out request no longer retries, since the provider may already
+ *   have billed the aborted call
  */
 
 import type { PlatformAdapter, RawResponse, RunOptions, CitationRef, TokenUsage } from "./types";
@@ -32,6 +35,15 @@ export function resolveMaxOutputTokens(override?: number): number {
   if (typeof override === "number" && override > 0) return override;
   const env = Number(process.env.LLM_MAX_OUTPUT_TOKENS);
   return Number.isInteger(env) && env > 0 ? env : DEFAULT_MAX_OUTPUT_TOKENS;
+}
+
+// F3: request timeout, configurable so ops can raise it for measurement
+// runs without a code change. Unlike max-output-tokens, this never affects
+// what the parser sees, so it is not a methodology-comparability event.
+export function resolveTimeoutMs(override?: number): number {
+  if (typeof override === "number" && override > 0) return override;
+  const env = Number(process.env.LLM_TIMEOUT_MS);
+  return Number.isInteger(env) && env > 0 ? env : DEFAULT_TIMEOUT_MS;
 }
 
 const URL_REGEX = /https?:\/\/[^\s\)\]\>"']+/g;
@@ -83,7 +95,7 @@ export class OpenAICompatibleAdapter implements PlatformAdapter {
     this.apiKey = apiKey;
     this.baseUrl = baseUrl;
     this.model = opts.model ?? defaultModel;
-    this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.timeoutMs = resolveTimeoutMs(opts.timeoutMs);
     this.retryDelayMs = opts.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
     this.maxTokens = resolveMaxOutputTokens(opts.maxTokens);
   }
@@ -150,7 +162,12 @@ export class OpenAICompatibleAdapter implements PlatformAdapter {
       } catch (err) {
         clearTimeout(timeout);
         if (err instanceof Error && err.name === "AbortError") {
-          lastError = new Error(`${this.id} request timed out after ${this.timeoutMs}ms`);
+          // F3: a timeout does not mean the request failed - the provider
+          // may have already generated (and billed) the full response, we
+          // just stopped waiting for it. Retrying would resend the same
+          // prompt and risk paying for it again. Fail fast instead, same
+          // as a 4xx.
+          throw new Error(`${this.id} request timed out after ${this.timeoutMs}ms`);
         } else if (err instanceof Error && err.message.includes(`${this.id} API error`)) {
           throw err;
         } else {

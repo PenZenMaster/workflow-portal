@@ -9,19 +9,20 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-09
- * Last Modified Date: 2026-05-09
+ * Last Modified Date: 2026-07-24
  * Comments:
  * - v1.00 Sprint 3 initial implementation
+ * - v1.01 issue #2 F3: timeout no longer retries (avoids re-billing an
+ *   already-sent prompt); timeout configurable via LLM_TIMEOUT_MS
  */
 
 import type { PlatformAdapter, RawResponse, RunOptions, CitationRef } from "./types";
-import { extractOpenAiUsage, resolveMaxOutputTokens } from "./openaiCompatible";
+import { extractOpenAiUsage, resolveMaxOutputTokens, resolveTimeoutMs } from "./openaiCompatible";
 import { logger } from "../logger";
 
 const PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions";
 const DEFAULT_MODEL = "sonar";
 const MAX_RETRIES = 3;
-const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_RETRY_DELAY_MS = 1_000;
 
 interface PerplexityAdapterOptions {
@@ -51,7 +52,7 @@ export class PerplexityAdapter implements PlatformAdapter {
   constructor(apiKey: string, opts: PerplexityAdapterOptions = {}) {
     this.apiKey = apiKey;
     this.model = opts.model ?? DEFAULT_MODEL;
-    this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.timeoutMs = resolveTimeoutMs(opts.timeoutMs);
     this.retryDelayMs = opts.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
     this.maxTokens = resolveMaxOutputTokens(opts.maxTokens);
   }
@@ -126,7 +127,9 @@ export class PerplexityAdapter implements PlatformAdapter {
       } catch (err) {
         clearTimeout(timeout);
         if (err instanceof Error && err.name === "AbortError") {
-          lastError = new Error(`Perplexity request timed out after ${this.timeoutMs}ms`);
+          // F3: don't retry a timeout - the provider may already have
+          // billed the aborted request. Fail fast instead, same as 4xx.
+          throw new Error(`Perplexity request timed out after ${this.timeoutMs}ms`);
         } else if (err instanceof Error && err.message.includes("Perplexity API error")) {
           throw err; // 4xx — propagate immediately
         } else {

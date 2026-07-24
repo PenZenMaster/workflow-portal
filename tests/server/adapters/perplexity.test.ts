@@ -120,4 +120,26 @@ describe("PerplexityAdapter", () => {
     const adapter = new PerplexityAdapter("");
     await expect(adapter.run("test prompt")).rejects.toThrow(/API key/i);
   });
+
+  it("does not retry after a timeout - avoids re-billing an already-sent prompt (F3)", async () => {
+    vi.useFakeTimers();
+    const f = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => {
+          const err = new Error("The operation was aborted");
+          err.name = "AbortError";
+          reject(err);
+        });
+      });
+    });
+    vi.stubGlobal("fetch", f);
+
+    const adapter = new PerplexityAdapter("test-key", { timeoutMs: 100, retryDelayMs: 0 });
+    const assertion = expect(adapter.run("test prompt")).rejects.toThrow(/timed out/i);
+    await vi.runAllTimersAsync();
+    await assertion;
+
+    expect(f).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
 });

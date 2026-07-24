@@ -9,6 +9,7 @@ import { GeminiAdapter } from "../../../server/adapters/gemini";
 import { GroqAdapter } from "../../../server/adapters/groq";
 import { MistralAdapter } from "../../../server/adapters/mistral";
 import { DeepSeekAdapter } from "../../../server/adapters/deepseek";
+import { resolveTimeoutMs } from "../../../server/adapters/openaiCompatible";
 
 const OPENAI_BODY = {
   id: "chatcmpl-test",
@@ -45,7 +46,91 @@ function mockFetch(responses: Array<{ status: number; body: unknown }>) {
   });
 }
 
+function mockFetchAbortable() {
+  return vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+    return new Promise((_resolve, reject) => {
+      init.signal?.addEventListener("abort", () => {
+        const err = new Error("The operation was aborted");
+        err.name = "AbortError";
+        reject(err);
+      });
+    });
+  });
+}
+
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
+
+// ---------------------------------------------------------------------------
+describe("Timeout handling (F3)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("openai-compatible does not retry after a timeout - avoids re-billing an already-sent prompt", async () => {
+    vi.useFakeTimers();
+    const f = mockFetchAbortable();
+    vi.stubGlobal("fetch", f);
+
+    const adapter = new OpenAIAdapter("sk-test", { timeoutMs: 100, retryDelayMs: 0 });
+    const assertion = expect(adapter.run("p")).rejects.toThrow(/timed out/i);
+    await vi.runAllTimersAsync();
+    await assertion;
+
+    expect(f).toHaveBeenCalledOnce();
+  });
+
+  it("anthropic does not retry after a timeout", async () => {
+    vi.useFakeTimers();
+    const f = mockFetchAbortable();
+    vi.stubGlobal("fetch", f);
+
+    const adapter = new AnthropicAdapter("sk-ant-test", { timeoutMs: 100, retryDelayMs: 0 });
+    const assertion = expect(adapter.run("p")).rejects.toThrow(/timed out/i);
+    await vi.runAllTimersAsync();
+    await assertion;
+
+    expect(f).toHaveBeenCalledOnce();
+  });
+
+  it("gemini does not retry after a timeout", async () => {
+    vi.useFakeTimers();
+    const f = mockFetchAbortable();
+    vi.stubGlobal("fetch", f);
+
+    const adapter = new GeminiAdapter("AIza-test", { timeoutMs: 100, retryDelayMs: 0 });
+    const assertion = expect(adapter.run("p")).rejects.toThrow(/timed out/i);
+    await vi.runAllTimersAsync();
+    await assertion;
+
+    expect(f).toHaveBeenCalledOnce();
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("resolveTimeoutMs (F3)", () => {
+  it("defaults to 30000ms", () => {
+    expect(resolveTimeoutMs()).toBe(30_000);
+  });
+
+  it("honors an explicit override", () => {
+    expect(resolveTimeoutMs(500)).toBe(500);
+  });
+
+  it("honors the LLM_TIMEOUT_MS env var when no override is given", () => {
+    vi.stubEnv("LLM_TIMEOUT_MS", "90000");
+    expect(resolveTimeoutMs()).toBe(90_000);
+  });
+
+  it("prefers an explicit override over the env var", () => {
+    vi.stubEnv("LLM_TIMEOUT_MS", "90000");
+    expect(resolveTimeoutMs(500)).toBe(500);
+  });
+
+  it("falls back to the default on a non-numeric env var", () => {
+    vi.stubEnv("LLM_TIMEOUT_MS", "not-a-number");
+    expect(resolveTimeoutMs()).toBe(30_000);
+  });
+});
 
 // ---------------------------------------------------------------------------
 describe("Output caps (F2)", () => {

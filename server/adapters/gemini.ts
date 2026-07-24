@@ -1,10 +1,9 @@
 import type { PlatformAdapter, RawResponse, RunOptions } from "./types";
-import { extractUrlCitations, resolveMaxOutputTokens } from "./openaiCompatible";
+import { extractUrlCitations, resolveMaxOutputTokens, resolveTimeoutMs } from "./openaiCompatible";
 import { logger } from "../logger";
 
 const DEFAULT_MODEL = "gemini-2.0-flash";
 const MAX_RETRIES = 3;
-const DEFAULT_TIMEOUT_MS = 30_000;
 
 interface GeminiResponse {
   candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
@@ -28,7 +27,7 @@ export class GeminiAdapter implements PlatformAdapter {
   constructor(apiKey: string, opts: { model?: string; timeoutMs?: number; retryDelayMs?: number; maxTokens?: number } = {}) {
     this.apiKey = apiKey;
     this.model = opts.model ?? DEFAULT_MODEL;
-    this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.timeoutMs = resolveTimeoutMs(opts.timeoutMs);
     this.retryDelayMs = opts.retryDelayMs ?? 1_000;
     this.maxTokens = resolveMaxOutputTokens(opts.maxTokens);
   }
@@ -83,7 +82,9 @@ export class GeminiAdapter implements PlatformAdapter {
       } catch (err) {
         clearTimeout(timeout);
         if (err instanceof Error && err.name === "AbortError") {
-          lastError = new Error("Gemini request timed out");
+          // F3: don't retry a timeout - the provider may already have
+          // billed the aborted request. Fail fast instead.
+          throw new Error(`Gemini request timed out after ${this.timeoutMs}ms`);
         } else if (err instanceof Error && err.message.includes("Gemini API error")) {
           throw err;
         } else {

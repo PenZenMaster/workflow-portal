@@ -626,6 +626,7 @@ Trigger phrase: **"Project shutdown"**
 | DATA_DB_PATH      | No       | Override main SQLite db path (use ../persistent/data.db on cPanel) |
 | SESSION_DB_PATH   | No       | Override sessions SQLite path (use ../persistent/sessions.db on cPanel) |
 | LLM_MAX_OUTPUT_TOKENS | No   | Output-token cap for measurement LLM calls (default 1500; changing it is a methodology-comparability event) |
+| LLM_TIMEOUT_MS    | No       | Request timeout for measurement LLM calls (default 30000ms); a timed-out request is not retried, since the provider may already have billed it |
 | UTILITY_MODEL_<SLUG> | No    | Override the economy model for internal calls per provider, e.g. UTILITY_MODEL_OPENAI=gpt-4o-mini |
 | SMTP_HOST         | No*      | SMTP server hostname (required for password reset) |
 | SMTP_PORT         | No*      | SMTP port — 465 for SSL, 587 for STARTTLS (default 465) |
