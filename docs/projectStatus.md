@@ -1,7 +1,18 @@
 ## Resume From
 
 Last session: 2026-07-24
-Branch: main | Version: v1.50.0 | 1031 tests passing | DEPLOYED and VERIFIED live
+Branch: main | Version: v1.50.1 | 1031 tests passing | DEPLOYED and VERIFIED live
+
+Session 2026-07-24 (cont'd): GitHub Dependabot alert #18 (high, CVSS 7.5,
+GHSA-r28c-9q8g-f849 - PostCSS path traversal in previous source-map
+auto-loading) appeared on push. FIXED as v1.50.1: `npm audit fix` bumped
+postcss 8.5.13 -> 8.5.23, already covered by package.json's existing
+^8.4.47 range so only package-lock.json changed. Low actual exposure
+(postcss is a devDependency building only this project's own trusted
+CSS, never shipped to the server runtime) but fixed anyway per this
+repo's zero-open-vulnerabilities standard. npm audit: 0 vulnerabilities.
+Packaged, tagged, DEPLOYED and VERIFIED live (single fresh worker, no
+TD-16 zombie).
 
 Session 2026-07-24: v1.48.0 smoke test found and fixed a real regression,
 then issue #2 (B-28, AI/LLM call optimization) was finished and CLOSED.
