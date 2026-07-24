@@ -800,6 +800,21 @@ generator's `GenerationContext` doesn't carry alias rows) — full
 alias-awareness exists in the backfill/classifier
 (`server/services/brandContext.ts`) for scraped response text.
 
+**Generate with AI: deterministic geo/service checks (v1.51.0, issue #4
+Phase 2 item 6):** the LLM is asked to only reference the client's
+approved geographies and core services, but nothing verified that
+server-side (issue #4 Problem #4). Each candidate's `location`/`service`
+is now checked against the client's configured `geographies`/
+`coreServices` lists (`server/services/promptMetadataValidation.ts`,
+case-insensitive exact match) and populates a new `warnings: string[]`
+field — this **flags, does not reject**, since a mismatch may be a
+legitimately new geography/service the client list hasn't caught up
+with yet. The review panel shows each candidate's warnings next to its
+rationale; `warnings` is display-only provenance and is stripped before
+the bulk-import payload, same as `rationale`. Empty candidate geo/service
+never warns (not every prompt is scoped); an empty configured list
+legitimately warns on any candidate that specifies a value.
+
 The portal supports seven prompt categories. Use each to cover different stages of the buyer journey.
 
 **Category prompts** — broad discovery queries

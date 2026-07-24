@@ -24,16 +24,16 @@ import { Breadcrumbs, useClientName } from "@/components/Breadcrumbs";
 
 type Candidate = GeneratedPromptCandidate & { selected: boolean };
 
-// Payload for the bulk-import endpoint: rationale is display-only
-// provenance, and null service/geo must be omitted (the insert schema
-// takes optional strings, not nulls).
-type CandidatePayload = Omit<GeneratedPromptCandidate, "rationale" | "service" | "geo"> & {
+// Payload for the bulk-import endpoint: rationale and warnings are
+// display-only provenance, and null service/geo must be omitted (the
+// insert schema takes optional strings, not nulls).
+type CandidatePayload = Omit<GeneratedPromptCandidate, "rationale" | "warnings" | "service" | "geo"> & {
   service?: string;
   geo?: string;
 };
 
 function toPayload(c: Candidate): CandidatePayload {
-  const { selected: _selected, rationale: _rationale, service, geo, ...rest } = c;
+  const { selected: _selected, rationale: _rationale, warnings: _warnings, service, geo, ...rest } = c;
   return {
     ...rest,
     ...(service != null ? { service } : {}),
@@ -450,6 +450,9 @@ export default function PromptCollectionDetail() {
                       {c.geo && <span>Location: {c.geo}</span>}
                     </div>
                     {c.rationale && <p className="text-xs text-muted-foreground italic">{c.rationale}</p>}
+                    {c.warnings?.map((w) => (
+                      <p key={w} className="text-xs text-amber-700 dark:text-amber-500">{w}</p>
+                    ))}
                   </div>
                 </li>
               ))}

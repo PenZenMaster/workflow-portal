@@ -16,12 +16,15 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-06-14
- * Last Modified Date: 2026-07-12
+ * Last Modified Date: 2026-07-24
  * Comments:
  * - v1.00 Initial implementation (B-12)
  * - v1.01 YLG foundation sprint: 8-type intent taxonomy, expanded
  *   context (coreServices/exclusions), validation diagnostics,
  *   normalized exact-duplicate detection, untrusted-data instruction
+ * - v1.02 issue #4 Phase 2 item 6: deterministic geo/service checks
+ *   against the client's configured lists, recorded per candidate as
+ *   warnings
  */
 
 import { z } from "zod";
@@ -38,6 +41,7 @@ import {
   type PromptIntentType,
 } from "@shared/schema";
 import { deriveBrandContext } from "./brandContext";
+import { checkApprovedGeo, checkCoreService } from "./promptMetadataValidation";
 import type { BrandInput } from "./parser";
 
 const GENERATION_ADAPTER_ORDER = [
@@ -70,6 +74,13 @@ export interface ParseOptions {
   // brandInPrompt claim (issue #4 Problem #2).
   clientBrandNames?: string[];
   competitorNames?: string[];
+  // issue #4 Phase 2 item 6: when provided, each candidate's geo/service
+  // is checked against these lists and mismatches recorded in
+  // candidate.warnings. Omitted entirely (not just empty) means "skip
+  // the check" - an empty array means "nothing is approved" and legitimately
+  // warns on any candidate with a geo/service value.
+  geographies?: string[];
+  coreServices?: string[];
 }
 
 function toBrandInput(canonicalName: string): BrandInput {
@@ -243,6 +254,20 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
     // a genuinely unbranded discovery prompt.
     const brandContext = deriveBrandContext(result.data.text, clientBrandInputs, competitorBrandInputs);
     const brandInPrompt = brandContext === "client_branded" || brandContext === "client_and_competitor";
+    const service = result.data.service ?? null;
+    const geo = result.data.location ?? null;
+
+    // issue #4 Phase 2 item 6: only check what the caller actually
+    // supplied - omitted lists mean "not checked", not "nothing approved".
+    const warnings: string[] = [];
+    if (opts.geographies !== undefined) {
+      const geoWarning = checkApprovedGeo(geo, opts.geographies);
+      if (geoWarning) warnings.push(geoWarning);
+    }
+    if (opts.coreServices !== undefined) {
+      const serviceWarning = checkCoreService(service, opts.coreServices);
+      if (serviceWarning) warnings.push(serviceWarning);
+    }
 
     candidates.push({
       text: result.data.text,
@@ -251,9 +276,10 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
       intentType: result.data.intentType,
       brandInPrompt,
       brandContext,
-      service: result.data.service ?? null,
-      geo: result.data.location ?? null,
+      service,
+      geo,
       rationale: result.data.rationale ?? null,
+      warnings,
     });
   }
 
@@ -275,6 +301,8 @@ export async function generatePrompts(ctx: GenerationContext): Promise<Generatio
     existingPromptTexts: ctx.existingPromptTexts,
     clientBrandNames: ctx.clientBrandNames,
     competitorNames: ctx.competitorNames,
+    geographies: ctx.geographies,
+    coreServices: ctx.coreServices,
   });
   return {
     ...result,

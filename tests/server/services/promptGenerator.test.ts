@@ -109,6 +109,7 @@ describe("promptGenerator", () => {
           service: "commercial plumbing",
           geo: "Seattle, WA",
           rationale: "Tests independent recommendation rate",
+          warnings: [],
         },
       ]);
     });
@@ -272,6 +273,50 @@ describe("promptGenerator", () => {
     it("throws when no valid JSON array is found", () => {
       expect(() => parseGeneratedPrompts("not json at all", { requestedCount: 1 })).toThrow();
     });
+
+    it("flags a candidate whose geo is not in the provided approved-geographies list (issue #4 Phase 2 item 6)", () => {
+      const raw = JSON.stringify([rawItem({ location: "Chicago, IL" })]);
+
+      const result = parseGeneratedPrompts(raw, {
+        requestedCount: 1,
+        geographies: BASE_CONTEXT.geographies,
+      });
+
+      expect(result.candidates[0].warnings).toHaveLength(1);
+      expect(result.candidates[0].warnings[0]).toMatch(/Chicago, IL/);
+    });
+
+    it("flags a candidate whose service is not in the provided core-services list", () => {
+      const raw = JSON.stringify([rawItem({ service: "roof repair" })]);
+
+      const result = parseGeneratedPrompts(raw, {
+        requestedCount: 1,
+        coreServices: BASE_CONTEXT.coreServices,
+      });
+
+      expect(result.candidates[0].warnings).toHaveLength(1);
+      expect(result.candidates[0].warnings[0]).toMatch(/roof repair/);
+    });
+
+    it("does not warn when geo and service both match the provided lists", () => {
+      const raw = JSON.stringify([rawItem({ service: "drain cleaning", location: "Seattle, WA" })]);
+
+      const result = parseGeneratedPrompts(raw, {
+        requestedCount: 1,
+        geographies: BASE_CONTEXT.geographies,
+        coreServices: BASE_CONTEXT.coreServices,
+      });
+
+      expect(result.candidates[0].warnings).toEqual([]);
+    });
+
+    it("skips the geo/service check entirely when geographies/coreServices are not provided (backward compatible)", () => {
+      const raw = JSON.stringify([rawItem({ location: "Chicago, IL", service: "roof repair" })]);
+
+      const result = parseGeneratedPrompts(raw, { requestedCount: 1 });
+
+      expect(result.candidates[0].warnings).toEqual([]);
+    });
   });
 
   describe("pickGenerationAdapter", () => {
@@ -366,6 +411,24 @@ describe("promptGenerator", () => {
 
       expect(result.candidates).toHaveLength(0);
       expect(result.invalid).toHaveLength(1);
+    });
+
+    it("passes the client's geographies and coreServices through to the metadata check (issue #4 Phase 2 item 6)", async () => {
+      const raw = JSON.stringify([rawItem({ location: "Chicago, IL", service: "drain cleaning" })]);
+      const run = vi.fn().mockResolvedValue({
+        text: raw,
+        summaryBlock: null,
+        citations: [],
+        modelVariant: null,
+        latencyMs: 10,
+        rawPayload: {},
+      });
+      mockGetUtilityAdapter.mockImplementation((slug: string) => (slug === "openai" ? { id: "openai", run } : undefined));
+
+      const result = await generatePrompts({ ...BASE_CONTEXT, count: 1 });
+
+      expect(result.candidates[0].warnings).toHaveLength(1);
+      expect(result.candidates[0].warnings[0]).toMatch(/Chicago, IL/);
     });
   });
 });

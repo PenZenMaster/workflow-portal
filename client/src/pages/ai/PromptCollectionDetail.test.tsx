@@ -46,6 +46,7 @@ const CANDIDATES = [
     service: "drain cleaning",
     geo: null,
     rationale: "Problem-to-provider connection",
+    warnings: ["Service \"drain cleaning\" is not one of the client's configured core services"],
   },
   {
     text: "Best plumber near Seattle",
@@ -56,6 +57,7 @@ const CANDIDATES = [
     service: null,
     geo: "Seattle, WA",
     rationale: null,
+    warnings: [],
   },
 ];
 
@@ -216,6 +218,17 @@ describe("PromptCollectionDetail — AI prompt generation", () => {
     expect(screen.getByText(/Only 2 of 12 requested prompts were valid/i)).toBeInTheDocument();
   });
 
+  it("shows a candidate's geo/service metadata warnings from the deterministic check (issue #4 Phase 2 item 6)", async () => {
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Generate with AI/i }));
+    await screen.findByDisplayValue("What is the best way to fix a leaky faucet?");
+
+    expect(
+      screen.getByText(/Service "drain cleaning" is not one of the client's configured core services/i)
+    ).toBeInTheDocument();
+  });
+
   it("Save selected posts the checked candidates to the bulk import endpoint", async () => {
     renderPage();
 
@@ -242,12 +255,14 @@ describe("PromptCollectionDetail — AI prompt generation", () => {
       brandInPrompt: false,
       service: "drain cleaning",
     });
-    // rationale is provenance display only; null geo/service must be
-    // omitted (insertPromptSchema rejects null)
+    // rationale and warnings are display-only provenance; null geo/service
+    // must be omitted (insertPromptSchema rejects null)
     expect(body.prompts[0]).not.toHaveProperty("rationale");
+    expect(body.prompts[0]).not.toHaveProperty("warnings");
     expect(body.prompts[0]).not.toHaveProperty("geo");
     expect(body.prompts[1]).toMatchObject({ geo: "Seattle, WA", intentType: "geographic_discovery" });
     expect(body.prompts[1]).not.toHaveProperty("service");
+    expect(body.prompts[1]).not.toHaveProperty("warnings");
   });
 
   it("Save selected includes the generationRunId so saved prompts carry provenance (E2c)", async () => {

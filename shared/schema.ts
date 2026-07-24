@@ -490,6 +490,7 @@ export type GeneratedPromptCandidate = {
   service: string | null;
   geo: string | null;
   rationale: string | null; // analyst-facing justification, not persisted
+  warnings: string[]; // issue #4 Phase 2 item 6: deterministic geo/service mismatch flags
 };
 
 export type GenerationInvalidItem = { item: unknown; errors: string[] };
