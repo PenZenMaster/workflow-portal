@@ -1,7 +1,52 @@
 ## Resume From
 
-Last session: 2026-07-23
-Branch: main | Version: v1.48.0 | 1005 tests passing | packaged, user deploying to staging tonight
+Last session: 2026-07-24
+Branch: main | Version: v1.50.0 | 1031 tests passing | DEPLOYED and VERIFIED live
+
+Session 2026-07-24: v1.48.0 smoke test found and fixed a real regression,
+then issue #2 (B-28, AI/LLM call optimization) was finished and CLOSED.
+- Smoke test of v1.48.0 (from 2026-07-23) found the methodology v2.0
+  re-lock had NOT actually taken effect on production: seedDefaults()
+  inserted 2.0 as active via onConflictDoNothing, but the pre-existing
+  1.0 row (seeded active back on 2026-07-12, before the re-lock shipped)
+  was never touched by that insert, so both rows read status='active'
+  and getActive() picked the lower rowid (1.0) - every manifest/
+  generation-run/snapshot since the v1.48.0 deploy was silently stamping
+  methodology "1.0" instead of "2.0". FIXED as v1.48.1: seedDefaults now
+  retires any other active row after inserting 2.0 (self-healing on next
+  restart). DEPLOYED+VERIFIED: production's 1.0 row flipped to retired,
+  2.0 active, single fresh worker, no TD-16 zombie. TDD test added
+  reproducing the exact "pre-existing active 1.0 + fresh 2.0 seed"
+  upgrade path the original tests never covered.
+- Issue #2 F3 SHIPPED as v1.49.0: a request timeout (AbortController) no
+  longer retries in any of the 4 adapter files with their own retry loop
+  (openaiCompatible.ts covering openai/groq/mistral/deepseek,
+  anthropic.ts, gemini.ts, perplexity.ts) - previously treated like a
+  transient 5xx/429 and retried 3x, but a timeout doesn't mean the
+  request failed, the provider may already have billed it. New
+  resolveTimeoutMs (LLM_TIMEOUT_MS env override, same pattern as
+  resolveMaxOutputTokens). 9 new tests. DEPLOYED+VERIFIED.
+- Issue #2 F6 SHIPPED as v1.50.0: new server/services/budgetGuard.ts -
+  per-client monthly token budget guard (BUDGET_MONTHLY_TOKEN_WARN/
+  BLOCK env vars, opt-in/disabled by default) checked before run
+  creation at all three spend vectors named in the issue: POST
+  /api/clients/:id/runs and POST /api/runs/:id/retry-failed return 429
+  BUDGET_EXCEEDED on block; schedule-tick (no HTTP caller) logs, marks
+  the schedule fired, and skips creating that run. Reuses
+  responseStore.aggregateTokensByClient from F1, no new query. 16 new
+  tests. DEPLOYED+VERIFIED.
+- Issue #2 CLOSED 2026-07-24: F1/F2/F3/F4/F6 all shipped and verified
+  live; F5 (CSV Run-with-AI caching) explicitly DEFERRED by user
+  decision - re-open as a fresh issue if CSV-run spend becomes a real
+  problem, not tracked as open work. B-28 backlog entry updated to
+  match.
+NEXT SESSION: (1) issue #4 Phases 2-3 (semantic near-duplicate
+detection, deterministic service/geography checks, revalidate-on-edit,
+panel types, canonical-intent-primary UI, manual-prompt schema upgrade,
+methodology summary + activation gates) - not started, still just
+scoped from the 2026-07-16 grooming; (2) B-30 UI work (3m/6m/12m toggle
+on other month-axis charts) - own slice, not urgent; (3) user-owned:
+B-20 GBP API quota check, Groq API access.
 
 Session 2026-07-23 (part 4): issue #4 Phase 1 CLOSED with slice 6 (final) -
 methodology v2.0 re-lock, v1.48.0. METHODOLOGY_V2_QUOTAS: same 30-prompt
@@ -1900,14 +1945,13 @@ Confirmed decisions:
   /api/source-domains/:domain, plus a registry list filterable by class.
   Powers the spec's monthly review of newly observed domains.
 - B-28 Optimize AI/LLM API calls (GitHub issue #2, filed 2026-07-15,
-  labeled priority: medium). Full audit in the issue: 3 call paths, 7
-  findings (F1-F7). Suggested order: F1 token accounting first (usage
-  blocks already persisted unread in responses_raw.raw_payload -
-  backfillable), then F2 output caps (6 of 7 adapters send none) + F4
-  utility-model tier (anthropic default is claude-opus-4-5 even for
-  internal calls), F3 retry/timeout tuning, F6 per-client budget guard,
-  F5 CSV run caching. Non-goals: methodology changes, caching
-  measurement runs.
+  labeled priority: medium) — **CLOSED 2026-07-24, COMPLETE except F5**.
+  F1 token accounting (v1.37.0+v1.39.0), F2 output caps + F4
+  utility-model tier (v1.38.0), F3 retry/timeout tuning (v1.49.0), F6
+  per-client monthly budget guard (v1.50.0) all shipped and verified.
+  F5 (CSV Run-with-AI caching/column-filtering) explicitly DEFERRED by
+  user decision — re-open as its own backlog item if CSV-run spend
+  becomes a real problem; not tracked here as open work.
 - B-29 Efficiency: parse-response chains a per-response
   aggregate-snapshot-daily job, so an N-response re-parse enqueues N
   identical same-day aggregate recomputations (870 observed on the
