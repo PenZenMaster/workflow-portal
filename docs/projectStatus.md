@@ -1,7 +1,7 @@
 ## Resume From
 
 Last session: 2026-07-23
-Branch: main | Version: v1.48.0 | 1005 tests passing | slice 6 shipped, NOT yet cPanel-deployed
+Branch: main | Version: v1.48.0 | 1005 tests passing | packaged, user deploying to staging tonight
 
 Session 2026-07-23 (part 4): issue #4 Phase 1 CLOSED with slice 6 (final) -
 methodology v2.0 re-lock, v1.48.0. METHODOLOGY_V2_QUOTAS: same 30-prompt
@@ -21,15 +21,23 @@ one version per slice, TDD throughout): educational intent + brandContext
 schema, deterministic classifier, backfill (run and verified live on
 production in part 3), generator wiring, non-branded metrics fix, and
 now the formal methodology v2.0 record tying it together.
-NEXT SESSION: (1) package + deploy v1.48.0 to cPanel (not yet done this
-session - only slices 1-5, i.e. v1.47.1, are live; v1.48.0 is
-committed+pushed to GitHub only); (2) issue #4 Phases 2-3 (semantic
-near-duplicate detection, deterministic service/geography checks,
-revalidate-on-edit, panel types, canonical-intent-primary UI, manual-
-prompt schema upgrade, methodology summary + activation gates) - not
-started, still just scoped from the 2026-07-16 grooming; (3) B-30 UI
-work (3m/6m/12m toggle on other month-axis charts) - own slice, not
-urgent; (4) user-owned: B-20 GBP API quota check, Groq API access.
+v1.48.0 packaged (workflow-portal-v1.48.0.tar.gz, one level above repo
+root) and tagged; user deploying to staging tonight after this session
+ends - NOT yet confirmed live.
+NEXT SESSION FIRST: (1) smoke test v1.48.0 on staging - confirm version
+footer, check for a stale TD-16 worker post-restart, verify
+GET /api/clients/:id/metrics/non-branded still returns real numbers
+(no regression from the methodology-version switch), spot check that
+POST /api/admin/prompt-methodology... no such route exists yet, just
+confirm getActive() picks up "2.0" (e.g. trigger any small run or
+aggregate-snapshot-daily and check the stamped methodology_version).
+THEN: (2) issue #4 Phases 2-3 (semantic near-duplicate detection,
+deterministic service/geography checks, revalidate-on-edit, panel
+types, canonical-intent-primary UI, manual-prompt schema upgrade,
+methodology summary + activation gates) - not started, still just
+scoped from the 2026-07-16 grooming; (3) B-30 UI work (3m/6m/12m
+toggle on other month-axis charts) - own slice, not urgent; (4)
+user-owned: B-20 GBP API quota check, Groq API access.
 
 Session 2026-07-23 (part 3): issue #4 Phase 1 slices 1-5 SHIPPED, DEPLOYED,
 and VERIFIED live (v1.44.0-v1.47.1, one version per slice, TDD throughout).
