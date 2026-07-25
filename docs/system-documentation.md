@@ -830,6 +830,20 @@ stopword list, no stemming, so related word forms (e.g. "roofers" vs
 "roofing") are not merged and won't always be caught - a known,
 documented limitation, not a bug.
 
+**Generate with AI: duplicate measurement-cell rejection (v1.53.0, issue
+#4 Phase 2 item 7, second half):** two prompts can dodge both the exact
+and near-duplicate text checks yet still measure the exact same thing -
+the same `intentType + service + geography + brandContext` combination
+is the same measurement question regardless of phrasing
+(`server/services/measurementCell.ts`, case-insensitive exact field
+match). Checked against the in-batch pool unconditionally (candidates
+already carry their own metadata, no extra data needed) and, opt-in,
+against the collection's existing prompts via `existingPromptCells` -
+the route (`server/routes/prompts.ts`) excludes unclassified existing
+prompts (null `intentType`/`brandContext`) from that list, since an
+"unclassified" cell isn't a real measurement question to collide with.
+Same `invalid`-array rejection treatment as the other duplicate checks.
+
 The portal supports seven prompt categories. Use each to cover different stages of the buyer journey.
 
 **Category prompts** — broad discovery queries

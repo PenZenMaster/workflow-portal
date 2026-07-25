@@ -253,6 +253,19 @@ export function registerPromptRoutes(app: Express): void {
 
       const existingPrompts = await promptStore.listByCollection(collectionId);
 
+      // issue #4 Phase 2 item 7 (cell half): a prompt without a real
+      // intentType/brandContext isn't a real measurement cell yet, so it
+      // can't meaningfully collide with a new candidate's cell - exclude it
+      // rather than comparing against an "unclassified" bucket.
+      const existingPromptCells = existingPrompts
+        .filter((p) => p.intentType != null && p.brandContext != null)
+        .map((p) => ({
+          intentType: p.intentType as NonNullable<typeof p.intentType>,
+          service: p.service,
+          geo: p.geo,
+          brandContext: p.brandContext as NonNullable<typeof p.brandContext>,
+        }));
+
       const context = {
         clientName: client.name,
         primaryDomain: client.primaryDomain,
@@ -262,6 +275,7 @@ export function registerPromptRoutes(app: Express): void {
         coreServices: client.coreServices,
         exclusions: client.exclusions,
         existingPromptTexts: existingPrompts.map((p) => p.text),
+        existingPromptCells,
         count: parsed.data.count,
       };
       const { provenance, ...result } = await generatePrompts(context);

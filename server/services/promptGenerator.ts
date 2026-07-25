@@ -28,6 +28,10 @@
  * - v1.03 issue #4 Phase 2 item 7: semantic near-duplicate rejection
  *   (Jaccard token similarity) against both existing prompts and the
  *   in-batch pool, alongside the existing normalized exact-match check
+ * - v1.04 issue #4 Phase 2 item 7 (cell half): duplicate measurement-
+ *   cell rejection (intentType+service+geo+brandContext), always-on for
+ *   the in-batch pool, opt-in against existing prompts via
+ *   existingPromptCells
  */
 
 import { z } from "zod";
@@ -46,6 +50,7 @@ import {
 import { deriveBrandContext } from "./brandContext";
 import { checkApprovedGeo, checkCoreService } from "./promptMetadataValidation";
 import { isNearDuplicate, jaccardSimilarity } from "./nearDuplicate";
+import { measurementCellKey, type MeasurementCell } from "./measurementCell";
 import type { BrandInput } from "./parser";
 
 const GENERATION_ADAPTER_ORDER = [
@@ -67,6 +72,10 @@ export interface GenerationContext {
   coreServices: string[];
   exclusions: string[];
   existingPromptTexts: string[];
+  // issue #4 Phase 2 item 7 (cell half): optional so existing callers/tests
+  // that don't pass it keep working - omitted means the cell check is
+  // skipped, same convention as ParseOptions.existingPromptCells.
+  existingPromptCells?: MeasurementCell[];
   count: number;
 }
 
@@ -85,6 +94,13 @@ export interface ParseOptions {
   // warns on any candidate with a geo/service value.
   geographies?: string[];
   coreServices?: string[];
+  // issue #4 Phase 2 item 7 (cell half): existing prompts' measurement
+  // cells to check candidates against, in addition to the always-on
+  // in-batch pool check. Omitted means "not checked" - the caller
+  // (route) is expected to filter out unclassified prompts (null
+  // intentType/brandContext) before building this array, since an
+  // "unclassified" cell is not a real measurement question.
+  existingPromptCells?: MeasurementCell[];
 }
 
 function toBrandInput(canonicalName: string): BrandInput {
@@ -225,6 +241,7 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
   const existingNormalized = new Set(existingTexts.map(normalizePromptText));
   const poolNormalized = new Set<string>();
   const poolTexts: string[] = [];
+  const poolCellKeys = new Set<string>();
   const clientBrandInputs = (opts.clientBrandNames ?? []).map(toBrandInput);
   const competitorBrandInputs = (opts.competitorNames ?? []).map(toBrandInput);
 
@@ -269,9 +286,6 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
       continue;
     }
 
-    poolNormalized.add(normalized);
-    poolTexts.push(result.data.text);
-
     // Deterministically derived from the actual text, not trusted from the
     // LLM's own brandInPrompt claim (issue #4 Problem #2): a prompt naming
     // only a competitor must not collapse into the same "false" bucket as
@@ -280,6 +294,34 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
     const brandInPrompt = brandContext === "client_branded" || brandContext === "client_and_competitor";
     const service = result.data.service ?? null;
     const geo = result.data.location ?? null;
+
+    // issue #4 Phase 2 item 7 (cell half): two prompts can be worded
+    // differently enough to dodge the near-duplicate check above yet
+    // still measure the exact same thing. Checked after the text-based
+    // rejections so a candidate only ever "occupies" the pool once it is
+    // actually accepted.
+    const cellKey = measurementCellKey({ intentType: result.data.intentType, service, geo, brandContext });
+    if (opts.existingPromptCells !== undefined) {
+      const existingCellMatch = opts.existingPromptCells.some((c) => measurementCellKey(c) === cellKey);
+      if (existingCellMatch) {
+        invalid.push({
+          item,
+          errors: ["Duplicate measurement cell (same intent, service, geography, and brand context) as an existing prompt in this collection"],
+        });
+        continue;
+      }
+    }
+    if (poolCellKeys.has(cellKey)) {
+      invalid.push({
+        item,
+        errors: ["Duplicate measurement cell (same intent, service, geography, and brand context) as an earlier candidate in this generation"],
+      });
+      continue;
+    }
+
+    poolNormalized.add(normalized);
+    poolTexts.push(result.data.text);
+    poolCellKeys.add(cellKey);
 
     // issue #4 Phase 2 item 6: only check what the caller actually
     // supplied - omitted lists mean "not checked", not "nothing approved".
@@ -327,6 +369,7 @@ export async function generatePrompts(ctx: GenerationContext): Promise<Generatio
     competitorNames: ctx.competitorNames,
     geographies: ctx.geographies,
     coreServices: ctx.coreServices,
+    existingPromptCells: ctx.existingPromptCells,
   });
   return {
     ...result,

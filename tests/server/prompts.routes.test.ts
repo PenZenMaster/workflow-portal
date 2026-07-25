@@ -582,8 +582,41 @@ describe("POST /api/clients/:clientId/prompt-collections/:id/generate-prompts", 
       coreServices: ["drain cleaning"],
       exclusions: ["septic services"],
       existingPromptTexts: ["Best SEO agency in Seattle"],
+      existingPromptCells: [],
       count: 5,
     });
+  });
+
+  it("passes existing prompts' measurement cells through for duplicate-cell detection (issue #4 Phase 2 item 7), excluding unclassified prompts", async () => {
+    mockClientStore.get.mockResolvedValue(SAMPLE_CLIENT);
+    mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION);
+    mockBrandStore.listByClient.mockResolvedValue([]);
+    mockPromptStore.listByCollection.mockResolvedValue([
+      {
+        ...SAMPLE_PROMPT,
+        id: 101,
+        intentType: "provider_recommendation",
+        service: "drain cleaning",
+        geo: "Seattle, WA",
+        brandContext: "unbranded",
+      },
+      { ...SAMPLE_PROMPT, id: 102, intentType: null, brandContext: null }, // unclassified - excluded
+    ]);
+    mockGeneratePrompts.mockResolvedValue({
+      candidates: [],
+      invalid: [],
+      warnings: [],
+      provenance: { adapterSlug: "openai", modelVariant: "gpt-4o-mini", rawText: "RAW_LLM_OUTPUT" },
+    });
+
+    await request(buildApp("analyst"))
+      .post("/api/clients/10/prompt-collections/1/generate-prompts")
+      .send({ count: 5 });
+
+    const context = mockGeneratePrompts.mock.calls[0][0];
+    expect(context.existingPromptCells).toEqual([
+      { intentType: "provider_recommendation", service: "drain cleaning", geo: "Seattle, WA", brandContext: "unbranded" },
+    ]);
   });
 
   it("persists a generation run with provenance and returns generationRunId (E2c)", async () => {

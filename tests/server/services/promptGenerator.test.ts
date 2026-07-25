@@ -291,6 +291,55 @@ describe("promptGenerator", () => {
       expect(result.invalid).toEqual([]);
     });
 
+    it("rejects a candidate targeting the same measurement cell as an earlier candidate in the batch, even with unrelated wording (issue #4 Phase 2 item 7 - cell half)", () => {
+      const raw = JSON.stringify([
+        rawItem({ text: "Who repairs pipes in Seattle?" }),
+        rawItem({ text: "What is the warranty on emergency plumbing calls?" }),
+      ]);
+
+      const result = parseGeneratedPrompts(raw, { requestedCount: 2 });
+
+      expect(result.candidates).toHaveLength(1);
+      expect(result.invalid).toHaveLength(1);
+      expect(result.invalid[0].errors.join(" ")).toMatch(/measurement cell/i);
+    });
+
+    it("rejects a candidate targeting the same measurement cell as an existing prompt in the collection", () => {
+      const raw = JSON.stringify([rawItem({ text: "What is the warranty on emergency plumbing calls?" })]);
+
+      const result = parseGeneratedPrompts(raw, {
+        requestedCount: 1,
+        existingPromptCells: [
+          { intentType: "provider_recommendation", service: "commercial plumbing", geo: "Seattle, WA", brandContext: "unbranded" },
+        ],
+      });
+
+      expect(result.candidates).toHaveLength(0);
+      expect(result.invalid).toHaveLength(1);
+      expect(result.invalid[0].errors.join(" ")).toMatch(/measurement cell/i);
+    });
+
+    it("does not reject candidates whose cell differs (different geo)", () => {
+      const raw = JSON.stringify([
+        rawItem({ text: "Who repairs pipes in Seattle?" }),
+        rawItem({ text: "Who repairs pipes in Chicago?", location: "Chicago, IL" }),
+      ]);
+
+      const result = parseGeneratedPrompts(raw, { requestedCount: 2 });
+
+      expect(result.candidates).toHaveLength(2);
+      expect(result.invalid).toEqual([]);
+    });
+
+    it("skips the measurement-cell check entirely when existingPromptCells is not provided", () => {
+      const raw = JSON.stringify([rawItem({ text: "What is the warranty on emergency plumbing calls?" })]);
+
+      const result = parseGeneratedPrompts(raw, { requestedCount: 1 });
+
+      expect(result.candidates).toHaveLength(1);
+      expect(result.invalid).toEqual([]);
+    });
+
     it("warns when valid output falls below 80% of the requested count", () => {
       const raw = JSON.stringify([rawItem(), rawItem({ text: "" })]);
 
@@ -301,7 +350,10 @@ describe("promptGenerator", () => {
     });
 
     it("does not warn when the requested count is met", () => {
-      const raw = JSON.stringify([rawItem(), rawItem({ text: "Another distinct prompt" })]);
+      const raw = JSON.stringify([
+        rawItem(),
+        rawItem({ text: "Another distinct prompt", intentType: "problem_solution" }),
+      ]);
 
       const result = parseGeneratedPrompts(raw, { requestedCount: 2 });
 
