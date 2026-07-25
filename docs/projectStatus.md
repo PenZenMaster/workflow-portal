@@ -1805,6 +1805,7 @@ Confirmed decisions:
 
 | ID  | Severity | Status | Description | File |
 |-----|----------|--------|-------------|------|
+| TD-25 | Low | Open (accepted risk) | Dependabot alert #19: `brace-expansion` DoS (GHSA-mh99-v99m-4gvg, high CVSS) via transitive `minimatch` in eslint/@vitest/coverage-v8. Only fix path is a major bump (@vitest/coverage-v8 3.x -> 4.1.10, likely forcing vitest 3.x -> 4.x too) — deliberately not done 2026-07-24 (user decision) to avoid an unplanned toolchain upgrade mid-sprint. Actual exposure is ~nil: dev-only tool, glob patterns come from this repo's own trusted config, never untrusted input. Revisit alongside a deliberate vitest 4.x upgrade slice. | package.json (devDependencies) |
 | TD-10 | Medium | Done | Session error callbacks lack request context in logs | server/routes/auth.ts |
 | TD-12 | Low | Open | Hardcoded seed data — no versioning or rollback | server/seed.ts |
 | TD-13 | Low | Open | skipLibCheck: true masks dep type errors | tsconfig.json |
