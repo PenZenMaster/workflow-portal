@@ -446,6 +446,28 @@ describe("POST /api/prompt-collections/:id/prompts", () => {
     expect(res.status).toBe(201);
     expect(res.body.data.text).toBe("Best SEO agency in Seattle");
   });
+
+  it("recomputes brandContext/brandInPrompt from the actual text, overriding a stale client-supplied value (issue #4 Phase 2 item 8)", async () => {
+    mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION); // clientId 10
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: null, createdAt: Date.now() },
+    ]);
+    mockPromptStore.create.mockResolvedValue(SAMPLE_PROMPT);
+
+    await request(buildApp("analyst"))
+      .post("/api/prompt-collections/1/prompts")
+      .send({
+        text: "Is Acme Plumbing a good choice?",
+        category: "informational",
+        brandContext: "unbranded",
+        brandInPrompt: false,
+      });
+
+    expect(mockPromptStore.create).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ brandContext: "client_branded", brandInPrompt: true })
+    );
+  });
 });
 
 describe("POST /api/prompt-collections/:id/prompts/bulk", () => {
@@ -474,6 +496,28 @@ describe("POST /api/prompt-collections/:id/prompts/bulk", () => {
       });
     expect(res.status).toBe(201);
     expect(res.body.data).toHaveLength(2);
+  });
+
+  it("recomputes brandContext/brandInPrompt for every prompt in the batch, overriding stale client-supplied values (issue #4 Phase 2 item 8)", async () => {
+    mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION);
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: null, createdAt: Date.now() },
+      { id: 2, clientId: 10, canonicalName: "Best Plumbers Inc", kind: "competitor", primaryDomain: null, createdAt: Date.now() },
+    ]);
+    mockPromptStore.bulkCreate.mockResolvedValue([SAMPLE_PROMPT, SAMPLE_PROMPT]);
+
+    await request(buildApp("analyst"))
+      .post("/api/prompt-collections/1/prompts/bulk")
+      .send({
+        prompts: [
+          { text: "Is Acme Plumbing reputable?", category: "informational", brandContext: "unbranded" },
+          { text: "Alternatives to Best Plumbers Inc", category: "alternative", brandContext: "unbranded" },
+        ],
+      });
+
+    const [, promptsArg] = mockPromptStore.bulkCreate.mock.calls[0];
+    expect(promptsArg[0]).toMatchObject({ brandContext: "client_branded", brandInPrompt: true });
+    expect(promptsArg[1]).toMatchObject({ brandContext: "competitor_branded", brandInPrompt: false });
   });
 });
 

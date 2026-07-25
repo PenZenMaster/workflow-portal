@@ -218,6 +218,19 @@ describe("PromptCollectionDetail — AI prompt generation", () => {
     expect(screen.getByText(/Only 2 of 12 requested prompts were valid/i)).toBeInTheDocument();
   });
 
+  it("shows a warning once a candidate's text is edited, since its classification may no longer match (issue #4 Phase 2 item 8)", async () => {
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Generate with AI/i }));
+    const textInput = await screen.findByDisplayValue("What is the best way to fix a leaky faucet?");
+
+    expect(screen.queryByText(/text edited/i)).not.toBeInTheDocument();
+
+    await userEvent.type(textInput, " urgently");
+
+    expect(screen.getByText(/text edited/i)).toBeInTheDocument();
+  });
+
   it("shows a candidate's geo/service metadata warnings from the deterministic check (issue #4 Phase 2 item 6)", async () => {
     renderPage();
 

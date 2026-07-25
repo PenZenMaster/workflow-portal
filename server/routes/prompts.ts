@@ -9,10 +9,15 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-09
- * Last Modified Date: 2026-07-03
+ * Last Modified Date: 2026-07-24
  * Comments:
  * - v1.00 Sprint 2 initial implementation
  * - v1.01 B-18: collection archive/unarchive + guarded DELETE
+ * - v1.02 issue #4 Phase 2 item 7 (cell half): existingPromptCells
+ *   passed to generatePrompts, excluding unclassified prompts
+ * - v1.03 issue #4 Phase 2 item 8: brandContext/brandInPrompt
+ *   recomputed from text at both prompt-save endpoints, never trusting
+ *   a client-supplied value
  */
 
 import type { Express } from "express";
@@ -37,9 +42,33 @@ import { requireAuth, requireRole } from "../auth";
 import { ok, created, noContent } from "../response";
 import { AppError } from "../errors";
 import { generatePrompts } from "../services/promptGenerator";
+import { deriveBrandContext } from "../services/brandContext";
+import type { BrandInput } from "../services/parser";
 
 const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
 const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
+
+function toBrandInput(canonicalName: string): BrandInput {
+  return { id: 0, canonicalName, primaryDomain: null, aliases: [] };
+}
+
+// issue #4 Phase 2 item 8: brandContext/brandInPrompt are deterministic
+// from text - never trust a client-supplied value, since an analyst can
+// edit prompt text after generation (or type a manual prompt) leaving a
+// stale classification. Same known limitation as generation-time
+// derivation: canonical brand/competitor names only, not configured
+// aliases (see docs/system-documentation.md).
+async function resolveBrandInputs(
+  collectionId: number
+): Promise<{ clientBrandInputs: BrandInput[]; competitorBrandInputs: BrandInput[] } | null> {
+  const collection = await promptCollectionStore.get(collectionId);
+  if (!collection) return null;
+  const brands = await brandStore.listByClient(collection.clientId);
+  return {
+    clientBrandInputs: brands.filter((b) => b.kind === "client").map((b) => toBrandInput(b.canonicalName)),
+    competitorBrandInputs: brands.filter((b) => b.kind === "competitor").map((b) => toBrandInput(b.canonicalName)),
+  };
+}
 
 export function registerPromptRoutes(app: Express): void {
   // --- Platforms -----------------------------------------------------------
@@ -359,7 +388,19 @@ export function registerPromptRoutes(app: Express): void {
       const parsed = insertPromptSchema.safeParse(req.body);
       if (!parsed.success)
         throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
-      const prompt = await promptStore.create(collectionId, parsed.data);
+
+      let data = parsed.data;
+      const brandInputs = await resolveBrandInputs(collectionId);
+      if (brandInputs) {
+        const brandContext = deriveBrandContext(data.text, brandInputs.clientBrandInputs, brandInputs.competitorBrandInputs);
+        data = {
+          ...data,
+          brandContext,
+          brandInPrompt: brandContext === "client_branded" || brandContext === "client_and_competitor",
+        };
+      }
+
+      const prompt = await promptStore.create(collectionId, data);
       created(res, prompt);
     }
   );
@@ -374,9 +415,23 @@ export function registerPromptRoutes(app: Express): void {
       const parsed = bulkInsertPromptsSchema.safeParse(req.body);
       if (!parsed.success)
         throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
+
+      let prompts = parsed.data.prompts;
+      const brandInputs = await resolveBrandInputs(collectionId);
+      if (brandInputs) {
+        prompts = prompts.map((p) => {
+          const brandContext = deriveBrandContext(p.text, brandInputs.clientBrandInputs, brandInputs.competitorBrandInputs);
+          return {
+            ...p,
+            brandContext,
+            brandInPrompt: brandContext === "client_branded" || brandContext === "client_and_competitor",
+          };
+        });
+      }
+
       const created_prompts = await promptStore.bulkCreate(
         collectionId,
-        parsed.data.prompts,
+        prompts,
         parsed.data.generationRunId
       );
       created(res, created_prompts);

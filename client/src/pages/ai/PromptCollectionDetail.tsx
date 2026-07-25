@@ -22,18 +22,23 @@ import { Label } from "@/components/ui/label";
 import { Plus, Trash2, Zap, Play, X, Sparkles, Pencil } from "lucide-react";
 import { Breadcrumbs, useClientName } from "@/components/Breadcrumbs";
 
-type Candidate = GeneratedPromptCandidate & { selected: boolean };
+// originalText tracks the as-generated text (issue #4 Phase 2 item 8) so
+// the review panel can warn when an edit may have invalidated the
+// intent/service/geo classification shown alongside it. brandContext
+// itself is safe regardless - the server always recomputes it from the
+// actual saved text.
+type Candidate = GeneratedPromptCandidate & { selected: boolean; originalText: string };
 
-// Payload for the bulk-import endpoint: rationale and warnings are
-// display-only provenance, and null service/geo must be omitted (the
-// insert schema takes optional strings, not nulls).
+// Payload for the bulk-import endpoint: rationale, warnings, and
+// originalText are display-only provenance, and null service/geo must be
+// omitted (the insert schema takes optional strings, not nulls).
 type CandidatePayload = Omit<GeneratedPromptCandidate, "rationale" | "warnings" | "service" | "geo"> & {
   service?: string;
   geo?: string;
 };
 
 function toPayload(c: Candidate): CandidatePayload {
-  const { selected: _selected, rationale: _rationale, warnings: _warnings, service, geo, ...rest } = c;
+  const { selected: _selected, rationale: _rationale, warnings: _warnings, originalText: _originalText, service, geo, ...rest } = c;
   return {
     ...rest,
     ...(service != null ? { service } : {}),
@@ -118,7 +123,7 @@ export default function PromptCollectionDetail() {
       return res.json() as Promise<{ data: GenerationResult & { generationRunId?: number } }>;
     },
     onSuccess: (result) => {
-      setCandidates(result.data.candidates.map((c) => ({ ...c, selected: true })));
+      setCandidates(result.data.candidates.map((c) => ({ ...c, selected: true, originalText: c.text })));
       setGenDiagnostics({ rejectedCount: result.data.invalid.length, warnings: result.data.warnings });
       setGenerationRunId(result.data.generationRunId ?? null);
     },
@@ -453,6 +458,11 @@ export default function PromptCollectionDetail() {
                     {c.warnings?.map((w) => (
                       <p key={w} className="text-xs text-amber-700 dark:text-amber-500">{w}</p>
                     ))}
+                    {c.text !== c.originalText && (
+                      <p className="text-xs text-amber-700 dark:text-amber-500">
+                        Text edited — intent/service/geo classification may no longer match; recheck before saving.
+                      </p>
+                    )}
                   </div>
                 </li>
               ))}

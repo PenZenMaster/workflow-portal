@@ -844,6 +844,21 @@ prompts (null `intentType`/`brandContext`) from that list, since an
 "unclassified" cell isn't a real measurement question to collide with.
 Same `invalid`-array rejection treatment as the other duplicate checks.
 
+**Metadata revalidation on save (v1.54.0, issue #4 Phase 2 item 8):** an
+analyst can edit a candidate's text in the review panel (or type a
+manual prompt), but `intentType`/`service`/`geo` have no deterministic
+re-derivation from freeform text - only `brandContext`/`brandInPrompt`
+does (the same `deriveBrandContext` used at generation time). Both
+prompt-save endpoints (`POST /api/prompt-collections/:id/prompts` and
+`.../prompts/bulk`) now recompute `brandContext`/`brandInPrompt` from
+the actually-submitted `text` and **always override** whatever the
+client sent - closes the bug for edited AI candidates and manual entries
+alike, not just the narrow generation-time case. For the fields that
+can't be auto-fixed, the review panel tracks each candidate's
+as-generated text and shows a warning once it's edited ("Text edited -
+intent/service/geo classification may no longer match") - informational
+only, does not block save.
+
 The portal supports seven prompt categories. Use each to cover different stages of the buyer journey.
 
 **Category prompts** — broad discovery queries
