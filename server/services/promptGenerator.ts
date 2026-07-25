@@ -25,6 +25,9 @@
  * - v1.02 issue #4 Phase 2 item 6: deterministic geo/service checks
  *   against the client's configured lists, recorded per candidate as
  *   warnings
+ * - v1.03 issue #4 Phase 2 item 7: semantic near-duplicate rejection
+ *   (Jaccard token similarity) against both existing prompts and the
+ *   in-batch pool, alongside the existing normalized exact-match check
  */
 
 import { z } from "zod";
@@ -42,6 +45,7 @@ import {
 } from "@shared/schema";
 import { deriveBrandContext } from "./brandContext";
 import { checkApprovedGeo, checkCoreService } from "./promptMetadataValidation";
+import { isNearDuplicate, jaccardSimilarity } from "./nearDuplicate";
 import type { BrandInput } from "./parser";
 
 const GENERATION_ADAPTER_ORDER = [
@@ -217,8 +221,10 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
     throw new AppError(502, "AI response did not contain a JSON array of prompts", "GENERATION_PARSE_ERROR");
   }
 
-  const existingNormalized = new Set((opts.existingPromptTexts ?? []).map(normalizePromptText));
+  const existingTexts = opts.existingPromptTexts ?? [];
+  const existingNormalized = new Set(existingTexts.map(normalizePromptText));
   const poolNormalized = new Set<string>();
+  const poolTexts: string[] = [];
   const clientBrandInputs = (opts.clientBrandNames ?? []).map(toBrandInput);
   const competitorBrandInputs = (opts.competitorNames ?? []).map(toBrandInput);
 
@@ -246,7 +252,25 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
       invalid.push({ item, errors: ["Duplicate of an earlier candidate in this generation"] });
       continue;
     }
+
+    // issue #4 Phase 2 item 7: exact matching above only catches
+    // punctuation/case/whitespace variants - this catches differently-
+    // worded prompts asking the same measurement question.
+    const nearDupExisting = existingTexts.find((t) => isNearDuplicate(result.data.text, t));
+    if (nearDupExisting) {
+      const pct = Math.round(jaccardSimilarity(result.data.text, nearDupExisting) * 100);
+      invalid.push({ item, errors: [`Near-duplicate of an existing prompt in this collection (${pct}% similar)`] });
+      continue;
+    }
+    const nearDupPool = poolTexts.find((t) => isNearDuplicate(result.data.text, t));
+    if (nearDupPool) {
+      const pct = Math.round(jaccardSimilarity(result.data.text, nearDupPool) * 100);
+      invalid.push({ item, errors: [`Near-duplicate of an earlier candidate in this generation (${pct}% similar)`] });
+      continue;
+    }
+
     poolNormalized.add(normalized);
+    poolTexts.push(result.data.text);
 
     // Deterministically derived from the actual text, not trusted from the
     // LLM's own brandInPrompt claim (issue #4 Problem #2): a prompt naming

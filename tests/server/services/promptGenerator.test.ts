@@ -253,6 +253,44 @@ describe("promptGenerator", () => {
       expect(result.invalid[0].errors.join(" ")).toMatch(/existing prompt/i);
     });
 
+    it("rejects a semantic near-duplicate of an existing prompt (issue #4 Phase 2 item 7)", () => {
+      const raw = JSON.stringify([rawItem({ text: "Which plumbers in Seattle are the best?" })]);
+
+      const result = parseGeneratedPrompts(raw, {
+        requestedCount: 1,
+        existingPromptTexts: ["Who are the best plumbers in Seattle?"],
+      });
+
+      expect(result.candidates).toHaveLength(0);
+      expect(result.invalid).toHaveLength(1);
+      expect(result.invalid[0].errors.join(" ")).toMatch(/near-duplicate/i);
+    });
+
+    it("rejects a semantic near-duplicate of an earlier candidate in the same batch", () => {
+      const raw = JSON.stringify([
+        rawItem({ text: "Who are the best plumbers in Seattle?" }),
+        rawItem({ text: "Which plumbers in Seattle are the best?" }),
+      ]);
+
+      const result = parseGeneratedPrompts(raw, { requestedCount: 2 });
+
+      expect(result.candidates).toHaveLength(1);
+      expect(result.invalid).toHaveLength(1);
+      expect(result.invalid[0].errors.join(" ")).toMatch(/near-duplicate/i);
+    });
+
+    it("does not reject prompts that are merely topically related but below the similarity threshold", () => {
+      const raw = JSON.stringify([rawItem({ text: "What are common signs of a slab leak?" })]);
+
+      const result = parseGeneratedPrompts(raw, {
+        requestedCount: 1,
+        existingPromptTexts: ["Who are the best plumbers in Seattle?"],
+      });
+
+      expect(result.candidates).toHaveLength(1);
+      expect(result.invalid).toEqual([]);
+    });
+
     it("warns when valid output falls below 80% of the requested count", () => {
       const raw = JSON.stringify([rawItem(), rawItem({ text: "" })]);
 

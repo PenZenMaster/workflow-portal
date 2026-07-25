@@ -815,6 +815,21 @@ the bulk-import payload, same as `rationale`. Empty candidate geo/service
 never warns (not every prompt is scoped); an empty configured list
 legitimately warns on any candidate that specifies a value.
 
+**Generate with AI: semantic near-duplicate rejection (v1.52.0, issue #4
+Phase 2 item 7):** normalized exact matching only catches punctuation/
+case/whitespace variants of the same wording. A second-stage check
+(`server/services/nearDuplicate.ts`, token/Jaccard similarity, default
+threshold 0.75) now also rejects differently-worded prompts asking the
+same measurement question (e.g. "Who are the best plumbers in Seattle?"
+vs "Which plumbers in Seattle are the best?"), checked against both
+existing collection prompts and the in-batch pool - same `invalid`-array
+treatment as exact duplicates, with the similarity percentage in the
+reason. First-pass heuristic per issue #4's own framing ("may use
+token/Jaccard similarity"): plain lowercased tokens with a small
+stopword list, no stemming, so related word forms (e.g. "roofers" vs
+"roofing") are not merged and won't always be caught - a known,
+documented limitation, not a bug.
+
 The portal supports seven prompt categories. Use each to cover different stages of the buyer journey.
 
 **Category prompts** — broad discovery queries
