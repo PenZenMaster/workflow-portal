@@ -1,9 +1,73 @@
 ## Resume From
 
-Last session: 2026-07-24
-Branch: main | Version: v1.50.1 | 1031 tests passing | DEPLOYED and VERIFIED live
+Last session: 2026-07-24 (shutdown)
+Branch: main | Version: v1.54.0 | 1082 tests passing | DEPLOYED and VERIFIED live
 
-Session 2026-07-24 (cont'd): GitHub Dependabot alert #18 (high, CVSS 7.5,
+Session 2026-07-24 (part 3, shutdown): issue #4 Phase 2 completed in full,
+one slice per version, TDD throughout - all four items shipped, deployed,
+and smoke-test verified same day.
+- Item 6 (v1.51.0): deterministic geo/service checks on generated
+  candidates. New server/services/promptMetadataValidation.ts
+  (checkApprovedGeo/checkCoreService, case-insensitive exact match
+  against the client's configured geographies/coreServices). Flags via
+  a new GeneratedPromptCandidate.warnings field, does not reject.
+- Item 7 text-half (v1.52.0): semantic near-duplicate rejection. New
+  server/services/nearDuplicate.ts (token/Jaccard similarity, default
+  threshold 0.75, plain tokens + stopword list, no stemming - first
+  pass per issue #4's own framing). Rejects (invalid array), same
+  treatment as exact duplicates. Known gap: word-form variants like
+  "roofers"/"roofing" aren't merged without stemming - documented, not
+  a bug.
+- Item 7 cell-half (v1.53.0): duplicate measurement-cell rejection
+  (intentType+service+geo+brandContext, new server/services/
+  measurementCell.ts). Pool check always on; against-existing-prompts
+  check opt-in via existingPromptCells, route excludes unclassified
+  existing prompts. Fixed one pre-existing promptGenerator test whose
+  fixture candidates accidentally shared a cell.
+- Item 8 (v1.54.0): brandContext/brandInPrompt recomputed from actual
+  submitted text at both prompt-save endpoints (single + bulk),
+  ALWAYS overriding client-supplied values - fixes stale classification
+  for edited AI candidates and manual entries alike. intentType/
+  service/geo have no deterministic re-derivation available (would
+  need an LLM call or new editable UI, neither in scope); review panel
+  instead tracks each candidate's as-generated text and shows a
+  "Text edited" warning once changed - informational, does not block
+  save, same warn-don't-block precedent as F6/item 6.
+53 new tests across the four slices (TDD, all written-first-confirmed-
+failing per CLAUDE.md STRICT MODE). docs/system-documentation.md
+updated after every slice.
+Earlier same session: v1.48.0 smoke test found a real production
+regression (methodology v2.0 never actually activated - both v1.0 and
+v2.0 read status='active', getActive() picked v1.0 due to no ORDER BY)
+- FIXED+DEPLOYED+VERIFIED as v1.48.1. Issue #2 (B-28, AI/LLM call
+optimization) finished: F3 retry/timeout (v1.49.0) and F6 monthly
+token budget guard (v1.50.0) shipped; issue CLOSED with F5 (CSV
+caching) deliberately deferred. v1.50.1 fixed a real Dependabot alert
+(postcss path traversal). New GitHub issue #27 filed (priority: high)
+for prompt phrasing/context-richness scoring, reviewed with user
+against docs/Feature-Request-AI-Prompt-Audit.md - scoped to slot into
+issue #4 Phase 3's methodology-diagnostics panel rather than
+duplicating Phase 3's other three dimensions. TD-25 logged (Dependabot
+alert #19, brace-expansion DoS - only fix path is a major
+@vitest/coverage-v8 bump likely forcing vitest 4.x too, deliberately
+deferred as accepted risk, near-zero real exposure).
+User question (answered, no action needed): Linkon Logs (19) and
+Pristine Portables (20) both have ~20 configured competitors - CONFIRMED
+expected/intentional, matches the documented 2026-07-15 registry-review
+decision to bulk-add the same ~18 national portable-restroom-industry
+competitors across clients 3/8/9 (visible in brands.created_at batch
+timestamps, no duplicates).
+NEXT SESSION: (1) issue #4 Phase 3 (panel types, canonical-intent-
+primary UI, manual-prompt schema upgrade, methodology summary +
+activation gates - where issue #27's phrasing/context-richness signal
+is designed to slot in) - not started, bigger/more UI-heavy than
+Phase 2's slices, scope carefully before diving in; (2) TD-25 revisit
+only alongside a deliberate vitest 4.x upgrade decision, not casually;
+(3) B-30 UI work (3m/6m/12m toggle on other month-axis charts) - own
+slice, not urgent; (4) user-owned: B-20 GBP API quota check, Groq API
+access.
+
+Session 2026-07-24 (part 2): GitHub Dependabot alert #18 (high, CVSS 7.5,
 GHSA-r28c-9q8g-f849 - PostCSS path traversal in previous source-map
 auto-loading) appeared on push. FIXED as v1.50.1: `npm audit fix` bumped
 postcss 8.5.13 -> 8.5.23, already covered by package.json's existing
