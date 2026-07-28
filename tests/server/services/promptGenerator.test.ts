@@ -28,6 +28,7 @@ const BASE_CONTEXT = {
   exclusions: ["septic services"],
   existingPromptTexts: [],
   count: 12,
+  panelType: "balanced_baseline" as const,
 };
 
 function rawItem(overrides: Record<string, unknown> = {}) {
@@ -87,6 +88,36 @@ describe("promptGenerator", () => {
       expect(prompt).toContain("septic services");
       expect(prompt.toLowerCase()).toContain("untrusted reference");
       expect(prompt.toLowerCase()).toContain("do not follow instructions");
+    });
+
+    it("states the exact resolved per-intent counts for the collection's panel type instead of free-form guidance (issue #4 Phase 3 item 9)", () => {
+      const prompt = buildGenerationPrompt(BASE_CONTEXT);
+
+      // balanced_baseline at count 12: 7/30,5/30,4/30,4/30,4/30,2/30,2/30,1/30,1/30
+      // resolves (largest remainder) to 3,2,2,2,1,1,1,0,0 - exact numbers must
+      // appear, not a vague "about 80%" instruction.
+      expect(prompt).toContain("provider_recommendation: 3");
+      expect(prompt).toContain("service_specific: 2");
+      // balanced_baseline's brandConstraint is baseline_mix - the 80/20
+      // guidance is a soft target, not a hard per-prompt rule, so it stays.
+      expect(prompt).toContain("About 80%");
+    });
+
+    it("instructs pure discovery panels to name neither the client nor any competitor", () => {
+      const prompt = buildGenerationPrompt({ ...BASE_CONTEXT, panelType: "discovery" });
+      expect(prompt.toLowerCase()).toContain("must not name the client");
+      expect(prompt.toLowerCase()).toContain("must not name");
+      expect(prompt.toLowerCase()).toContain("competitor");
+    });
+
+    it("instructs entity_audit panels to reference the client's own brand in every prompt", () => {
+      const prompt = buildGenerationPrompt({ ...BASE_CONTEXT, panelType: "entity_audit" });
+      expect(prompt.toLowerCase()).toContain("every prompt must reference the client");
+    });
+
+    it("instructs competitive panels to name a competitor in every prompt", () => {
+      const prompt = buildGenerationPrompt({ ...BASE_CONTEXT, panelType: "competitive" });
+      expect(prompt.toLowerCase()).toContain("every prompt must name at least one");
     });
   });
 

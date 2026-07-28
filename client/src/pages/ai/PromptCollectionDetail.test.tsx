@@ -32,6 +32,7 @@ const COLLECTION = {
   status: "draft" as const,
   notes: null,
   parentCollectionId: null,
+  panelType: "balanced_baseline" as const,
   createdAt: Date.now(),
   updatedAt: Date.now(),
 };
@@ -186,6 +187,13 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+describe("PromptCollectionDetail — panel type (issue #4 Phase 3 item 9)", () => {
+  it("shows the collection's panel type next to version and status", async () => {
+    renderPage();
+    expect(await screen.findByText(/balanced baseline/i)).toBeInTheDocument();
+  });
+});
 
 describe("PromptCollectionDetail — AI prompt generation", () => {
   it("Generate with AI posts to the generate endpoint and renders returned candidates", async () => {

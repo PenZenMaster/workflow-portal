@@ -1,0 +1,1 @@
+ALTER TABLE `prompt_collections` ADD `panel_type` text DEFAULT 'balanced_baseline' NOT NULL;

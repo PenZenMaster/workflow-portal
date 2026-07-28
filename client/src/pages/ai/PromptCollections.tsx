@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { PromptCollection } from "@shared/schema";
+import type { PromptCollection, PromptPanelType } from "@shared/schema";
+import { PROMPT_PANEL_TYPES } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,16 @@ const STATUS_COLOURS: Record<string, string> = {
   archived: "bg-muted/50 text-muted-foreground/60",
 };
 
+// issue #4 Phase 3 item 9
+const PANEL_TYPE_LABELS: Record<PromptPanelType, string> = {
+  balanced_baseline: "Balanced baseline",
+  discovery: "Discovery (unbranded only)",
+  entity_audit: "Entity audit (client-branded only)",
+  competitive: "Competitive (competitor-branded only)",
+  topic_authority: "Topic authority",
+  local_commercial: "Local commercial",
+};
+
 export default function PromptCollections() {
   const { id } = useParams<{ id: string }>();
   const clientName = useClientName(id);
@@ -32,9 +43,11 @@ export default function PromptCollections() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
+  const [panelType, setPanelType] = useState<PromptPanelType>("balanced_baseline");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [editPanelType, setEditPanelType] = useState<PromptPanelType>("balanced_baseline");
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery<{ data: PromptCollection[] }>({
@@ -43,13 +56,13 @@ export default function PromptCollections() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (body: { name: string; notes?: string }) => {
+    mutationFn: async (body: { name: string; notes?: string; panelType: PromptPanelType }) => {
       const res = await apiRequest("POST", `/api/clients/${id}/prompt-collections`, body);
       return res.json() as Promise<{ data: PromptCollection }>;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}/prompt-collections`] });
-      setName(""); setNotes(""); setShowForm(false);
+      setName(""); setNotes(""); setPanelType("balanced_baseline"); setShowForm(false);
       toast({ title: "Collection created" });
     },
     onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
@@ -70,10 +83,11 @@ export default function PromptCollections() {
     queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}/prompt-collections`] });
 
   const updateMutation = useMutation({
-    mutationFn: async (vars: { collectionId: number; name: string; notes?: string }) => {
+    mutationFn: async (vars: { collectionId: number; name: string; notes?: string; panelType: PromptPanelType }) => {
       await apiRequest("PATCH", `/api/prompt-collections/${vars.collectionId}`, {
         name: vars.name,
         notes: vars.notes,
+        panelType: vars.panelType,
       });
     },
     onSuccess: () => {
@@ -121,10 +135,16 @@ export default function PromptCollections() {
     },
   });
 
-  const startEdit = (collectionId: number, currentName: string, currentNotes: string | null) => {
+  const startEdit = (
+    collectionId: number,
+    currentName: string,
+    currentNotes: string | null,
+    currentPanelType: PromptPanelType
+  ) => {
     setEditingId(collectionId);
     setEditName(currentName);
     setEditNotes(currentNotes ?? "");
+    setEditPanelType(currentPanelType);
     setDeleteConfirmId(null);
   };
 
@@ -154,7 +174,7 @@ export default function PromptCollections() {
 
       {showForm && (
         <form
-          onSubmit={(e) => { e.preventDefault(); if (name.trim()) createMutation.mutate({ name: name.trim(), notes: notes.trim() || undefined }); }}
+          onSubmit={(e) => { e.preventDefault(); if (name.trim()) createMutation.mutate({ name: name.trim(), notes: notes.trim() || undefined, panelType }); }}
           className="border rounded-lg p-5 mb-6 bg-muted/30 space-y-4"
         >
           <div className="flex items-center justify-between">
@@ -169,8 +189,21 @@ export default function PromptCollections() {
             <Label htmlFor="col-notes">Notes (optional)</Label>
             <Input id="col-notes" placeholder="Description or context" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="col-panel-type">Panel type</Label>
+            <select
+              id="col-panel-type"
+              value={panelType}
+              onChange={(e) => setPanelType(e.target.value as PromptPanelType)}
+              className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {PROMPT_PANEL_TYPES.map((t) => (
+                <option key={t} value={t}>{PANEL_TYPE_LABELS[t]}</option>
+              ))}
+            </select>
+          </div>
           <div className="flex gap-2 justify-end">
-            <Button type="button" variant="ghost" size="sm" onClick={() => { setShowForm(false); setName(""); setNotes(""); }}>Cancel</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => { setShowForm(false); setName(""); setNotes(""); setPanelType("balanced_baseline"); }}>Cancel</Button>
             <Button type="submit" size="sm" disabled={createMutation.isPending || !name.trim()}>
               {createMutation.isPending ? "Creating…" : "Create"}
             </Button>
@@ -196,6 +229,7 @@ export default function PromptCollections() {
                         collectionId: c.id,
                         name: editName.trim(),
                         notes: editNotes.trim() || undefined,
+                        panelType: editPanelType,
                       });
                   }}
                   className="space-y-3"
@@ -219,6 +253,20 @@ export default function PromptCollections() {
                       onChange={(e) => setEditNotes(e.target.value)}
                       data-testid={`input-edit-notes-${c.id}`}
                     />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`edit-panel-type-${c.id}`}>Panel type</Label>
+                    <select
+                      id={`edit-panel-type-${c.id}`}
+                      value={editPanelType}
+                      onChange={(e) => setEditPanelType(e.target.value as PromptPanelType)}
+                      className="w-full h-9 rounded-md border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      data-testid={`select-edit-panel-type-${c.id}`}
+                    >
+                      {PROMPT_PANEL_TYPES.map((t) => (
+                        <option key={t} value={t}>{PANEL_TYPE_LABELS[t]}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="flex gap-2 justify-end">
                     <Button type="button" variant="ghost" size="sm" onClick={() => setEditingId(null)}>
@@ -255,7 +303,7 @@ export default function PromptCollections() {
                       size="icon"
                       className="h-7 w-7"
                       title="Edit name and notes"
-                      onClick={() => startEdit(c.id, c.name, c.notes)}
+                      onClick={() => startEdit(c.id, c.name, c.notes, c.panelType)}
                       data-testid={`button-edit-collection-${c.id}`}
                     >
                       <Pencil className="h-4 w-4" />

@@ -327,6 +327,21 @@ export const BRAND_CONTEXTS = [
 ] as const;
 export type BrandContext = (typeof BRAND_CONTEXTS)[number];
 
+// issue #4 Phase 3 item 9: generation composition, orthogonal to run
+// purpose (full_panel/sentinel/ad_hoc) and to methodology version. A
+// collection's panelType is fixed at creation/edit time and determines
+// which server-owned quota distribution (server/services/
+// panelTypeQuotas.ts) generation is validated against.
+export const PROMPT_PANEL_TYPES = [
+  "balanced_baseline",
+  "discovery",
+  "entity_audit",
+  "competitive",
+  "topic_authority",
+  "local_commercial",
+] as const;
+export type PromptPanelType = (typeof PROMPT_PANEL_TYPES)[number];
+
 export const COMMERCIAL_VALUES = ["low", "medium", "high"] as const;
 export type CommercialValue = (typeof COMMERCIAL_VALUES)[number];
 
@@ -358,6 +373,8 @@ export const promptCollections = sqliteTable("prompt_collections", {
   status: text("status").notNull().default("draft"), // 'draft' | 'active' | 'archived'
   notes: text("notes"),
   parentCollectionId: integer("parent_collection_id"),
+  // issue #4 Phase 3 item 9: generation composition (see PROMPT_PANEL_TYPES).
+  panelType: text("panel_type").notNull().default("balanced_baseline"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -441,6 +458,7 @@ export const promptMethodologies = sqliteTable("prompt_methodologies", {
 export const insertPromptCollectionSchema = z.object({
   name: z.string().min(1, "Name is required"),
   notes: z.string().optional(),
+  panelType: z.enum(PROMPT_PANEL_TYPES).default("balanced_baseline"),
 });
 
 export const insertPromptSchema = z.object({
@@ -546,6 +564,7 @@ export type PromptCollection = {
   status: "draft" | "active" | "archived";
   notes: string | null;
   parentCollectionId: number | null;
+  panelType: PromptPanelType;
   createdAt: number;
   updatedAt: number;
 };

@@ -16,7 +16,7 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-06-14
- * Last Modified Date: 2026-07-24
+ * Last Modified Date: 2026-07-28
  * Comments:
  * - v1.00 Initial implementation (B-12)
  * - v1.01 YLG foundation sprint: 8-type intent taxonomy, expanded
@@ -32,6 +32,10 @@
  *   cell rejection (intentType+service+geo+brandContext), always-on for
  *   the in-batch pool, opt-in against existing prompts via
  *   existingPromptCells
+ * - v1.05 issue #4 Phase 3 item 9 (slice 1): GenerationContext.panelType,
+ *   buildGenerationPrompt states the resolved exact per-intent quota
+ *   counts and a hard brand-constraint instruction per panel type,
+ *   replacing the free-form "about 80%" guidance for non-baseline types
  */
 
 import { z } from "zod";
@@ -46,11 +50,13 @@ import {
   type GenerationResult,
   type PromptCategory,
   type PromptIntentType,
+  type PromptPanelType,
 } from "@shared/schema";
 import { deriveBrandContext } from "./brandContext";
 import { checkApprovedGeo, checkCoreService } from "./promptMetadataValidation";
 import { isNearDuplicate, jaccardSimilarity } from "./nearDuplicate";
 import { measurementCellKey, type MeasurementCell } from "./measurementCell";
+import { resolvePanelTypeQuotas, type PanelBrandConstraint } from "./panelTypeQuotas";
 import type { BrandInput } from "./parser";
 
 const GENERATION_ADAPTER_ORDER = [
@@ -77,6 +83,10 @@ export interface GenerationContext {
   // skipped, same convention as ParseOptions.existingPromptCells.
   existingPromptCells?: MeasurementCell[];
   count: number;
+  // issue #4 Phase 3 item 9: which server-owned quota distribution
+  // (server/services/panelTypeQuotas.ts) this generation is composed
+  // against.
+  panelType: PromptPanelType;
 }
 
 export interface ParseOptions {
@@ -164,12 +174,35 @@ export function pickGenerationAdapter(): PlatformAdapter {
   throw new AppError(503, "No AI platform is configured for prompt generation", "NO_GENERATION_ADAPTER");
 }
 
+// issue #4 Phase 3 item 9: what each panel type's brand constraint means
+// for the LLM instructions. baseline_mix keeps the historical free-form
+// "about 80/20" guidance since it isn't a hard per-prompt rule; the other
+// three constraints are absolute per-prompt requirements.
+function brandConstraintInstruction(constraint: PanelBrandConstraint): string {
+  switch (constraint) {
+    case "unbranded_only":
+      return "Every prompt must not name the client, any competitor, or any other specific business by name - this is a pure discovery panel.";
+    case "client_branded_only":
+      return "Every prompt must reference the client's own brand name directly - this is an entity/brand-recognition audit panel.";
+    case "competitor_branded_only":
+      return "Every prompt must name at least one of the listed competitors directly - this is a competitive-comparison panel.";
+    case "baseline_mix":
+      return "About 80% of prompts should be non-branded discovery (the client or competitor name does NOT appear in the text); about 20% may be branded or comparison prompts.";
+  }
+}
+
 export function buildGenerationPrompt(ctx: GenerationContext): string {
   const competitorList = ctx.competitorNames.length > 0 ? ctx.competitorNames.join(", ") : "(none configured)";
   const geoList = ctx.geographies.length > 0 ? ctx.geographies.join(", ") : "(none configured)";
   const serviceList = ctx.coreServices.length > 0 ? ctx.coreServices.join(", ") : "(none configured)";
   const exclusionList = ctx.exclusions.length > 0 ? ctx.exclusions.join(", ") : "(none)";
   const brandList = ctx.clientBrandNames.join(", ");
+
+  const resolved = resolvePanelTypeQuotas(ctx.panelType, ctx.count);
+  const quotaList = Object.entries(resolved.intentCounts)
+    .filter(([, n]) => (n ?? 0) > 0)
+    .map(([intent, n]) => `${intent}: ${n}`)
+    .join(", ");
 
   return [
     "You are generating realistic customer prompts for an AI visibility measurement panel,",
@@ -188,8 +221,8 @@ export function buildGenerationPrompt(ctx: GenerationContext): string {
     `Excluded topics/services (never generate prompts about these): ${exclusionList}`,
     "",
     `Generate exactly ${ctx.count} prompts, distributed across these 9 intent types.`,
-    "About 80% of prompts should be non-branded discovery (the client or competitor name",
-    "does NOT appear in the text); about 20% may be branded or comparison prompts.",
+    `Exact required distribution for this panel: ${quotaList}.`,
+    brandConstraintInstruction(resolved.brandConstraint),
     "",
     '- provider_recommendation: asks for recommended businesses or providers, e.g. "Who are the best commercial roofers in Grand Rapids?"',
     '- service_specific: asks who provides a defined service, e.g. "Who installs standing-seam metal roofs in West Michigan?"',

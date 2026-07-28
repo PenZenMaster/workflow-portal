@@ -9,7 +9,7 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-09
- * Last Modified Date: 2026-07-24
+ * Last Modified Date: 2026-07-28
  * Comments:
  * - v1.00 Sprint 2 initial implementation
  * - v1.01 B-18: collection archive/unarchive + guarded DELETE
@@ -18,6 +18,8 @@
  * - v1.03 issue #4 Phase 2 item 8: brandContext/brandInPrompt
  *   recomputed from text at both prompt-save endpoints, never trusting
  *   a client-supplied value
+ * - v1.04 issue #4 Phase 3 item 9 (slice 1): the collection's panelType
+ *   is passed into generation context
  */
 
 import type { Express } from "express";
@@ -306,6 +308,7 @@ export function registerPromptRoutes(app: Express): void {
         existingPromptTexts: existingPrompts.map((p) => p.text),
         existingPromptCells,
         count: parsed.data.count,
+        panelType: collection.panelType,
       };
       const { provenance, ...result } = await generatePrompts(context);
 

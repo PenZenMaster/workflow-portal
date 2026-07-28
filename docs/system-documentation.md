@@ -859,6 +859,54 @@ as-generated text and shows a warning once it's edited ("Text edited -
 intent/service/geo classification may no longer match") - informational
 only, does not block save.
 
+**Panel types (v1.55.0, issue #4 Phase 3 item 9, slice 1):** a collection's
+`panel_type` (`prompt_collections.panel_type`, default `balanced_baseline`,
+editable from the Prompt Collections list page, shown read-only on the
+collection detail page) selects which server-owned intent/brand-context
+distribution `Generate with AI` targets, replacing the single implicit
+80/20-ish mix every collection used before this version:
+
+| Panel type | Composition | Brand constraint |
+|---|---|---|
+| `balanced_baseline` | Today's default 9-intent mix (same ratios as `METHODOLOGY_V2_QUOTAS`) | 80% unbranded / 20% branded (soft target) |
+| `discovery` | problem_solution/provider_recommendation/service_specific/geographic_discovery/educational/trust_validation | Unbranded only - client and competitor names prohibited |
+| `entity_audit` | brand_validation/trust_validation/provider_recommendation | Client-branded only |
+| `competitive` | comparison/alternative/brand_validation | Competitor-branded only |
+| `topic_authority` | educational/problem_solution/trust_validation | Unbranded only |
+| `local_commercial` | geographic_discovery/service_specific/provider_recommendation/problem_solution | 80% unbranded / 20% branded (soft target) |
+
+Distributions are stored as **ratios**, not fixed prompt totals
+(`server/services/panelTypeQuotas.ts`, `PANEL_TYPE_QUOTAS`) - `resolvePanelTypeQuotas(panelType, count)`
+resolves them against whatever count the analyst actually requests via
+`Generate with AI` (largest-remainder rounding, so per-intent counts
+always sum exactly to `count`). This deliberately differs from
+`prompt_methodologies`, which stores a fixed `panelSize`: panel type is
+generation *composition*, methodology version is measurement
+*definition* - orthogonal concepts (see "Methodology versioning" above),
+and tying panel-type quotas to a fixed size would silently mismatch any
+requested count other than that one number.
+
+`buildGenerationPrompt` now states the resolved exact per-intent counts
+to the LLM instead of "distributed across these 9 intent types" alone,
+and for the three hard-constraint panel types (`discovery`,
+`entity_audit`, `competitive`, `topic_authority` is unbranded but not
+listed as a *naming* constraint the same way) adds an explicit
+per-prompt instruction (e.g. "Every prompt must not name the client, any
+competitor, or any other specific business by name"). `balanced_baseline`
+and `local_commercial` keep the original soft "about 80%/20%" guidance
+since their brand mix is a target, not a per-prompt rule.
+
+**Known gap carried into slice 1 (tracked for slice 2, issue #4 Phase 3
+item 9 continued):** the resolved quotas are only used to *instruct* the
+LLM - nothing yet validates that a generation's returned candidates
+actually satisfy them, or retries/blocks when they don't. This gap
+predates panel types: it's Section D of issue #4 ("calculate exact
+quotas server-side... validate... retry or block"), which was scoped as
+Phase 1 item 5 but Phase 1 slice 6 (v1.48.0) delivered only the versioned
+quota *record* (`prompt_methodologies`), not per-generation enforcement -
+`promptGenerator.ts` has never read `MethodologyQuotas` for validation.
+Slice 2 closes this for all panel types at once.
+
 The portal supports seven prompt categories. Use each to cover different stages of the buyer journey.
 
 **Category prompts** — broad discovery queries

@@ -35,6 +35,7 @@ const DRAFT_COLLECTION = {
   status: "draft" as const,
   notes: "Original notes",
   parentCollectionId: null,
+  panelType: "balanced_baseline" as const,
   createdAt: Date.now(),
   updatedAt: Date.now(),
 };
@@ -120,6 +121,67 @@ describe("PromptCollections - edit", () => {
     };
     expect(body.name).toBe("Q1 Audit Renamed");
     expect(body.notes).toBe("Original notes");
+  });
+});
+
+describe("PromptCollections - panel type (issue #4 Phase 3 item 9)", () => {
+  it("New collection form defaults panel type to balanced_baseline and includes it in the create payload", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /new collection/i }));
+    expect(screen.getByLabelText(/panel type/i)).toHaveValue("balanced_baseline");
+
+    await user.type(screen.getByLabelText(/^name/i), "New Discovery Panel");
+    await user.click(screen.getByRole("button", { name: /^create$/i }));
+
+    await waitFor(() => {
+      expect(mutationCalls()).toContainEqual(["POST", "/api/clients/10/prompt-collections"]);
+    });
+    const postCall = fetchMock.mock.calls.find(
+      ([, init]) => (init as RequestInit | undefined)?.method === "POST"
+    );
+    const body = JSON.parse((postCall![1] as RequestInit).body as string) as { panelType?: string };
+    expect(body.panelType).toBe("balanced_baseline");
+  });
+
+  it("New collection form can select a different panel type before creating", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /new collection/i }));
+    await user.selectOptions(screen.getByLabelText(/panel type/i), "discovery");
+    await user.type(screen.getByLabelText(/^name/i), "New Discovery Panel");
+    await user.click(screen.getByRole("button", { name: /^create$/i }));
+
+    await waitFor(() => {
+      expect(mutationCalls()).toContainEqual(["POST", "/api/clients/10/prompt-collections"]);
+    });
+    const postCall = fetchMock.mock.calls.find(
+      ([, init]) => (init as RequestInit | undefined)?.method === "POST"
+    );
+    const body = JSON.parse((postCall![1] as RequestInit).body as string) as { panelType?: string };
+    expect(body.panelType).toBe("discovery");
+  });
+
+  it("Edit reveals the current panel type and Save PATCHes a changed value", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByTestId("button-edit-collection-1"));
+    expect(screen.getByTestId("select-edit-panel-type-1")).toHaveValue("balanced_baseline");
+
+    await user.selectOptions(screen.getByTestId("select-edit-panel-type-1"), "entity_audit");
+    await user.click(screen.getByTestId("button-save-edit-1"));
+
+    await waitFor(() => {
+      expect(mutationCalls()).toContainEqual(["PATCH", "/api/prompt-collections/1"]);
+    });
+    const patchCall = fetchMock.mock.calls.find(
+      ([, init]) => (init as RequestInit | undefined)?.method === "PATCH"
+    );
+    const body = JSON.parse((patchCall![1] as RequestInit).body as string) as { panelType?: string };
+    expect(body.panelType).toBe("entity_audit");
   });
 });
 

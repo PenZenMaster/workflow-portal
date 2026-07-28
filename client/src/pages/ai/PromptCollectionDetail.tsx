@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { Prompt, PromptCollection, Platform, GeneratedPromptCandidate, GenerationResult, PromptGenerationRun, RunSchedule } from "@shared/schema";
+import type { Prompt, PromptCollection, Platform, GeneratedPromptCandidate, GenerationResult, PromptGenerationRun, RunSchedule, PromptPanelType } from "@shared/schema";
 import { PROMPT_CATEGORIES } from "@shared/schema";
 
 const CATEGORY_LABELS: Record<typeof PROMPT_CATEGORIES[number], string> = {
@@ -11,6 +11,18 @@ const CATEGORY_LABELS: Record<typeof PROMPT_CATEGORIES[number], string> = {
   local:         "Local",
   problem_aware: "Problem-aware",
   alternative:   "Alternative",
+};
+
+// issue #4 Phase 3 item 9 - kept editable only from the Prompt Collections
+// list page; this page shows it read-only so analysts know which
+// distribution Generate with AI is targeting.
+const PANEL_TYPE_LABELS: Record<PromptPanelType, string> = {
+  balanced_baseline: "Balanced baseline",
+  discovery: "Discovery (unbranded only)",
+  entity_audit: "Entity audit (client-branded only)",
+  competitive: "Competitive (competitor-branded only)",
+  topic_authority: "Topic authority",
+  local_commercial: "Local commercial",
 };
 import { utcToLocalWeekly, localToUtcWeekly, utcHourToLocalHour, localHourToUtcHour } from "@/lib/scheduleTiming";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -311,6 +323,9 @@ export default function PromptCollectionDetail() {
               <span className="text-sm text-muted-foreground">v{collection.version}</span>
               <span className={`text-xs px-2 py-0.5 rounded ${isActive ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-muted text-muted-foreground"}`}>
                 {collection.status}
+              </span>
+              <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground" title="Panel type - change from the Prompt Collections list page">
+                {PANEL_TYPE_LABELS[collection.panelType]}
               </span>
             </div>
           </div>

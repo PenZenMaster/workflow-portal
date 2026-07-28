@@ -188,6 +188,7 @@ export const SCHEMA_SQL = `
     status TEXT NOT NULL DEFAULT 'draft',
     notes TEXT,
     parent_collection_id INTEGER,
+    panel_type TEXT NOT NULL DEFAULT 'balanced_baseline',
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );

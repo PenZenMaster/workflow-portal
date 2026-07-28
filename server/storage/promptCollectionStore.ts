@@ -9,10 +9,12 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-09
- * Last Modified Date: 2026-07-03
+ * Last Modified Date: 2026-07-28
  * Comments:
  * - v1.00 Sprint 2 initial implementation
  * - v1.01 B-18: setStatus (archive/unarchive), countRuns, cascading delete
+ * - v1.02 issue #4 Phase 3 item 9 (slice 1): panelType round-trips
+ *   through hydrate/create/update/clone
  */
 
 import { promptCollections, prompts, promptRuns, runSchedules } from "@shared/schema";
@@ -32,6 +34,7 @@ function hydrate(row: Row): PromptCollection {
     status: row.status as "draft" | "active" | "archived",
     notes: row.notes,
     parentCollectionId: row.parentCollectionId,
+    panelType: row.panelType as PromptCollection["panelType"],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -84,6 +87,7 @@ export class PromptCollectionStore implements IPromptCollectionStore {
         clientId,
         name: data.name,
         notes: data.notes ?? null,
+        panelType: data.panelType,
         status: "draft",
         version: 1,
         createdAt: now,
@@ -106,7 +110,7 @@ export class PromptCollectionStore implements IPromptCollectionStore {
     if (!existing) return undefined;
     const row = this._db
       .update(promptCollections)
-      .set({ name: data.name, notes: data.notes ?? null, updatedAt: Date.now() })
+      .set({ name: data.name, notes: data.notes ?? null, panelType: data.panelType, updatedAt: Date.now() })
       .where(eq(promptCollections.id, id))
       .returning()
       .get();
@@ -136,6 +140,7 @@ export class PromptCollectionStore implements IPromptCollectionStore {
         version: source.version + 1,
         status: "draft",
         notes: source.notes,
+        panelType: source.panelType,
         parentCollectionId: source.id,
         createdAt: now,
         updatedAt: now,

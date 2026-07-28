@@ -81,6 +81,7 @@ const SAMPLE_COLLECTION = {
   status: "draft" as const,
   notes: null,
   parentCollectionId: null,
+  panelType: "balanced_baseline" as const,
   createdAt: Date.now(),
   updatedAt: Date.now(),
 };
@@ -628,7 +629,28 @@ describe("POST /api/clients/:clientId/prompt-collections/:id/generate-prompts", 
       existingPromptTexts: ["Best SEO agency in Seattle"],
       existingPromptCells: [],
       count: 5,
+      panelType: "balanced_baseline",
     });
+  });
+
+  it("passes the collection's panelType through to generation (issue #4 Phase 3 item 9)", async () => {
+    mockClientStore.get.mockResolvedValue(SAMPLE_CLIENT);
+    mockCollectionStore.get.mockResolvedValue({ ...SAMPLE_COLLECTION, panelType: "discovery" });
+    mockBrandStore.listByClient.mockResolvedValue([]);
+    mockPromptStore.listByCollection.mockResolvedValue([]);
+    mockGeneratePrompts.mockResolvedValue({
+      candidates: [],
+      invalid: [],
+      warnings: [],
+      provenance: { adapterSlug: "openai", modelVariant: "gpt-4o-mini", rawText: "RAW_LLM_OUTPUT" },
+    });
+
+    await request(buildApp("analyst"))
+      .post("/api/clients/10/prompt-collections/1/generate-prompts")
+      .send({ count: 5 });
+
+    const context = mockGeneratePrompts.mock.calls[0][0];
+    expect(context.panelType).toBe("discovery");
   });
 
   it("passes existing prompts' measurement cells through for duplicate-cell detection (issue #4 Phase 2 item 7), excluding unclassified prompts", async () => {
