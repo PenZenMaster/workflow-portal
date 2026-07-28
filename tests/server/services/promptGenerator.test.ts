@@ -12,6 +12,7 @@ vi.mock("../../../server/adapters/registry", () => ({
 
 import {
   buildGenerationPrompt,
+  buildRetryGenerationPrompt,
   parseGeneratedPrompts,
   pickGenerationAdapter,
   generatePrompts,
@@ -118,6 +119,26 @@ describe("promptGenerator", () => {
     it("instructs competitive panels to name a competitor in every prompt", () => {
       const prompt = buildGenerationPrompt({ ...BASE_CONTEXT, panelType: "competitive" });
       expect(prompt.toLowerCase()).toContain("every prompt must name at least one");
+    });
+  });
+
+  describe("buildRetryGenerationPrompt (issue #4 Phase 3 item 9 slice 2)", () => {
+    it("asks only for the missing intent cells and states the exact retry count", () => {
+      const prompt = buildRetryGenerationPrompt(BASE_CONTEXT, { trust_validation: 2, comparison: 1 });
+
+      expect(prompt).toContain("3 MORE prompts");
+      expect(prompt).toContain("trust_validation: 2");
+      expect(prompt).toContain("comparison: 1");
+      // The shared intent-taxonomy reference always lists all 9 intents -
+      // only the required-distribution line should be shortfall-only.
+      expect(prompt).not.toContain("provider_recommendation: 1");
+    });
+
+    it("still includes client context and the panel's brand constraint", () => {
+      const prompt = buildRetryGenerationPrompt({ ...BASE_CONTEXT, panelType: "discovery" }, { educational: 1 });
+
+      expect(prompt).toContain("Acme Plumbing");
+      expect(prompt.toLowerCase()).toContain("must not name the client");
     });
   });
 
@@ -438,6 +459,90 @@ describe("promptGenerator", () => {
 
       expect(result.candidates[0].warnings).toEqual([]);
     });
+
+    describe("quota enforcement (issue #4 Phase 3 item 9 slice 2)", () => {
+      it("defaults panelType to balanced_baseline when omitted, matching pre-slice-2 behavior", () => {
+        const raw = JSON.stringify([rawItem({ text: "Is Acme Plumbing a reputable business?" })]);
+        const result = parseGeneratedPrompts(raw, {
+          requestedCount: 1,
+          clientBrandNames: BASE_CONTEXT.clientBrandNames,
+          competitorNames: BASE_CONTEXT.competitorNames,
+        });
+        // balanced_baseline's brandConstraint is baseline_mix - never rejects on brand context alone.
+        expect(result.candidates).toHaveLength(1);
+      });
+
+      it("rejects a client-branded candidate under a discovery (unbranded_only) panel", () => {
+        const raw = JSON.stringify([rawItem({ text: "Is Acme Plumbing a reputable business?" })]);
+
+        const result = parseGeneratedPrompts(raw, {
+          requestedCount: 1,
+          panelType: "discovery",
+          clientBrandNames: BASE_CONTEXT.clientBrandNames,
+          competitorNames: BASE_CONTEXT.competitorNames,
+        });
+
+        expect(result.candidates).toHaveLength(0);
+        expect(result.invalid).toHaveLength(1);
+        expect(result.invalid[0].errors[0]).toMatch(/panel type/i);
+      });
+
+      it("accepts an unbranded candidate under a discovery panel", () => {
+        const raw = JSON.stringify([rawItem({ text: "Who repairs leaky faucets in Seattle?" })]);
+
+        const result = parseGeneratedPrompts(raw, {
+          requestedCount: 1,
+          panelType: "discovery",
+          clientBrandNames: BASE_CONTEXT.clientBrandNames,
+          competitorNames: BASE_CONTEXT.competitorNames,
+        });
+
+        expect(result.candidates).toHaveLength(1);
+        expect(result.invalid).toEqual([]);
+      });
+
+      it("rejects an unbranded candidate under an entity_audit (client_branded_only) panel", () => {
+        const raw = JSON.stringify([rawItem({ text: "Who repairs leaky faucets in Seattle?" })]);
+
+        const result = parseGeneratedPrompts(raw, {
+          requestedCount: 1,
+          panelType: "entity_audit",
+          clientBrandNames: BASE_CONTEXT.clientBrandNames,
+          competitorNames: BASE_CONTEXT.competitorNames,
+        });
+
+        expect(result.candidates).toHaveLength(0);
+        expect(result.invalid[0].errors[0]).toMatch(/panel type/i);
+      });
+
+      it("reports quotaShortfall for intent cells not met by the accepted candidates", () => {
+        const raw = JSON.stringify([
+          rawItem({ text: "Is Acme Plumbing a reputable business?", intentType: "brand_validation" }),
+        ]);
+
+        const result = parseGeneratedPrompts(raw, {
+          requestedCount: 15,
+          panelType: "entity_audit",
+          clientBrandNames: BASE_CONTEXT.clientBrandNames,
+          competitorNames: BASE_CONTEXT.competitorNames,
+        });
+
+        // entity_audit at count 15: brand_validation ~8, trust_validation ~4,
+        // provider_recommendation ~3 - only one brand_validation candidate
+        // was supplied, so both other cells are entirely unmet.
+        expect(result.quotaShortfall.trust_validation).toBeGreaterThan(0);
+        expect(result.quotaShortfall.provider_recommendation).toBeGreaterThan(0);
+      });
+
+      it("reports an empty quotaShortfall when the panel is fully satisfied", () => {
+        const raw = JSON.stringify([rawItem({ text: "Who repairs leaky faucets in Seattle?" })]);
+
+        // balanced_baseline at count 0 resolves every intent cell to 0.
+        const result = parseGeneratedPrompts(raw, { requestedCount: 0, panelType: "balanced_baseline" });
+
+        expect(result.quotaShortfall).toEqual({});
+      });
+    });
   });
 
   describe("pickGenerationAdapter", () => {
@@ -530,8 +635,65 @@ describe("promptGenerator", () => {
         existingPromptTexts: ["Best plumber in Seattle"],
       });
 
+      // The single rejected candidate leaves the balanced_baseline count-1
+      // quota (provider_recommendation: 1) unmet, so the automatic slice-2
+      // retry fires - the mock always returns the same duplicate text, so
+      // it's rejected a second time too (invalid grows to 2, run to 2 calls).
+      expect(run).toHaveBeenCalledTimes(2);
       expect(result.candidates).toHaveLength(0);
-      expect(result.invalid).toHaveLength(1);
+      expect(result.invalid).toHaveLength(2);
+    });
+
+    describe("quota-shortfall retry (issue #4 Phase 3 item 9 slice 2)", () => {
+      it("does not retry when the first response already satisfies the resolved quotas", async () => {
+        const raw = JSON.stringify([rawItem()]); // provider_recommendation - satisfies count-1 balanced_baseline
+        const run = vi.fn().mockResolvedValue({
+          text: raw, summaryBlock: null, citations: [], modelVariant: null, latencyMs: 10, rawPayload: {},
+        });
+        mockGetUtilityAdapter.mockImplementation((slug: string) => (slug === "openai" ? { id: "openai", run } : undefined));
+
+        const result = await generatePrompts({ ...BASE_CONTEXT, count: 1 });
+
+        expect(run).toHaveBeenCalledTimes(1);
+        expect(result.quotaShortfall).toEqual({});
+      });
+
+      it("retries once and merges the retry's candidates in when the first response falls short", async () => {
+        const firstRaw = JSON.stringify([rawItem()]); // 1 provider_recommendation
+        const retryRaw = JSON.stringify([
+          rawItem({ text: "Who repairs water heaters in Seattle?", intentType: "service_specific" }),
+        ]);
+        const run = vi
+          .fn()
+          .mockResolvedValueOnce({ text: firstRaw, summaryBlock: null, citations: [], modelVariant: null, latencyMs: 10, rawPayload: {} })
+          .mockResolvedValueOnce({ text: retryRaw, summaryBlock: null, citations: [], modelVariant: null, latencyMs: 10, rawPayload: {} });
+        mockGetUtilityAdapter.mockImplementation((slug: string) => (slug === "openai" ? { id: "openai", run } : undefined));
+
+        // count 6 needs 5 more intent cells filled after only 1 candidate -
+        // the retry supplies a service_specific candidate for one of them.
+        const result = await generatePrompts({ ...BASE_CONTEXT, count: 6 });
+
+        expect(run).toHaveBeenCalledTimes(2);
+        expect(result.candidates).toHaveLength(2);
+        expect(result.candidates.map((c) => c.intentType)).toEqual(
+          expect.arrayContaining(["provider_recommendation", "service_specific"])
+        );
+      });
+
+      it("retries only once even if the retry itself still falls short (no infinite loop)", async () => {
+        const raw = JSON.stringify([rawItem()]); // same single candidate every call
+        const run = vi.fn().mockResolvedValue({
+          text: raw, summaryBlock: null, citations: [], modelVariant: null, latencyMs: 10, rawPayload: {},
+        });
+        mockGetUtilityAdapter.mockImplementation((slug: string) => (slug === "openai" ? { id: "openai", run } : undefined));
+
+        const result = await generatePrompts({ ...BASE_CONTEXT, count: 6 });
+
+        expect(run).toHaveBeenCalledTimes(2);
+        // Second call returns the same normalized text again - deduped as a pool
+        // duplicate, so the shortfall persists but no third call is made.
+        expect(Object.keys(result.quotaShortfall).length).toBeGreaterThan(0);
+      });
     });
 
     it("passes the client's geographies and coreServices through to the metadata check (issue #4 Phase 2 item 6)", async () => {

@@ -16,9 +16,13 @@
  * Last Modified Date: 2026-07-28
  * Comments:
  * - v1.00 issue #4 Phase 3 slice 1 initial implementation
+ * - v1.01 issue #4 Phase 3 slice 2: computeQuotaShortfall (per-intent
+ *   gap against a resolved panel after generation) and
+ *   violatesBrandConstraint (hard per-prompt brand-context rule for
+ *   the three non-baseline_mix constraints)
  */
 
-import type { PromptPanelType, PromptIntentType } from "@shared/schema";
+import type { PromptPanelType, PromptIntentType, BrandContext } from "@shared/schema";
 
 export type PanelBrandConstraint =
   | "baseline_mix" // 80/20 unbranded/branded split, same as today's default generator behavior
@@ -150,4 +154,41 @@ export function resolvePanelTypeQuotas(panelType: PromptPanelType, count: number
     intentCounts: distributeCounts(table.intentRatios, count),
     brandConstraint: table.brandConstraint,
   };
+}
+
+// issue #4 Phase 3 item 9 (slice 2), Section D: after generation, how far
+// short of the resolved quota is each intent cell? Only ever positive -
+// an over-represented intent is not a shortfall, just an excess the
+// methodology-diagnostics panel (slice 5) can surface separately.
+export function computeQuotaShortfall(
+  resolved: ResolvedPanelQuotas,
+  candidates: { intentType: PromptIntentType }[]
+): Partial<Record<PromptIntentType, number>> {
+  const actual = new Map<PromptIntentType, number>();
+  for (const c of candidates) {
+    actual.set(c.intentType, (actual.get(c.intentType) ?? 0) + 1);
+  }
+
+  const shortfall: Partial<Record<PromptIntentType, number>> = {};
+  for (const [intent, required] of Object.entries(resolved.intentCounts) as [PromptIntentType, number][]) {
+    const gap = required - (actual.get(intent) ?? 0);
+    if (gap > 0) shortfall[intent] = gap;
+  }
+  return shortfall;
+}
+
+// issue #4 Phase 3 item 9 (slice 2): baseline_mix is a soft target (no
+// per-prompt rule to violate); the other three constraints are absolute
+// requirements a single candidate's brandContext must satisfy.
+export function violatesBrandConstraint(brandContext: BrandContext, constraint: PanelBrandConstraint): boolean {
+  switch (constraint) {
+    case "baseline_mix":
+      return false;
+    case "unbranded_only":
+      return brandContext !== "unbranded";
+    case "client_branded_only":
+      return brandContext !== "client_branded" && brandContext !== "client_and_competitor";
+    case "competitor_branded_only":
+      return brandContext !== "competitor_branded" && brandContext !== "client_and_competitor";
+  }
 }

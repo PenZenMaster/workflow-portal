@@ -14,10 +14,17 @@
  * Last Modified Date: 2026-07-28
  * Comments:
  * - v1.00 issue #4 Phase 3 slice 1 initial implementation
+ * - v1.01 issue #4 Phase 3 slice 2: computeQuotaShortfall and
+ *   violatesBrandConstraint (quota enforcement)
  */
 
 import { describe, it, expect } from "vitest";
-import { resolvePanelTypeQuotas, PANEL_TYPE_QUOTAS } from "../../../server/services/panelTypeQuotas";
+import {
+  resolvePanelTypeQuotas,
+  PANEL_TYPE_QUOTAS,
+  computeQuotaShortfall,
+  violatesBrandConstraint,
+} from "../../../server/services/panelTypeQuotas";
 import { PROMPT_PANEL_TYPES } from "../../../shared/schema";
 
 describe("resolvePanelTypeQuotas", () => {
@@ -84,5 +91,64 @@ describe("resolvePanelTypeQuotas", () => {
     const resolved = resolvePanelTypeQuotas("balanced_baseline", 0);
     const total = Object.values(resolved.intentCounts).reduce((a, b) => a + (b ?? 0), 0);
     expect(total).toBe(0);
+  });
+});
+
+describe("computeQuotaShortfall", () => {
+  it("returns an empty object when every intent cell is fully met", () => {
+    const resolved = resolvePanelTypeQuotas("entity_audit", 15); // brand_validation 8, trust_validation 4, provider_recommendation 3 (7.5/3.75/3.75 -> largest remainder)
+    const candidates = [
+      ...Array(resolved.intentCounts.brand_validation ?? 0).fill({ intentType: "brand_validation" }),
+      ...Array(resolved.intentCounts.trust_validation ?? 0).fill({ intentType: "trust_validation" }),
+      ...Array(resolved.intentCounts.provider_recommendation ?? 0).fill({ intentType: "provider_recommendation" }),
+    ];
+    expect(computeQuotaShortfall(resolved, candidates)).toEqual({});
+  });
+
+  it("reports a positive shortfall for an under-represented intent and omits satisfied ones", () => {
+    const resolved = resolvePanelTypeQuotas("entity_audit", 15);
+    const candidates = [
+      ...Array(resolved.intentCounts.brand_validation ?? 0).fill({ intentType: "brand_validation" }),
+      // trust_validation and provider_recommendation entirely missing
+    ];
+    const shortfall = computeQuotaShortfall(resolved, candidates);
+    expect(shortfall.brand_validation).toBeUndefined();
+    expect(shortfall.trust_validation).toBe(resolved.intentCounts.trust_validation);
+    expect(shortfall.provider_recommendation).toBe(resolved.intentCounts.provider_recommendation);
+  });
+
+  it("never reports a negative shortfall when an intent is over-represented", () => {
+    const resolved = resolvePanelTypeQuotas("competitive", 15);
+    const candidates = Array(30).fill({ intentType: "comparison" });
+    const shortfall = computeQuotaShortfall(resolved, candidates);
+    expect(shortfall.comparison).toBeUndefined();
+  });
+});
+
+describe("violatesBrandConstraint", () => {
+  it("baseline_mix never violates, regardless of brand context", () => {
+    expect(violatesBrandConstraint("client_branded", "baseline_mix")).toBe(false);
+    expect(violatesBrandConstraint("unbranded", "baseline_mix")).toBe(false);
+  });
+
+  it("unbranded_only violates for any branded context", () => {
+    expect(violatesBrandConstraint("unbranded", "unbranded_only")).toBe(false);
+    expect(violatesBrandConstraint("client_branded", "unbranded_only")).toBe(true);
+    expect(violatesBrandConstraint("competitor_branded", "unbranded_only")).toBe(true);
+    expect(violatesBrandConstraint("client_and_competitor", "unbranded_only")).toBe(true);
+  });
+
+  it("client_branded_only accepts client_branded and client_and_competitor, rejects the rest", () => {
+    expect(violatesBrandConstraint("client_branded", "client_branded_only")).toBe(false);
+    expect(violatesBrandConstraint("client_and_competitor", "client_branded_only")).toBe(false);
+    expect(violatesBrandConstraint("unbranded", "client_branded_only")).toBe(true);
+    expect(violatesBrandConstraint("competitor_branded", "client_branded_only")).toBe(true);
+  });
+
+  it("competitor_branded_only accepts competitor_branded and client_and_competitor, rejects the rest", () => {
+    expect(violatesBrandConstraint("competitor_branded", "competitor_branded_only")).toBe(false);
+    expect(violatesBrandConstraint("client_and_competitor", "competitor_branded_only")).toBe(false);
+    expect(violatesBrandConstraint("unbranded", "competitor_branded_only")).toBe(true);
+    expect(violatesBrandConstraint("client_branded", "competitor_branded_only")).toBe(true);
   });
 });

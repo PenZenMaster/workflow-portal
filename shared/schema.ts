@@ -517,6 +517,10 @@ export type GenerationResult = {
   candidates: GeneratedPromptCandidate[];
   invalid: GenerationInvalidItem[];
   warnings: string[];
+  // issue #4 Phase 3 item 9 (slice 2): per-intent shortfall against the
+  // collection's resolved panel-type quotas after all retries. Empty
+  // object means quotas were fully satisfied.
+  quotaShortfall: Partial<Record<PromptIntentType, number>>;
 };
 
 export type ClientReadiness = {

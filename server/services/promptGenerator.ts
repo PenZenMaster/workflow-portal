@@ -36,6 +36,10 @@
  *   buildGenerationPrompt states the resolved exact per-intent quota
  *   counts and a hard brand-constraint instruction per panel type,
  *   replacing the free-form "about 80%" guidance for non-baseline types
+ * - v1.06 issue #4 Phase 3 item 9 (slice 2): brand-constraint rejection,
+ *   buildRetryGenerationPrompt + one automatic retry for quota
+ *   shortfall, fixed a wiring gap where ctx.panelType was never actually
+ *   passed to parseGeneratedPrompts
  */
 
 import { z } from "zod";
@@ -56,7 +60,12 @@ import { deriveBrandContext } from "./brandContext";
 import { checkApprovedGeo, checkCoreService } from "./promptMetadataValidation";
 import { isNearDuplicate, jaccardSimilarity } from "./nearDuplicate";
 import { measurementCellKey, type MeasurementCell } from "./measurementCell";
-import { resolvePanelTypeQuotas, type PanelBrandConstraint } from "./panelTypeQuotas";
+import {
+  resolvePanelTypeQuotas,
+  computeQuotaShortfall,
+  violatesBrandConstraint,
+  type PanelBrandConstraint,
+} from "./panelTypeQuotas";
 import type { BrandInput } from "./parser";
 
 const GENERATION_ADAPTER_ORDER = [
@@ -111,6 +120,11 @@ export interface ParseOptions {
   // intentType/brandContext) before building this array, since an
   // "unclassified" cell is not a real measurement question.
   existingPromptCells?: MeasurementCell[];
+  // issue #4 Phase 3 item 9 (slice 2): which panel type's resolved
+  // quotas/brand constraint this batch is checked against. Omitted
+  // defaults to balanced_baseline (today's pre-slice-2 behavior:
+  // baseline_mix never rejects on brand context alone).
+  panelType?: PromptPanelType;
 }
 
 function toBrandInput(canonicalName: string): BrandInput {
@@ -191,18 +205,14 @@ function brandConstraintInstruction(constraint: PanelBrandConstraint): string {
   }
 }
 
-export function buildGenerationPrompt(ctx: GenerationContext): string {
+// Shared preamble + client-context block for both the initial generation
+// prompt and the slice-2 shortfall retry prompt.
+function clientContextLines(ctx: GenerationContext): string[] {
   const competitorList = ctx.competitorNames.length > 0 ? ctx.competitorNames.join(", ") : "(none configured)";
   const geoList = ctx.geographies.length > 0 ? ctx.geographies.join(", ") : "(none configured)";
   const serviceList = ctx.coreServices.length > 0 ? ctx.coreServices.join(", ") : "(none configured)";
   const exclusionList = ctx.exclusions.length > 0 ? ctx.exclusions.join(", ") : "(none)";
   const brandList = ctx.clientBrandNames.join(", ");
-
-  const resolved = resolvePanelTypeQuotas(ctx.panelType, ctx.count);
-  const quotaList = Object.entries(resolved.intentCounts)
-    .filter(([, n]) => (n ?? 0) > 0)
-    .map(([intent, n]) => `${intent}: ${n}`)
-    .join(", ");
 
   return [
     "You are generating realistic customer prompts for an AI visibility measurement panel,",
@@ -220,10 +230,12 @@ export function buildGenerationPrompt(ctx: GenerationContext): string {
     `Known competitors: ${competitorList}`,
     `Excluded topics/services (never generate prompts about these): ${exclusionList}`,
     "",
-    `Generate exactly ${ctx.count} prompts, distributed across these 9 intent types.`,
-    `Exact required distribution for this panel: ${quotaList}.`,
-    brandConstraintInstruction(resolved.brandConstraint),
-    "",
+  ];
+}
+
+// Shared intent-taxonomy reference + JSON response-format instructions.
+function intentTaxonomyAndFormatLines(): string[] {
+  return [
     '- provider_recommendation: asks for recommended businesses or providers, e.g. "Who are the best commercial roofers in Grand Rapids?"',
     '- service_specific: asks who provides a defined service, e.g. "Who installs standing-seam metal roofs in West Michigan?"',
     '- geographic_discovery: combines a service category and an approved market, e.g. "Roofing companies serving Grand Rapids, Michigan"',
@@ -246,6 +258,48 @@ export function buildGenerationPrompt(ctx: GenerationContext): string {
     '  "service": string or null - the core service the prompt targets',
     '  "location": string or null - the approved geography referenced, if any',
     '  "rationale": string - one sentence on what this prompt measures and why it matters',
+  ];
+}
+
+export function buildGenerationPrompt(ctx: GenerationContext): string {
+  const resolved = resolvePanelTypeQuotas(ctx.panelType, ctx.count);
+  const quotaList = Object.entries(resolved.intentCounts)
+    .filter(([, n]) => (n ?? 0) > 0)
+    .map(([intent, n]) => `${intent}: ${n}`)
+    .join(", ");
+
+  return [
+    ...clientContextLines(ctx),
+    `Generate exactly ${ctx.count} prompts, distributed across these 9 intent types.`,
+    `Exact required distribution for this panel: ${quotaList}.`,
+    brandConstraintInstruction(resolved.brandConstraint),
+    "",
+    ...intentTaxonomyAndFormatLines(),
+  ].join("\n");
+}
+
+// issue #4 Phase 3 item 9 (slice 2), Section D: one retry attempt for
+// quota cells the initial generation left unmet. Asks only for the
+// missing intent counts rather than the whole panel again.
+export function buildRetryGenerationPrompt(
+  ctx: GenerationContext,
+  shortfall: Partial<Record<PromptIntentType, number>>
+): string {
+  const quotaList = Object.entries(shortfall)
+    .filter(([, n]) => (n ?? 0) > 0)
+    .map(([intent, n]) => `${intent}: ${n}`)
+    .join(", ");
+  const retryCount = Object.values(shortfall).reduce((sum, n) => sum + (n ?? 0), 0);
+  const brandConstraint = resolvePanelTypeQuotas(ctx.panelType, ctx.count).brandConstraint;
+
+  return [
+    ...clientContextLines(ctx),
+    `The previous generation for this collection did not fully cover its required intent`,
+    `distribution. Generate exactly ${retryCount} MORE prompts, covering only these missing`,
+    `intent cells: ${quotaList}.`,
+    brandConstraintInstruction(brandConstraint),
+    "",
+    ...intentTaxonomyAndFormatLines(),
   ].join("\n");
 }
 
@@ -277,6 +331,10 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
   const poolCellKeys = new Set<string>();
   const clientBrandInputs = (opts.clientBrandNames ?? []).map(toBrandInput);
   const competitorBrandInputs = (opts.competitorNames ?? []).map(toBrandInput);
+
+  // issue #4 Phase 3 item 9 (slice 2): resolved once per batch - every
+  // candidate is checked against the same exact quotas/brand constraint.
+  const resolvedQuotas = resolvePanelTypeQuotas(opts.panelType ?? "balanced_baseline", opts.requestedCount);
 
   const candidates: GeneratedPromptCandidate[] = [];
   const invalid: GenerationInvalidItem[] = [];
@@ -327,6 +385,18 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
     const brandInPrompt = brandContext === "client_branded" || brandContext === "client_and_competitor";
     const service = result.data.service ?? null;
     const geo = result.data.location ?? null;
+
+    // issue #4 Phase 3 item 9 (slice 2): a hard per-prompt rule for the
+    // three non-baseline_mix panel types (e.g. discovery forbids any
+    // brand presence at all) - rejected, not warned, since it isn't a
+    // "may be legitimate" mismatch like the geo/service checks below.
+    if (violatesBrandConstraint(brandContext, resolvedQuotas.brandConstraint)) {
+      invalid.push({
+        item,
+        errors: [`Brand context "${brandContext}" is not allowed for this panel type's brand constraint`],
+      });
+      continue;
+    }
 
     // issue #4 Phase 2 item 7 (cell half): two prompts can be worded
     // differently enough to dodge the near-duplicate check above yet
@@ -389,13 +459,19 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
     );
   }
 
-  return { candidates, invalid, warnings };
+  const quotaShortfall = computeQuotaShortfall(resolvedQuotas, candidates);
+
+  return { candidates, invalid, warnings, quotaShortfall };
+}
+
+function candidateToCell(c: GeneratedPromptCandidate): MeasurementCell {
+  return { intentType: c.intentType, service: c.service, geo: c.geo, brandContext: c.brandContext };
 }
 
 export async function generatePrompts(ctx: GenerationContext): Promise<GenerationOutcome> {
   const adapter = pickGenerationAdapter();
   const response = await adapter.run(buildGenerationPrompt(ctx));
-  const result = parseGeneratedPrompts(response.text, {
+  let result = parseGeneratedPrompts(response.text, {
     requestedCount: ctx.count,
     existingPromptTexts: ctx.existingPromptTexts,
     clientBrandNames: ctx.clientBrandNames,
@@ -403,7 +479,38 @@ export async function generatePrompts(ctx: GenerationContext): Promise<Generatio
     geographies: ctx.geographies,
     coreServices: ctx.coreServices,
     existingPromptCells: ctx.existingPromptCells,
+    panelType: ctx.panelType,
   });
+
+  // issue #4 Phase 3 item 9 (slice 2), Section D: one retry attempt for
+  // quota cells the first response left unmet. The retry's own internal
+  // quotaShortfall (resolved against a different count) is discarded -
+  // only its candidates/invalid/warnings are merged in, and the final
+  // shortfall is recomputed below against the collection's actual
+  // resolved quotas.
+  if (Object.keys(result.quotaShortfall).length > 0) {
+    const retryCount = Object.values(result.quotaShortfall).reduce((sum, n) => sum + (n ?? 0), 0);
+    const retryResponse = await adapter.run(buildRetryGenerationPrompt(ctx, result.quotaShortfall));
+    const retryResult = parseGeneratedPrompts(retryResponse.text, {
+      requestedCount: retryCount,
+      existingPromptTexts: [...(ctx.existingPromptTexts ?? []), ...result.candidates.map((c) => c.text)],
+      clientBrandNames: ctx.clientBrandNames,
+      competitorNames: ctx.competitorNames,
+      geographies: ctx.geographies,
+      coreServices: ctx.coreServices,
+      existingPromptCells: [...(ctx.existingPromptCells ?? []), ...result.candidates.map(candidateToCell)],
+      panelType: ctx.panelType,
+    });
+
+    const mergedCandidates = [...result.candidates, ...retryResult.candidates];
+    result = {
+      candidates: mergedCandidates,
+      invalid: [...result.invalid, ...retryResult.invalid],
+      warnings: [...result.warnings, ...retryResult.warnings],
+      quotaShortfall: computeQuotaShortfall(resolvePanelTypeQuotas(ctx.panelType, ctx.count), mergedCandidates),
+    };
+  }
+
   return {
     ...result,
     provenance: {

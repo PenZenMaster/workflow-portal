@@ -896,16 +896,46 @@ competitor, or any other specific business by name"). `balanced_baseline`
 and `local_commercial` keep the original soft "about 80%/20%" guidance
 since their brand mix is a target, not a per-prompt rule.
 
-**Known gap carried into slice 1 (tracked for slice 2, issue #4 Phase 3
-item 9 continued):** the resolved quotas are only used to *instruct* the
-LLM - nothing yet validates that a generation's returned candidates
-actually satisfy them, or retries/blocks when they don't. This gap
-predates panel types: it's Section D of issue #4 ("calculate exact
-quotas server-side... validate... retry or block"), which was scoped as
-Phase 1 item 5 but Phase 1 slice 6 (v1.48.0) delivered only the versioned
-quota *record* (`prompt_methodologies`), not per-generation enforcement -
-`promptGenerator.ts` has never read `MethodologyQuotas` for validation.
-Slice 2 closes this for all panel types at once.
+**Panel-type quota enforcement (v1.56.0, issue #4 Phase 3 item 9, slice
+2):** closes issue #4 Section D, which was scoped as Phase 1 item 5 but
+never actually delivered - Phase 1 slice 6 (v1.48.0) only versioned the
+quota *record*, `promptGenerator.ts` never validated a generation's
+output against it. Two enforcement layers now run inside
+`parseGeneratedPrompts`:
+
+1. **Hard brand-constraint rejection** - for `discovery`/`entity_audit`/
+   `competitive`/`topic_authority` (any constraint other than
+   `baseline_mix`), a candidate whose derived `brandContext` doesn't
+   satisfy the panel's constraint is **rejected** (added to `invalid`,
+   not just warned) - e.g. a client-branded candidate under a `discovery`
+   panel. `baseline_mix` (`balanced_baseline`/`local_commercial`) never
+   rejects on brand context alone since it's a soft target.
+2. **One automatic retry for missing quota cells** - after the first
+   response is parsed, `computeQuotaShortfall` (`server/services/
+   panelTypeQuotas.ts`) compares the accepted candidates' intent
+   distribution against the collection's resolved quotas. If any cell is
+   short, `generatePrompts` issues exactly one more adapter call via
+   `buildRetryGenerationPrompt` (client context + brand constraint
+   restated, but the distribution instruction lists only the missing
+   intent cells and their exact remaining counts), passing round 1's
+   accepted candidates as additional `existingPromptTexts`/
+   `existingPromptCells` so the retry can't duplicate them. Results from
+   both rounds are merged and the final `quotaShortfall` is recomputed
+   against the *original* resolved quotas (the retry's own internal
+   shortfall, resolved against a different count, is discarded - only
+   its candidates/invalid/warnings are kept). No further retries after
+   that: a persistent shortfall is returned as `GenerationResult.
+   quotaShortfall` for the caller to surface, not retried indefinitely.
+
+`GenerationResult` gained `quotaShortfall: Partial<Record<PromptIntentType,
+number>>` (empty object = fully satisfied). Nothing yet **blocks** save or
+activation on a non-empty shortfall - that's Phase 3 item 12 (slice 5,
+methodology summary + activation gates); slice 2 only computes and
+surfaces it. Also fixed in this slice: `generatePrompts` was never
+actually passing the collection's `panelType` through to
+`parseGeneratedPrompts` (a wiring gap left over from slice 1), so quota
+resolution would have silently always used `balanced_baseline`
+regardless of the collection's real panel type.
 
 The portal supports seven prompt categories. Use each to cover different stages of the buyer journey.
 
