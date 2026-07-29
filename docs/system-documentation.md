@@ -937,6 +937,28 @@ actually passing the collection's `panelType` through to
 resolution would have silently always used `balanced_baseline`
 regardless of the collection's real panel type.
 
+**Canonical intent primary in the UI (v1.57.0, issue #4 Phase 3 item H):**
+the review panel (`Generate with AI` candidates) and the existing-prompt
+edit form both used to make legacy `category` the primary editable field,
+with `intentType` shown as a read-only badge - backwards from where the
+richer measurement metadata actually lives. Both now make `intentType`
+the primary editable `<select>`; legacy category is a derived, non-
+editable "Legacy: X" label computed from whichever intent is currently
+selected via a new shared lookup, `INTENT_TO_LEGACY_CATEGORY` (moved from
+`promptGenerator.ts` into `shared/schema.ts` so client and server can
+never derive it differently). `brandContext` is now shown (as a badge,
+using the app's established "Non-branded"/"Client-branded"/"Competitor-
+branded"/"Client + competitor" labels) in both places, but stays read-
+only - it's deterministically recomputed from text at save time
+regardless of what's displayed (v1.54.0), so letting an analyst hand-edit
+it would only ever be silently overwritten. `service`, `geo`, and
+`funnelStage` become editable in both the review panel and the edit form
+(previously read-only text in the review panel and not exposed at all in
+the edit form); the edit form also gained a `priority` control (reusing
+the existing, previously-unsurfaced `priorityWeight` column). Manual
+prompt creation is intentionally out of scope here - upgrading that form
+to the same canonical fields is issue #4 Phase 3 item I (slice 4).
+
 The portal supports seven prompt categories. Use each to cover different stages of the buyer journey.
 
 **Category prompts** — broad discovery queries

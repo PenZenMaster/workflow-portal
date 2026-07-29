@@ -316,6 +316,24 @@ export const PROMPT_INTENT_TYPES = [
 ] as const;
 export type PromptIntentType = (typeof PROMPT_INTENT_TYPES)[number];
 
+// Legacy category kept during migration so the bulk-import endpoint and
+// existing category-based reports remain valid while the UI moves to
+// intent types. Single source of truth for both server (promptGenerator's
+// derivation at generation time) and client (issue #4 Phase 3 item H:
+// legacy category displayed as a label derived from whatever intentType
+// is currently selected, not independently editable).
+export const INTENT_TO_LEGACY_CATEGORY: Record<PromptIntentType, PromptCategory> = {
+  provider_recommendation: "commercial",
+  service_specific: "commercial",
+  geographic_discovery: "local",
+  problem_solution: "problem_aware",
+  comparison: "comparative",
+  trust_validation: "informational",
+  brand_validation: "informational",
+  educational: "informational",
+  alternative: "alternative",
+};
+
 // Methodology v2.0 (issue #4 Phase 1): replaces the boolean brandInPrompt
 // model. unbranded excludes prompts that name a competitor, closing the
 // non-branded-metric contamination gap the boolean model had.

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { Prompt, PromptCollection, Platform, GeneratedPromptCandidate, GenerationResult, PromptGenerationRun, RunSchedule, PromptPanelType } from "@shared/schema";
-import { PROMPT_CATEGORIES } from "@shared/schema";
+import type { Prompt, PromptCollection, Platform, GeneratedPromptCandidate, GenerationResult, PromptGenerationRun, RunSchedule, PromptPanelType, PromptIntentType, BrandContext } from "@shared/schema";
+import { PROMPT_CATEGORIES, PROMPT_INTENT_TYPES, FUNNEL_STAGES, INTENT_TO_LEGACY_CATEGORY } from "@shared/schema";
 
 const CATEGORY_LABELS: Record<typeof PROMPT_CATEGORIES[number], string> = {
   informational: "Informational",
@@ -11,6 +11,29 @@ const CATEGORY_LABELS: Record<typeof PROMPT_CATEGORIES[number], string> = {
   local:         "Local",
   problem_aware: "Problem-aware",
   alternative:   "Alternative",
+};
+
+// issue #4 Phase 3 item H: canonical intent is now the primary editable
+// classification in both the review panel and existing-prompt edit form;
+// legacy category is derived from it (INTENT_TO_LEGACY_CATEGORY) and shown
+// as a secondary "Legacy: X" label, no longer independently editable.
+const INTENT_LABELS: Record<PromptIntentType, string> = {
+  provider_recommendation: "Provider recommendation",
+  service_specific: "Service specific",
+  geographic_discovery: "Geographic discovery",
+  problem_solution: "Problem solution",
+  comparison: "Comparison",
+  trust_validation: "Trust validation",
+  brand_validation: "Brand validation",
+  alternative: "Alternative",
+  educational: "Educational",
+};
+
+const BRAND_CONTEXT_LABELS: Record<BrandContext, string> = {
+  unbranded: "Non-branded",
+  client_branded: "Client-branded",
+  competitor_branded: "Competitor-branded",
+  client_and_competitor: "Client + competitor",
 };
 
 // issue #4 Phase 3 item 9 - kept editable only from the Prompt Collections
@@ -88,7 +111,11 @@ export default function PromptCollectionDetail() {
   const [generationRunId, setGenerationRunId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
-  const [editCategory, setEditCategory] = useState<typeof PROMPT_CATEGORIES[number]>("informational");
+  const [editIntentType, setEditIntentType] = useState<PromptIntentType>("provider_recommendation");
+  const [editService, setEditService] = useState("");
+  const [editGeo, setEditGeo] = useState("");
+  const [editFunnelStage, setEditFunnelStage] = useState<typeof FUNNEL_STAGES[number]>("awareness");
+  const [editPriorityWeight, setEditPriorityWeight] = useState(1);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [scheduleCadence, setScheduleCadence] = useState<"weekly" | "monthly">("weekly");
   const [scheduleDayOfWeekLocal, setScheduleDayOfWeekLocal] = useState(1);
@@ -176,9 +203,14 @@ export default function PromptCollectionDetail() {
     mutationFn: async (prompt: Prompt) => {
       const res = await apiRequest("PATCH", `/api/prompts/${prompt.id}`, {
         text: prompt.text,
-        category: prompt.category,
+        // issue #4 Phase 3 item H: intentType is the primary editable
+        // classification; legacy category is derived from it, never
+        // independently edited.
+        intentType: prompt.intentType ?? undefined,
+        category: prompt.intentType ? INTENT_TO_LEGACY_CATEGORY[prompt.intentType] : prompt.category,
         funnelStage: prompt.funnelStage,
         geo: prompt.geo ?? undefined,
+        service: prompt.service ?? undefined,
         deviceContext: prompt.deviceContext ?? undefined,
         priorityWeight: prompt.priorityWeight,
         status: prompt.status,
@@ -449,25 +481,58 @@ export default function PromptCollectionDetail() {
                         prev!.map((item, i) => i === idx ? { ...item, text: e.target.value } : item)
                       )}
                     />
-                    <select
-                      value={c.category}
-                      onChange={(e) => setCandidates((prev) =>
-                        prev!.map((item, i) => i === idx ? { ...item, category: e.target.value as typeof PROMPT_CATEGORIES[number] } : item)
-                      )}
-                      className="h-9 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
-                      aria-label="Category"
-                    >
-                      {PROMPT_CATEGORIES.map((cat) => (
-                        <option key={cat} value={cat}>{CATEGORY_LABELS[cat]}</option>
-                      ))}
-                    </select>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{c.intentType}</span>
-                      <span className={`rounded px-1.5 py-0.5 ${c.brandInPrompt ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" : "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300"}`}>
-                        {c.brandInPrompt ? "Branded" : "Non-branded"}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value={c.intentType}
+                        onChange={(e) => {
+                          const intentType = e.target.value as PromptIntentType;
+                          setCandidates((prev) =>
+                            prev!.map((item, i) => i === idx ? { ...item, intentType, category: INTENT_TO_LEGACY_CATEGORY[intentType] } : item)
+                          );
+                        }}
+                        className="h-9 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                        aria-label="Intent type"
+                      >
+                        {PROMPT_INTENT_TYPES.map((it) => (
+                          <option key={it} value={it}>{INTENT_LABELS[it]}</option>
+                        ))}
+                      </select>
+                      <span className="text-xs text-muted-foreground">Legacy: {INTENT_TO_LEGACY_CATEGORY[c.intentType]}</span>
+                      <span className={`rounded px-1.5 py-0.5 text-xs ${c.brandContext === "unbranded" ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300" : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"}`}>
+                        {BRAND_CONTEXT_LABELS[c.brandContext]}
                       </span>
-                      {c.service && <span>Service: {c.service}</span>}
-                      {c.geo && <span>Location: {c.geo}</span>}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Input
+                        value={c.service ?? ""}
+                        onChange={(e) => setCandidates((prev) =>
+                          prev!.map((item, i) => i === idx ? { ...item, service: e.target.value || null } : item)
+                        )}
+                        placeholder="Service"
+                        aria-label="Service"
+                        className="h-9 text-xs"
+                      />
+                      <Input
+                        value={c.geo ?? ""}
+                        onChange={(e) => setCandidates((prev) =>
+                          prev!.map((item, i) => i === idx ? { ...item, geo: e.target.value || null } : item)
+                        )}
+                        placeholder="Geography"
+                        aria-label="Geography"
+                        className="h-9 text-xs"
+                      />
+                      <select
+                        value={c.funnelStage}
+                        onChange={(e) => setCandidates((prev) =>
+                          prev!.map((item, i) => i === idx ? { ...item, funnelStage: e.target.value as typeof FUNNEL_STAGES[number] } : item)
+                        )}
+                        className="h-9 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                        aria-label="Funnel stage"
+                      >
+                        {FUNNEL_STAGES.map((fs) => (
+                          <option key={fs} value={fs}>{fs}</option>
+                        ))}
+                      </select>
                     </div>
                     {c.rationale && <p className="text-xs text-muted-foreground italic">{c.rationale}</p>}
                     {c.warnings?.map((w) => (
@@ -564,21 +629,59 @@ export default function PromptCollectionDetail() {
                     aria-label="Prompt text"
                     autoFocus
                   />
-                  <select
-                    value={editCategory}
-                    onChange={(e) => setEditCategory(e.target.value as typeof PROMPT_CATEGORIES[number])}
-                    className="h-9 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
-                    aria-label="Category"
-                  >
-                    {PROMPT_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>{CATEGORY_LABELS[cat]}</option>
-                    ))}
-                  </select>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={editIntentType}
+                      onChange={(e) => setEditIntentType(e.target.value as PromptIntentType)}
+                      className="h-9 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                      aria-label="Intent type"
+                    >
+                      {PROMPT_INTENT_TYPES.map((it) => (
+                        <option key={it} value={it}>{INTENT_LABELS[it]}</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-muted-foreground">Legacy: {INTENT_TO_LEGACY_CATEGORY[editIntentType]}</span>
+                    {p.brandContext && (
+                      <span className="text-xs text-muted-foreground" title="Brand context is derived from the prompt text and always recomputed on save">
+                        {BRAND_CONTEXT_LABELS[p.brandContext]}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input value={editService} onChange={(e) => setEditService(e.target.value)} placeholder="Service" aria-label="Service" />
+                    <Input value={editGeo} onChange={(e) => setEditGeo(e.target.value)} placeholder="Geography" aria-label="Geography" />
+                    <select
+                      value={editFunnelStage}
+                      onChange={(e) => setEditFunnelStage(e.target.value as typeof FUNNEL_STAGES[number])}
+                      className="h-9 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                      aria-label="Funnel stage"
+                    >
+                      {FUNNEL_STAGES.map((fs) => (
+                        <option key={fs} value={fs}>{fs}</option>
+                      ))}
+                    </select>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={10}
+                      value={editPriorityWeight}
+                      onChange={(e) => setEditPriorityWeight(Number(e.target.value))}
+                      aria-label="Priority"
+                    />
+                  </div>
                   <div className="flex gap-2 justify-end">
                     <Button variant="ghost" size="sm" onClick={() => setEditingId(null)}>Cancel</Button>
                     <Button
                       size="sm"
-                      onClick={() => editPromptMutation.mutate({ ...p, text: editText.trim(), category: editCategory })}
+                      onClick={() => editPromptMutation.mutate({
+                        ...p,
+                        text: editText.trim(),
+                        intentType: editIntentType,
+                        service: editService.trim() || null,
+                        geo: editGeo.trim() || null,
+                        funnelStage: editFunnelStage,
+                        priorityWeight: editPriorityWeight,
+                      })}
                       disabled={editPromptMutation.isPending || !editText.trim()}
                     >
                       {editPromptMutation.isPending ? "Saving…" : "Save"}
@@ -589,8 +692,10 @@ export default function PromptCollectionDetail() {
                 <>
                   <div className="flex-1">
                     <p className="text-sm">{p.text}</p>
-                    <div className="flex gap-2 mt-1.5">
-                      <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{CATEGORY_LABELS[p.category as typeof PROMPT_CATEGORIES[number]] ?? p.category}</span>
+                    <div className="flex flex-wrap gap-2 mt-1.5">
+                      <span className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{p.intentType ?? "unclassified"}</span>
+                      <span className="text-xs text-muted-foreground">Legacy: {p.category}</span>
+                      {p.brandContext && <span className="text-xs text-muted-foreground">{BRAND_CONTEXT_LABELS[p.brandContext]}</span>}
                       <span className="text-xs text-muted-foreground">{p.funnelStage}</span>
                       {p.geo && <span className="text-xs text-muted-foreground">{p.geo}</span>}
                       {p.generationRunId != null && (
@@ -610,7 +715,11 @@ export default function PromptCollectionDetail() {
                       onClick={() => {
                         setEditingId(p.id);
                         setEditText(p.text);
-                        setEditCategory(p.category as typeof PROMPT_CATEGORIES[number]);
+                        setEditIntentType(p.intentType ?? "provider_recommendation");
+                        setEditService(p.service ?? "");
+                        setEditGeo(p.geo ?? "");
+                        setEditFunnelStage(p.funnelStage);
+                        setEditPriorityWeight(p.priorityWeight);
                       }}
                       aria-label={`Edit "${p.text}"`}
                     >

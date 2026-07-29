@@ -40,6 +40,9 @@
  *   buildRetryGenerationPrompt + one automatic retry for quota
  *   shortfall, fixed a wiring gap where ctx.panelType was never actually
  *   passed to parseGeneratedPrompts
+ * - v1.07 issue #4 Phase 3 item H (slice 3): INTENT_TO_CATEGORY moved to
+ *   shared/schema.ts as INTENT_TO_LEGACY_CATEGORY so the client can
+ *   derive the same legacy-category label without duplicating the map
  */
 
 import { z } from "zod";
@@ -49,10 +52,10 @@ import { AppError } from "../errors";
 import {
   FUNNEL_STAGES,
   PROMPT_INTENT_TYPES,
+  INTENT_TO_LEGACY_CATEGORY,
   type GeneratedPromptCandidate,
   type GenerationInvalidItem,
   type GenerationResult,
-  type PromptCategory,
   type PromptIntentType,
   type PromptPanelType,
 } from "@shared/schema";
@@ -140,21 +143,6 @@ export interface GenerationProvenance {
 
 export type GenerationOutcome = GenerationResult & {
   provenance: GenerationProvenance;
-};
-
-// Legacy category kept during migration so the bulk-import endpoint and
-// existing category-based reports remain valid while the UI moves to
-// intent types.
-const INTENT_TO_CATEGORY: Record<PromptIntentType, PromptCategory> = {
-  provider_recommendation: "commercial",
-  service_specific: "commercial",
-  geographic_discovery: "local",
-  problem_solution: "problem_aware",
-  comparison: "comparative",
-  trust_validation: "informational",
-  brand_validation: "informational",
-  educational: "informational",
-  alternative: "alternative",
 };
 
 const generatedItemSchema = z.object({
@@ -440,7 +428,7 @@ export function parseGeneratedPrompts(raw: string, opts: ParseOptions): Generati
 
     candidates.push({
       text: result.data.text,
-      category: INTENT_TO_CATEGORY[result.data.intentType],
+      category: INTENT_TO_LEGACY_CATEGORY[result.data.intentType],
       funnelStage: result.data.funnelStage,
       intentType: result.data.intentType,
       brandInPrompt,

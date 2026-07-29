@@ -44,6 +44,7 @@ const CANDIDATES = [
     funnelStage: "awareness",
     intentType: "problem_solution",
     brandInPrompt: false,
+    brandContext: "unbranded",
     service: "drain cleaning",
     geo: null,
     rationale: "Problem-to-provider connection",
@@ -55,6 +56,7 @@ const CANDIDATES = [
     funnelStage: "decision",
     intentType: "geographic_discovery",
     brandInPrompt: false,
+    brandContext: "unbranded",
     service: null,
     geo: "Seattle, WA",
     rationale: null,
@@ -81,6 +83,14 @@ const EXISTING_PROMPT = {
   status: "active" as const,
   targetPlatforms: [],
   position: 0,
+  intentType: "geographic_discovery" as const,
+  brandInPrompt: false,
+  brandContext: "unbranded" as const,
+  service: "drain cleaning",
+  promptFamily: null,
+  commercialValue: null,
+  measurementPurpose: null,
+  generationRunId: null,
   createdAt: Date.now(),
   updatedAt: Date.now(),
 };
@@ -219,11 +229,58 @@ describe("PromptCollectionDetail — AI prompt generation", () => {
     await userEvent.click(await screen.findByRole("button", { name: /Generate with AI/i }));
     await screen.findByDisplayValue("What is the best way to fix a leaky faucet?");
 
-    expect(screen.getByText(/problem_solution/i)).toBeInTheDocument();
-    expect(screen.getByText(/geographic_discovery/i)).toBeInTheDocument();
+    // intentType is now the primary editable classification (issue #4 Phase
+    // 3 item H) - a <select>, not a plain text badge - so check its value
+    // rather than getByText (every candidate's select lists all 9 options).
+    const intentSelects = screen.getAllByLabelText(/intent type/i);
+    expect(intentSelects[0]).toHaveValue("problem_solution");
+    expect(intentSelects[1]).toHaveValue("geographic_discovery");
     expect(screen.getAllByText(/non-branded/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/1 rejected/i)).toBeInTheDocument();
     expect(screen.getByText(/Only 2 of 12 requested prompts were valid/i)).toBeInTheDocument();
+  });
+
+  it("shows the legacy category as a derived, non-editable label that updates when intent type changes (issue #4 Phase 3 item H)", async () => {
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Generate with AI/i }));
+    await screen.findByDisplayValue("What is the best way to fix a leaky faucet?");
+
+    // problem_solution derives to legacy category "problem_aware"
+    expect(screen.getAllByText(/Legacy:/i)[0]).toHaveTextContent(/problem_aware/i);
+    // No editable Category select remains - category is a derived label only.
+    expect(screen.queryByLabelText(/^category$/i)).not.toBeInTheDocument();
+
+    const intentSelects = screen.getAllByLabelText(/intent type/i);
+    await userEvent.selectOptions(intentSelects[0], "brand_validation");
+
+    expect(screen.getAllByText(/Legacy:/i)[0]).toHaveTextContent(/informational/i);
+  });
+
+  it("shows the candidate's brand context and lets service/geo/funnel stage be edited before saving (issue #4 Phase 3 item H)", async () => {
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Generate with AI/i }));
+    await screen.findByDisplayValue("What is the best way to fix a leaky faucet?");
+
+    const serviceInputs = screen.getAllByLabelText(/^service$/i);
+    const geoInputs = screen.getAllByLabelText(/^geograph/i);
+    const funnelSelects = screen.getAllByLabelText(/funnel stage/i);
+    expect(serviceInputs[0]).toHaveValue("drain cleaning");
+    expect(geoInputs[1]).toHaveValue("Seattle, WA");
+    expect(funnelSelects[0]).toHaveValue("awareness");
+
+    await userEvent.clear(serviceInputs[0]);
+    await userEvent.type(serviceInputs[0], "water heater repair");
+    await userEvent.selectOptions(funnelSelects[0], "decision");
+
+    await userEvent.click(screen.getByRole("button", { name: /Save selected/i }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(BULK_URL, expect.objectContaining({ method: "POST" }))
+    );
+    const [, init] = fetchMock.mock.calls.find(([url, reqInit]) => url === BULK_URL && reqInit?.method === "POST")!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.prompts[0]).toMatchObject({ service: "water heater repair", funnelStage: "decision" });
   });
 
   it("shows a warning once a candidate's text is edited, since its classification may no longer match (issue #4 Phase 2 item 8)", async () => {
@@ -391,6 +448,56 @@ describe("PromptCollectionDetail — edit existing prompt", () => {
       priorityWeight: 1,
       status: "active",
       targetPlatforms: [],
+    });
+  });
+
+  it("shows intent type as the primary badge and legacy category as a secondary label on the prompt row (issue #4 Phase 3 item H)", async () => {
+    renderPage();
+
+    await screen.findByText("Best plumber in Seattle");
+
+    expect(screen.getByText("geographic_discovery")).toBeInTheDocument();
+    expect(screen.getByText(/Legacy: local/i)).toBeInTheDocument();
+  });
+
+  it("Edit form's primary editable field is intent type; category is a derived label; service/geo/funnel stage/priority are editable; brand context is read-only", async () => {
+    renderPage();
+
+    await screen.findByText("Best plumber in Seattle");
+    await userEvent.click(screen.getByRole("button", { name: /Edit/i }));
+
+    const intentSelect = screen.getByLabelText(/intent type/i);
+    expect(intentSelect).toHaveValue("geographic_discovery");
+    expect(screen.getByText(/Legacy: local/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^category$/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/non-branded/i)).toBeInTheDocument();
+
+    await userEvent.selectOptions(intentSelect, "problem_solution");
+    expect(screen.getByText(/Legacy: problem_aware/i)).toBeInTheDocument();
+
+    const serviceInput = screen.getByLabelText(/^service$/i);
+    const geoInput = screen.getByLabelText(/^geograph/i);
+    const priorityInput = screen.getByLabelText(/priority/i);
+    await userEvent.clear(serviceInput);
+    await userEvent.type(serviceInput, "water heater repair");
+    await userEvent.clear(geoInput);
+    await userEvent.type(geoInput, "Tacoma, WA");
+    await userEvent.clear(priorityInput);
+    await userEvent.type(priorityInput, "5");
+
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(PROMPT_PATCH_URL, expect.objectContaining({ method: "PATCH" }))
+    );
+    const [, init] = fetchMock.mock.calls.find(([url, reqInit]) => url === PROMPT_PATCH_URL && reqInit?.method === "PATCH")!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body).toMatchObject({
+      intentType: "problem_solution",
+      category: "problem_aware",
+      service: "water heater repair",
+      geo: "Tacoma, WA",
+      priorityWeight: 5,
     });
   });
 });
