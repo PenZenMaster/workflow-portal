@@ -469,6 +469,43 @@ describe("POST /api/prompt-collections/:id/prompts", () => {
       expect.objectContaining({ brandContext: "client_branded", brandInPrompt: true })
     );
   });
+
+  it("derives category from intentType, overriding a stale client-supplied category (issue #4 Phase 3 item I)", async () => {
+    mockPromptStore.create.mockResolvedValue(SAMPLE_PROMPT);
+
+    await request(buildApp("analyst"))
+      .post("/api/prompt-collections/1/prompts")
+      .send({ text: "Who repairs water heaters in Tacoma?", category: "informational", intentType: "geographic_discovery" });
+
+    expect(mockPromptStore.create).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ category: "local" })
+    );
+  });
+
+  it("creates successfully without a category when intentType is provided (issue #4 Phase 3 item I)", async () => {
+    mockPromptStore.create.mockResolvedValue(SAMPLE_PROMPT);
+
+    const res = await request(buildApp("analyst"))
+      .post("/api/prompt-collections/1/prompts")
+      .send({ text: "Who repairs water heaters in Tacoma?", intentType: "geographic_discovery" });
+
+    expect(res.status).toBe(201);
+    expect(mockPromptStore.create).toHaveBeenCalledWith(1, expect.objectContaining({ category: "local" }));
+  });
+
+  it("leaves client-supplied category untouched when intentType is not provided (backward compatible)", async () => {
+    mockPromptStore.create.mockResolvedValue(SAMPLE_PROMPT);
+
+    await request(buildApp("analyst"))
+      .post("/api/prompt-collections/1/prompts")
+      .send({ text: "Best SEO agency in Seattle", category: "commercial" });
+
+    expect(mockPromptStore.create).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ category: "commercial" })
+    );
+  });
 });
 
 describe("POST /api/prompt-collections/:id/prompts/bulk", () => {
@@ -519,6 +556,23 @@ describe("POST /api/prompt-collections/:id/prompts/bulk", () => {
     const [, promptsArg] = mockPromptStore.bulkCreate.mock.calls[0];
     expect(promptsArg[0]).toMatchObject({ brandContext: "client_branded", brandInPrompt: true });
     expect(promptsArg[1]).toMatchObject({ brandContext: "competitor_branded", brandInPrompt: false });
+  });
+
+  it("derives category from intentType for every prompt in the batch (issue #4 Phase 3 item I)", async () => {
+    mockPromptStore.bulkCreate.mockResolvedValue([SAMPLE_PROMPT, SAMPLE_PROMPT]);
+
+    await request(buildApp("analyst"))
+      .post("/api/prompt-collections/1/prompts/bulk")
+      .send({
+        prompts: [
+          { text: "Prompt 1", category: "commercial", intentType: "brand_validation" },
+          { text: "Prompt 2", category: "informational", intentType: "alternative" },
+        ],
+      });
+
+    const [, promptsArg] = mockPromptStore.bulkCreate.mock.calls[0];
+    expect(promptsArg[0]).toMatchObject({ category: "informational" });
+    expect(promptsArg[1]).toMatchObject({ category: "alternative" });
   });
 });
 
@@ -843,6 +897,19 @@ describe("PATCH /api/prompts/:id", () => {
       .send({ text: "Updated", category: "informational" });
     expect(res.status).toBe(200);
     expect(res.body.data.text).toBe("Updated");
+  });
+
+  it("derives category from intentType, overriding a stale client-supplied category (issue #4 Phase 3 item I)", async () => {
+    mockPromptStore.update.mockResolvedValue(SAMPLE_PROMPT);
+
+    await request(buildApp("analyst"))
+      .patch("/api/prompts/1")
+      .send({ text: "Updated", category: "informational", intentType: "geographic_discovery" });
+
+    expect(mockPromptStore.update).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ category: "local" })
+    );
   });
 });
 

@@ -9,7 +9,7 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-09
- * Last Modified Date: 2026-07-28
+ * Last Modified Date: 2026-07-29
  * Comments:
  * - v1.00 Sprint 2 initial implementation
  * - v1.01 B-18: collection archive/unarchive + guarded DELETE
@@ -20,6 +20,9 @@
  *   a client-supplied value
  * - v1.04 issue #4 Phase 3 item 9 (slice 1): the collection's panelType
  *   is passed into generation context
+ * - v1.05 issue #4 Phase 3 item I (slice 4): withDerivedCategory
+ *   overrides category from intentType (never trusting a stale
+ *   client-supplied value) at all three prompt-write endpoints
  */
 
 import type { Express } from "express";
@@ -39,6 +42,8 @@ import {
   insertPlatformSchema,
   updatePlatformSchema,
   generatePromptsSchema,
+  INTENT_TO_LEGACY_CATEGORY,
+  type InsertPrompt,
 } from "@shared/schema";
 import { requireAuth, requireRole } from "../auth";
 import { ok, created, noContent } from "../response";
@@ -52,6 +57,17 @@ const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
 
 function toBrandInput(canonicalName: string): BrandInput {
   return { id: 0, canonicalName, primaryDomain: null, aliases: [] };
+}
+
+// issue #4 Phase 3 item I: legacy category is derived from intentType,
+// same "never trust the client for a derived field" precedent as
+// brandContext (item 8) - a manual prompt or an edited intentType must
+// not leave a mismatched category behind. intentType is optional, so
+// omitting it (legacy callers, or manual prompts not yet classified)
+// leaves category exactly as the client sent it.
+function withDerivedCategory(data: InsertPrompt): InsertPrompt {
+  if (!data.intentType) return data;
+  return { ...data, category: INTENT_TO_LEGACY_CATEGORY[data.intentType] };
 }
 
 // issue #4 Phase 2 item 8: brandContext/brandInPrompt are deterministic
@@ -392,7 +408,7 @@ export function registerPromptRoutes(app: Express): void {
       if (!parsed.success)
         throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
 
-      let data = parsed.data;
+      let data = withDerivedCategory(parsed.data);
       const brandInputs = await resolveBrandInputs(collectionId);
       if (brandInputs) {
         const brandContext = deriveBrandContext(data.text, brandInputs.clientBrandInputs, brandInputs.competitorBrandInputs);
@@ -419,7 +435,7 @@ export function registerPromptRoutes(app: Express): void {
       if (!parsed.success)
         throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
 
-      let prompts = parsed.data.prompts;
+      let prompts = parsed.data.prompts.map(withDerivedCategory);
       const brandInputs = await resolveBrandInputs(collectionId);
       if (brandInputs) {
         prompts = prompts.map((p) => {
@@ -450,7 +466,7 @@ export function registerPromptRoutes(app: Express): void {
       const parsed = insertPromptSchema.safeParse(req.body);
       if (!parsed.success)
         throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
-      const prompt = await promptStore.update(id, parsed.data);
+      const prompt = await promptStore.update(id, withDerivedCategory(parsed.data));
       if (!prompt)
         throw new AppError(404, "Prompt not found", "PROMPT_NOT_FOUND");
       ok(res, prompt);

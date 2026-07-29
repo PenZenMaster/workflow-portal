@@ -481,7 +481,10 @@ export const insertPromptCollectionSchema = z.object({
 
 export const insertPromptSchema = z.object({
   text: z.string().min(1, "Prompt text is required"),
-  category: z.enum(PROMPT_CATEGORIES),
+  // Derived from intentType server-side whenever intentType is provided
+  // (issue #4 Phase 3 item I) - defaulted, not required, so callers that
+  // supply intentType don't also have to compute a matching category.
+  category: z.enum(PROMPT_CATEGORIES).default("informational"),
   funnelStage: z.enum(FUNNEL_STAGES).default("awareness"),
   geo: z.string().optional(),
   deviceContext: z.string().optional(),

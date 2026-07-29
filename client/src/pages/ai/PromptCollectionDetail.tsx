@@ -2,16 +2,7 @@ import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Prompt, PromptCollection, Platform, GeneratedPromptCandidate, GenerationResult, PromptGenerationRun, RunSchedule, PromptPanelType, PromptIntentType, BrandContext } from "@shared/schema";
-import { PROMPT_CATEGORIES, PROMPT_INTENT_TYPES, FUNNEL_STAGES, INTENT_TO_LEGACY_CATEGORY } from "@shared/schema";
-
-const CATEGORY_LABELS: Record<typeof PROMPT_CATEGORIES[number], string> = {
-  informational: "Informational",
-  comparative:   "Comparative",
-  commercial:    "Commercial",
-  local:         "Local",
-  problem_aware: "Problem-aware",
-  alternative:   "Alternative",
-};
+import { PROMPT_INTENT_TYPES, FUNNEL_STAGES, INTENT_TO_LEGACY_CATEGORY } from "@shared/schema";
 
 // issue #4 Phase 3 item H: canonical intent is now the primary editable
 // classification in both the review panel and existing-prompt edit form;
@@ -104,8 +95,11 @@ export default function PromptCollectionDetail() {
   const [showRunForm, setShowRunForm] = useState(false);
   const [selectedPlatformIds, setSelectedPlatformIds] = useState<number[]>([]);
   const [promptText, setPromptText] = useState("");
-  const [category, setCategory] = useState<typeof PROMPT_CATEGORIES[number]>("informational");
+  const [intentType, setIntentType] = useState<PromptIntentType>("provider_recommendation");
+  const [service, setService] = useState("");
   const [geo, setGeo] = useState("");
+  const [funnelStage, setFunnelStage] = useState<typeof FUNNEL_STAGES[number]>("awareness");
+  const [priorityWeight, setPriorityWeight] = useState(1);
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [genDiagnostics, setGenDiagnostics] = useState<{ rejectedCount: number; warnings: string[] } | null>(null);
   const [generationRunId, setGenerationRunId] = useState<number | null>(null);
@@ -144,13 +138,20 @@ export default function PromptCollectionDetail() {
   });
 
   const addPromptMutation = useMutation({
-    mutationFn: async (body: { text: string; category: string; geo?: string }) => {
+    mutationFn: async (body: {
+      text: string;
+      intentType: PromptIntentType;
+      service?: string;
+      geo?: string;
+      funnelStage: typeof FUNNEL_STAGES[number];
+      priorityWeight: number;
+    }) => {
       const res = await apiRequest("POST", `/api/prompt-collections/${collectionId}/prompts`, body);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/prompt-collections/${collectionId}/prompts`] });
-      setPromptText(""); setGeo(""); setShowForm(false);
+      setPromptText(""); setService(""); setGeo(""); setFunnelStage("awareness"); setPriorityWeight(1); setShowForm(false);
       toast({ title: "Prompt added" });
     },
     onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
@@ -563,7 +564,18 @@ export default function PromptCollectionDetail() {
 
       {showForm && (
         <form
-          onSubmit={(e) => { e.preventDefault(); if (promptText.trim()) addPromptMutation.mutate({ text: promptText.trim(), category, geo: geo.trim() || undefined }); }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (promptText.trim())
+              addPromptMutation.mutate({
+                text: promptText.trim(),
+                intentType,
+                service: service.trim() || undefined,
+                geo: geo.trim() || undefined,
+                funnelStage,
+                priorityWeight,
+              });
+          }}
           className="border rounded-lg p-5 mb-5 bg-muted/30 space-y-4"
         >
           <div className="flex items-center justify-between">
@@ -584,27 +596,65 @@ export default function PromptCollectionDetail() {
               Tokens: {"{{brand}}"}, {"{{competitor}}"} (fans out per competitor), {"{{city}}"} / {"{{geo}}"}
             </p>
           </div>
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Label htmlFor="prompt-intent-type" className="mb-0">Intent type</Label>
+              <span className="text-xs text-muted-foreground">Legacy: {INTENT_TO_LEGACY_CATEGORY[intentType]}</span>
+            </div>
+            <select
+              id="prompt-intent-type"
+              value={intentType}
+              onChange={(e) => setIntentType(e.target.value as PromptIntentType)}
+              className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {PROMPT_INTENT_TYPES.map((it) => (
+                <option key={it} value={it}>{INTENT_LABELS[it]}</option>
+              ))}
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="prompt-category">Category</Label>
-              <select
-                id="prompt-category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value as typeof PROMPT_CATEGORIES[number])}
-                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {PROMPT_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
-                ))}
-              </select>
+              <Label htmlFor="prompt-service">Service (optional)</Label>
+              <Input id="prompt-service" placeholder='e.g. "drain cleaning"' value={service} onChange={(e) => setService(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="prompt-geo">Geography (optional)</Label>
               <Input id="prompt-geo" placeholder='e.g. "Seattle, WA"' value={geo} onChange={(e) => setGeo(e.target.value)} />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="prompt-funnel-stage">Funnel stage</Label>
+              <select
+                id="prompt-funnel-stage"
+                value={funnelStage}
+                onChange={(e) => setFunnelStage(e.target.value as typeof FUNNEL_STAGES[number])}
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {FUNNEL_STAGES.map((fs) => (
+                  <option key={fs} value={fs}>{fs}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="prompt-priority">Priority (0-10)</Label>
+              <Input
+                id="prompt-priority"
+                type="number"
+                min={0}
+                max={10}
+                value={priorityWeight}
+                onChange={(e) => setPriorityWeight(Number(e.target.value))}
+              />
+            </div>
           </div>
           <div className="flex gap-2 justify-end">
-            <Button type="button" variant="ghost" size="sm" onClick={() => { setShowForm(false); setPromptText(""); setGeo(""); }}>Cancel</Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => { setShowForm(false); setPromptText(""); setService(""); setGeo(""); setFunnelStage("awareness"); setPriorityWeight(1); }}
+            >
+              Cancel
+            </Button>
             <Button type="submit" size="sm" disabled={addPromptMutation.isPending || !promptText.trim()}>
               {addPromptMutation.isPending ? "Adding…" : "Add prompt"}
             </Button>

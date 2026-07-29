@@ -97,6 +97,7 @@ const EXISTING_PROMPT = {
 
 const GENERATE_URL = "/api/clients/10/prompt-collections/1/generate-prompts";
 const BULK_URL = "/api/prompt-collections/1/prompts/bulk";
+const ADD_PROMPT_URL = "/api/prompt-collections/1/prompts";
 const PROMPT_PATCH_URL = "/api/prompts/5";
 const SCHEDULES_URL = "/api/clients/10/schedules";
 
@@ -410,6 +411,42 @@ describe("PromptCollectionDetail — generation provenance badge (E2c)", () => {
 
     await screen.findByText("Best plumber in Seattle");
     expect(screen.queryByText(/AI generated/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("PromptCollectionDetail — manual prompt creation (issue #4 Phase 3 item I)", () => {
+  it("Add prompt form's primary field is intent type, with a derived legacy category label; posts canonical fields, not category", async () => {
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /^Add prompt$/i }));
+
+    expect(screen.queryByLabelText(/^category$/i)).not.toBeInTheDocument();
+    const intentSelect = screen.getByLabelText(/intent type/i);
+    expect(intentSelect).toHaveValue("provider_recommendation");
+    expect(screen.getByText(/Legacy: commercial/i)).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText(/prompt text/i), "Who repairs water heaters in Tacoma?");
+    await userEvent.selectOptions(intentSelect, "geographic_discovery");
+    expect(screen.getByText(/Legacy: local/i)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/^service/i), "water heater repair");
+    await userEvent.type(screen.getByLabelText(/^geograph/i), "Tacoma, WA");
+    await userEvent.selectOptions(screen.getByLabelText(/funnel stage/i), "decision");
+
+    await userEvent.click(screen.getByRole("button", { name: /^Add prompt$/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(ADD_PROMPT_URL, expect.objectContaining({ method: "POST" }))
+    );
+    const [, init] = fetchMock.mock.calls.find(([url, reqInit]) => url === ADD_PROMPT_URL && reqInit?.method === "POST")!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body).toMatchObject({
+      text: "Who repairs water heaters in Tacoma?",
+      intentType: "geographic_discovery",
+      service: "water heater repair",
+      geo: "Tacoma, WA",
+      funnelStage: "decision",
+    });
+    expect(body).not.toHaveProperty("category");
   });
 });
 

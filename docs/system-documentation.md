@@ -959,6 +959,38 @@ the existing, previously-unsurfaced `priorityWeight` column). Manual
 prompt creation is intentionally out of scope here - upgrading that form
 to the same canonical fields is issue #4 Phase 3 item I (slice 4).
 
+**Manual prompt creation upgrade (v1.58.0, issue #4 Phase 3 item I):** the
+"Add prompt" form used to capture only text/category/geo - the only path
+into `prompts` that didn't produce a measurement-ready record. It now
+captures the same canonical fields as the review panel and edit form:
+`intentType` (primary, replacing `category`), `service`, `geo`,
+`funnelStage`, and `priority` (`priorityWeight`). `brandContext` is not
+collected here either - like every other write path since v1.54.0, it's
+always derived server-side from the submitted text.
+
+`category` itself is no longer required input anywhere: `insertPromptSchema.category`
+gained a default (`"informational"`), and a new `withDerivedCategory`
+helper (`server/routes/prompts.ts`) overrides it with
+`INTENT_TO_LEGACY_CATEGORY[intentType]` whenever `intentType` is present
+- applied at all three prompt-write endpoints (`POST .../prompts`,
+`POST .../prompts/bulk`, `PATCH /api/prompts/:id`), the same "never trust
+the client for a derived field" precedent `brandContext` already
+established. Callers that don't supply `intentType` (older clients, or a
+still-unclassified prompt) keep sending `category` directly - fully
+backward compatible.
+
+**Known gap, found while implementing this slice, not fixed here:**
+`PATCH /api/prompts/:id` still does not recompute `brandContext` when
+`text` is edited - the v1.54.0 fix only covers the two prompt-*creation*
+endpoints (matching issue #4 Problem #6's original framing, which was
+about the review panel's pre-save edit flow, not post-save editing of an
+already-persisted prompt). Since the edit form has allowed text edits
+since before Phase 3, this means editing an existing prompt's text via
+the pencil icon can leave a stale `brandContext` today. Logged as TD-26
+(see tech debt register) rather than fixed here, since it's unrelated to
+manual-creation scope and needs its own `resolveBrandInputs` wiring in
+the PATCH handler.
+
 The portal supports seven prompt categories. Use each to cover different stages of the buyer journey.
 
 **Category prompts** — broad discovery queries
