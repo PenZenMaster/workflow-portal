@@ -1,7 +1,65 @@
 ## Resume From
 
-Last session: 2026-07-24 (shutdown)
-Branch: main | Version: v1.54.0 | 1082 tests passing | DEPLOYED and VERIFIED live
+Last session: 2026-07-28 (checkpoint, mid-session)
+Branch: main | Version: v1.57.0 | 1138 tests passing | SHIPPED TO GIT, NOT yet packaged/deployed
+
+Session 2026-07-28 (checkpoint): issue #4 Phase 3 (panel types, panel
+governance) scoped with the user and slices 1-3 of 5 shipped same day,
+one version per slice, TDD throughout. Full history: git log / gh issue
+4 comments. Summary:
+- Slice 1 (v1.55.0, item 9 part 1): panel-type data model.
+  PROMPT_PANEL_TYPES (balanced_baseline/discovery/entity_audit/
+  competitive/topic_authority/local_commercial), ratio-based quota
+  tables (not fixed totals - resolved against whatever count the
+  analyst requests) with a largest-remainder resolver
+  (server/services/panelTypeQuotas.ts), prompt_collections.panel_type
+  column (migration 0024, defaults to today's implicit behavior),
+  panel-type selector on the Prompt Collections list page,
+  buildGenerationPrompt states exact resolved per-intent counts + a
+  hard brand-constraint instruction for non-baseline types. Ratios
+  locked with the user before implementation, same pattern as the
+  methodology v1.0/v2.0 quota locks.
+- Slice 2 (v1.56.0, item 9 part 2): quota enforcement. Closes issue #4
+  Section D, which was scoped as Phase 1 item 5 but never actually
+  delivered (Phase 1 slice 6 only versioned the quota record, never
+  validated generation output against it - a real gap found while
+  reading code for this scoping session, not previously known).
+  parseGeneratedPrompts now rejects candidates whose brandContext
+  violates a panel's hard brand constraint, and generatePrompts issues
+  one automatic retry (buildRetryGenerationPrompt) for quota cells left
+  unmet, merging both rounds. Also fixed a real wiring bug found while
+  implementing this: generatePrompts was never actually passing
+  ctx.panelType through to parseGeneratedPrompts, so quota resolution
+  would have silently always used balanced_baseline regardless of the
+  collection's configured panel type.
+- Slice 3 (v1.57.0, item H): canonical-intent-primary UI. Review panel
+  and existing-prompt edit form both made legacy category the primary
+  editable field with intentType read-only - swapped so intentType is
+  primary/editable, category is a derived "Legacy: X" label
+  (INTENT_TO_LEGACY_CATEGORY moved from promptGenerator.ts to
+  shared/schema.ts, single source of truth for client+server).
+  brandContext now shown as a badge (was boolean-only) but stays
+  read-only (server always recomputes on save, v1.54.0 precedent).
+  service/geo/funnelStage became editable in both places; edit form
+  gained a priority control (reusing the existing, previously-
+  unsurfaced priorityWeight column - user decision 2026-07-28: reuse
+  rather than add a new field or strike the requirement).
+NOT YET DONE: npm run package / cPanel deploy for v1.55.0-v1.57.0 (git
+only so far - do a single combined deploy cycle once slice 4/5 land, or
+sooner if the user wants to ship incrementally).
+NEXT SESSION: (1) slice 4 (v1.58.0, item I) - manual prompt creation
+upgrade: the "Add prompt" form only captures text/category/geo today;
+bring it to the same canonical schema (intentType/brandContext-on-save/
+service/funnelStage/priority) used by the review panel and edit form
+after slice 3; (2) slice 5 (v1.59.0, item J) - methodology summary +
+activation gates: pre-activation diagnostics panel (counts, intent/
+brand-context/geo/service coverage, duplicate warnings, quotaShortfall
+from slice 2, changed-prompts-needing-revalidation), POST /activate 409s
+on blocking conditions - needs a decision with the user on exactly which
+checks are blocking vs. warning-only before starting, not yet discussed;
+(3) issue #27 (phrasing/context-richness scoring) rides on slice 5's
+diagnostics panel as its own follow-on issue, not bundled in; (4)
+package + deploy v1.55.0-v1.59.0 together once Phase 3 closes.
 
 Session 2026-07-24 (part 3, shutdown): issue #4 Phase 2 completed in full,
 one slice per version, TDD throughout - all four items shipped, deployed,
