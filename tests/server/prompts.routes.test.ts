@@ -316,15 +316,59 @@ describe("POST /api/prompt-collections/:id/clone", () => {
   });
 });
 
+describe("GET /api/prompt-collections/:id/diagnostics (issue #4 Phase 3 item J)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 404 when the collection does not exist", async () => {
+    mockCollectionStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("analyst")).get("/api/prompt-collections/999/diagnostics");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns computed diagnostics for the collection's prompts", async () => {
+    mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION); // panelType: balanced_baseline
+    mockPromptStore.listByCollection.mockResolvedValue([
+      { ...SAMPLE_PROMPT, id: 1, intentType: "provider_recommendation" },
+    ]);
+    const res = await request(buildApp("analyst")).get("/api/prompt-collections/1/diagnostics");
+    expect(res.status).toBe(200);
+    expect(res.body.data.promptCount).toBe(1);
+    expect(res.body.data.intentDistribution).toEqual({ provider_recommendation: 1 });
+  });
+});
+
 describe("POST /api/prompt-collections/:id/activate", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns 200 with activated collection", async () => {
+  it("returns 200 with activated collection when quotas are satisfied", async () => {
+    mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION); // panelType: balanced_baseline, count 1 -> provider_recommendation: 1
+    mockPromptStore.listByCollection.mockResolvedValue([
+      { ...SAMPLE_PROMPT, id: 1, intentType: "provider_recommendation" },
+    ]);
     mockCollectionStore.activate.mockResolvedValue({ ...SAMPLE_COLLECTION, status: "active" });
     const res = await request(buildApp("agency_admin"))
       .post("/api/prompt-collections/1/activate");
     expect(res.status).toBe(200);
     expect(res.body.data.status).toBe("active");
+  });
+
+  it("returns 409 when the collection has unmet quota cells (issue #4 Phase 3 item J)", async () => {
+    mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION);
+    mockPromptStore.listByCollection.mockResolvedValue([
+      { ...SAMPLE_PROMPT, id: 1, intentType: null }, // unclassified - fills no quota cell
+    ]);
+    const res = await request(buildApp("agency_admin"))
+      .post("/api/prompt-collections/1/activate");
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("QUOTA_NOT_MET");
+    expect(mockCollectionStore.activate).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when the collection does not exist", async () => {
+    mockCollectionStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("agency_admin"))
+      .post("/api/prompt-collections/999/activate");
+    expect(res.status).toBe(404);
   });
 });
 

@@ -991,6 +991,54 @@ the pencil icon can leave a stale `brandContext` today. Logged as TD-26
 manual-creation scope and needs its own `resolveBrandInputs` wiring in
 the PATCH handler.
 
+**Methodology summary + activation gate (v1.59.0, issue #4 Phase 3 item
+J) - Phase 3 CLOSES with this slice.** A collection's persisted prompts
+had no pre-activation review beyond "at least one prompt exists" (the
+`Activate` button was only ever disabled on an empty collection).
+`computeCollectionDiagnostics` (`server/services/collectionDiagnostics.ts`,
+pure function) now summarizes the whole stored set:
+
+- `promptCount`, `intentDistribution`/`brandContextDistribution` (null
+  values bucketed as `"unclassified"` - legacy data or prompts saved
+  before intent/brand classification existed), `funnelStageDistribution`
+- `geoCoverage`/`serviceCoverage` - distinct non-null values configured
+- `duplicateGroups` - normalized-exact-duplicate prompt texts, grouped
+  (reuses `normalizePromptText`, retroactively applied across the whole
+  collection rather than just one generation batch)
+- `nearDuplicatePairs` - every pair not already an exact duplicate whose
+  Jaccard similarity clears the same 0.75 threshold used at generation
+  time (`server/services/nearDuplicate.ts`)
+- `quotaShortfall` - `resolvePanelTypeQuotas(panelType, promptCount)` then
+  `computeQuotaShortfall` against classified prompts only (same slice-2
+  resolver, now applied to a whole collection instead of one generation
+  batch) - **the only diagnostic that blocks activation**, a decision
+  locked with the user 2026-07-29. Every other diagnostic here (coverage,
+  duplicates, near-duplicates) is informational only, shown on the new
+  `GET /api/prompt-collections/:id/diagnostics` endpoint and the
+  "Methodology summary" panel on the collection detail page, but does not
+  block `POST /api/prompt-collections/:id/activate` (409 `QUOTA_NOT_MET`
+  when `quotaShortfall` is non-empty).
+
+**Known gap, not addressed by this slice:** "changed prompts requiring
+revalidation" (one of the diagnostics the issue's Section J proposal
+lists) is not computable from the current schema - nothing persists an
+AI-generated prompt's original as-generated text once saved (only the
+in-session review-panel `Candidate.originalText`, discarded on save), so
+there's no server-side signal to detect "this saved prompt's text was
+edited from its generated original." Would need either a persisted
+snapshot column or a broader provenance-diffing mechanism; out of scope
+here, not tracked as a numbered tech debt item since it was never built
+rather than having regressed.
+
+**Normalization refactor (same slice):** `normalizePromptText` moved
+from `promptGenerator.ts` to `nearDuplicate.ts` (both text-normalization/
+duplicate-detection concerns) so `collectionDiagnostics.ts` doesn't have
+to import `promptGenerator.ts` - several existing test files mock that
+module wholesale (to avoid invoking real LLM adapters), which was
+silently dropping unrelated pure-function exports like
+`normalizePromptText` for any other code importing from the same module
+path during those tests.
+
 The portal supports seven prompt categories. Use each to cover different stages of the buyer journey.
 
 **Category prompts** — broad discovery queries

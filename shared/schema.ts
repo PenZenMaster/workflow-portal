@@ -544,6 +544,27 @@ export type GenerationResult = {
   quotaShortfall: Partial<Record<PromptIntentType, number>>;
 };
 
+// issue #4 Phase 3 item J (slice 5): pre-activation methodology summary
+// for a whole collection's persisted prompts (as opposed to
+// GenerationResult, which covers one generation batch). "unclassified"
+// buckets intent/brandContext nulls (prompts never classified - legacy
+// data, or manual prompts created before item I). quotaShortfall is
+// resolved against promptCount, same resolver as generation-time
+// enforcement (slice 2) - the only diagnostic that blocks activation
+// (issue #27's phrasing/context-richness signal is a separate, not-yet-
+// built follow-on issue, not part of this type).
+export type CollectionDiagnostics = {
+  promptCount: number;
+  intentDistribution: Partial<Record<PromptIntentType | "unclassified", number>>;
+  brandContextDistribution: Partial<Record<BrandContext | "unclassified", number>>;
+  funnelStageDistribution: Partial<Record<FunnelStage, number>>;
+  geoCoverage: string[];
+  serviceCoverage: string[];
+  duplicateGroups: string[][];
+  nearDuplicatePairs: { textA: string; textB: string; similarityPct: number }[];
+  quotaShortfall: Partial<Record<PromptIntentType, number>>;
+};
+
 export type ClientReadiness = {
   clientId: number;
   hasClientBrand: boolean;

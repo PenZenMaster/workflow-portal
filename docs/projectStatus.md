@@ -1,7 +1,72 @@
 ## Resume From
 
-Last session: 2026-07-28 (checkpoint, mid-session)
-Branch: main | Version: v1.57.0 | 1138 tests passing | SHIPPED TO GIT, NOT yet packaged/deployed
+Last session: 2026-07-29 (checkpoint)
+Branch: main | Version: v1.59.0 | 1160 tests passing | SHIPPED TO GIT, NOT yet packaged/deployed
+
+Session 2026-07-29 (checkpoint): issue #4 Phase 3 CLOSED - slices 4 and 5
+shipped, completing all 5 slices of the Phase 3 plan scoped 2026-07-28.
+One version per slice, TDD throughout.
+- Slice 4 (v1.58.0, item I): manual prompt creation upgrade. The "Add
+  prompt" form was the only write path into prompts that didn't produce
+  a measurement-ready record (text/category/geo only) - now captures
+  intentType (primary, replacing category)/service/geo/funnelStage/
+  priority, same as the review panel and edit form after slice 3.
+  category is no longer required client input anywhere:
+  insertPromptSchema.category gained a default, and a new
+  withDerivedCategory helper (server/routes/prompts.ts) overrides it
+  from intentType whenever present, at all three prompt-write endpoints
+  (POST .../prompts, POST .../prompts/bulk, PATCH /api/prompts/:id) -
+  same "never trust the client for a derived field" precedent
+  brandContext established in v1.54.0. Found and logged (not fixed,
+  out of scope) TD-26: PATCH /api/prompts/:id still doesn't recompute
+  brandContext on a text edit, unlike the two creation endpoints.
+- Slice 5 (v1.59.0, item J): methodology summary + activation gate -
+  Phase 3's final slice. New server/services/collectionDiagnostics.ts
+  (computeCollectionDiagnostics, pure function) summarizes a
+  collection's whole persisted prompt set: promptCount, intent/brand-
+  context/funnel-stage distributions (null values bucketed
+  "unclassified"), geo/service coverage, exact-duplicate groups and
+  near-duplicate pairs (retroactively across the whole collection, not
+  just one generation batch), and quotaShortfall (same slice-2 resolver,
+  applied at collection scope). New GET /api/prompt-collections/:id/
+  diagnostics endpoint + a "Methodology summary" panel on the collection
+  detail page. Locked with the user 2026-07-29: quotaShortfall is the
+  ONLY diagnostic that blocks activation (POST .../activate now 409s
+  QUOTA_NOT_MET when non-empty) - duplicates, near-duplicates, and
+  coverage stay informational-only, matching the warn-don't-block
+  precedent used everywhere else in issue #4. Known gap, not addressed:
+  "changed prompts requiring revalidation" (one of Section J's proposed
+  diagnostics) isn't computable from the current schema - no persisted
+  snapshot of an AI-generated prompt's original text once saved - so it
+  was left out rather than faked; not logged as tech debt since it was
+  never built, not regressed. Also refactored: normalizePromptText moved
+  from promptGenerator.ts to nearDuplicate.ts so collectionDiagnostics.ts
+  doesn't have to import promptGenerator.ts (several test files mock
+  that module wholesale for its LLM-adapter dependency, which was
+  silently dropping unrelated pure-function exports for any other code
+  importing the same module path during those tests).
+ISSUE #4 PHASE 3 NOW FULLY COMPLETE (v1.55.0-v1.59.0, 5 slices): panel
+types with server-owned quota distributions, quota enforcement with one
+automatic retry, canonical-intent-primary UI across review panel/edit
+form/manual creation, and methodology summary + activation gating.
+Issue #27 (phrasing/context-richness scoring) was NOT started - it rides
+on this slice's diagnostics panel per that issue's own scope note, as
+its own follow-on issue, not bundled into Phase 3.
+NOT YET DONE: npm run package / cPanel deploy for v1.55.0-v1.59.0 - git
+only so far, five versions deep. Deploy checklist before packaging:
+confirm migration 0024 (panel_type column) is the only pending schema
+change, run the full pre-deploy checklist in CLAUDE.md, and do ONE
+combined deploy cycle (not five separate ones) given how tightly these
+slices build on each other.
+NEXT SESSION: (1) package + deploy v1.55.0-v1.59.0 as a single cPanel
+cycle, then smoke-test: create a collection with a non-default panel
+type, generate prompts, confirm exact quota counts in the LLM prompt and
+one retry firing on a deliberately short batch, edit an existing
+prompt's intent type and confirm the legacy category label updates,
+activate a collection with unmet quotas and confirm the 409 + UI
+disables the button, then activate a satisfying one; (2) decide whether
+to pick up issue #27 (phrasing/context-richness scoring) next, or move to
+other backlog; (3) user-owned: B-20 GBP API quota check, Groq API access.
 
 Session 2026-07-28 (checkpoint): issue #4 Phase 3 (panel types, panel
 governance) scoped with the user and slices 1-3 of 5 shipped same day,

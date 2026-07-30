@@ -23,6 +23,9 @@
  * - v1.05 issue #4 Phase 3 item I (slice 4): withDerivedCategory
  *   overrides category from intentType (never trusting a stale
  *   client-supplied value) at all three prompt-write endpoints
+ * - v1.06 issue #4 Phase 3 item J (slice 5): GET .../diagnostics
+ *   (methodology summary), activate gated on quotaShortfall (409
+ *   QUOTA_NOT_MET) - the only blocking check, per user decision
  */
 
 import type { Express } from "express";
@@ -49,6 +52,7 @@ import { requireAuth, requireRole } from "../auth";
 import { ok, created, noContent } from "../response";
 import { AppError } from "../errors";
 import { generatePrompts } from "../services/promptGenerator";
+import { computeCollectionDiagnostics } from "../services/collectionDiagnostics";
 import { deriveBrandContext } from "../services/brandContext";
 import type { BrandInput } from "../services/parser";
 
@@ -202,16 +206,49 @@ export function registerPromptRoutes(app: Express): void {
     }
   );
 
+  // issue #4 Phase 3 item J: pre-activation methodology summary. Read-only,
+  // callable regardless of collection status (also useful for reviewing an
+  // already-active collection's coverage).
+  app.get(
+    "/api/prompt-collections/:id/diagnostics",
+    requireAuth,
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+      const collection = await promptCollectionStore.get(id);
+      if (!collection)
+        throw new AppError(404, "Collection not found", "COLLECTION_NOT_FOUND");
+      const prompts = await promptStore.listByCollection(id);
+      const diagnostics = computeCollectionDiagnostics(prompts, collection.panelType);
+      ok(res, diagnostics);
+    }
+  );
+
   app.post(
     "/api/prompt-collections/:id/activate",
     requireRole(...EDITOR_ROLES),
     async (req, res) => {
       const id = Number(req.params.id);
       if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
-      const collection = await promptCollectionStore.activate(id);
+      const collection = await promptCollectionStore.get(id);
       if (!collection)
         throw new AppError(404, "Collection not found", "COLLECTION_NOT_FOUND");
-      ok(res, collection);
+
+      // issue #4 Phase 3 item J: the only blocking check (locked with the
+      // user 2026-07-29) - a non-empty quotaShortfall means the collection
+      // doesn't yet satisfy its panel type's required intent quotas.
+      // Duplicate/near-duplicate warnings and other diagnostics remain
+      // informational only, surfaced via GET .../diagnostics.
+      const prompts = await promptStore.listByCollection(id);
+      const diagnostics = computeCollectionDiagnostics(prompts, collection.panelType);
+      if (Object.keys(diagnostics.quotaShortfall).length > 0) {
+        throw new AppError(409, "Collection does not satisfy its panel type's required intent quotas", "QUOTA_NOT_MET");
+      }
+
+      const activated = await promptCollectionStore.activate(id);
+      if (!activated)
+        throw new AppError(404, "Collection not found", "COLLECTION_NOT_FOUND");
+      ok(res, activated);
     }
   );
 

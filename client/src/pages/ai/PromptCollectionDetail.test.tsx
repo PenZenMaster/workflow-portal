@@ -100,6 +100,20 @@ const BULK_URL = "/api/prompt-collections/1/prompts/bulk";
 const ADD_PROMPT_URL = "/api/prompt-collections/1/prompts";
 const PROMPT_PATCH_URL = "/api/prompts/5";
 const SCHEDULES_URL = "/api/clients/10/schedules";
+const DIAGNOSTICS_URL = "/api/prompt-collections/1/diagnostics";
+const ACTIVATE_URL = "/api/prompt-collections/1/activate";
+
+const EMPTY_DIAGNOSTICS = {
+  promptCount: 0,
+  intentDistribution: {},
+  brandContextDistribution: {},
+  funnelStageDistribution: {},
+  geoCoverage: [],
+  serviceCoverage: [],
+  duplicateGroups: [],
+  nearDuplicatePairs: [],
+  quotaShortfall: {},
+};
 
 const SAMPLE_SCHEDULE = {
   id: 7,
@@ -124,11 +138,13 @@ const PLATFORMS = [
 let fetchMock: ReturnType<typeof vi.fn>;
 let promptsResponse: unknown;
 let schedulesResponse: unknown;
+let diagnosticsResponse: unknown;
 let authStatus: typeof AUTH_STATUS;
 
 beforeEach(() => {
   promptsResponse = { data: [] };
   schedulesResponse = { data: [] };
+  diagnosticsResponse = { data: EMPTY_DIAGNOSTICS };
   authStatus = AUTH_STATUS;
 
   fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
@@ -155,8 +171,16 @@ beforeEach(() => {
       return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
     }
 
-    if (url === "/api/prompt-collections/1/prompts") {
+    if (method === "GET" && url === "/api/prompt-collections/1/prompts") {
       return { ok: true, status: 200, json: async () => promptsResponse, text: async () => JSON.stringify(promptsResponse) } as Response;
+    }
+
+    if (method === "GET" && url === DIAGNOSTICS_URL) {
+      return { ok: true, status: 200, json: async () => diagnosticsResponse, text: async () => JSON.stringify(diagnosticsResponse) } as Response;
+    }
+
+    if (method === "POST" && url === ACTIVATE_URL) {
+      return { ok: true, status: 200, json: async () => ({ data: { ...COLLECTION, status: "active" } }), text: async () => "" } as Response;
     }
 
     if (url === "/api/platforms") {
@@ -203,6 +227,51 @@ describe("PromptCollectionDetail — panel type (issue #4 Phase 3 item 9)", () =
   it("shows the collection's panel type next to version and status", async () => {
     renderPage();
     expect(await screen.findByText(/balanced baseline/i)).toBeInTheDocument();
+  });
+});
+
+describe("PromptCollectionDetail — methodology summary + activation gate (issue #4 Phase 3 item J)", () => {
+  it("renders prompt count, intent distribution, and a satisfied-quota status", async () => {
+    promptsResponse = { data: [{ ...EXISTING_PROMPT }] };
+    diagnosticsResponse = {
+      data: {
+        ...EMPTY_DIAGNOSTICS,
+        promptCount: 1,
+        intentDistribution: { geographic_discovery: 1 },
+        quotaShortfall: {},
+      },
+    };
+    renderPage();
+
+    expect(await screen.findByText(/methodology summary/i)).toBeInTheDocument();
+    expect(screen.getByText(/geographic_discovery: 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/quotas satisfied/i)).toBeInTheDocument();
+  });
+
+  it("disables Activate and explains the shortfall when quotaShortfall is non-empty", async () => {
+    promptsResponse = { data: [{ ...EXISTING_PROMPT }] };
+    diagnosticsResponse = {
+      data: { ...EMPTY_DIAGNOSTICS, promptCount: 1, quotaShortfall: { provider_recommendation: 2 } },
+    };
+    renderPage();
+
+    const activateButton = await screen.findByRole("button", { name: /Activate/i });
+    await waitFor(() => expect(activateButton).toBeDisabled());
+    expect(screen.getByText(/provider_recommendation: 2 more needed/i)).toBeInTheDocument();
+  });
+
+  it("Activate posts to the activate endpoint when quotas are satisfied", async () => {
+    promptsResponse = { data: [{ ...EXISTING_PROMPT }] };
+    diagnosticsResponse = { data: { ...EMPTY_DIAGNOSTICS, promptCount: 1, quotaShortfall: {} } };
+    renderPage();
+
+    const activateButton = await screen.findByRole("button", { name: /Activate/i });
+    await waitFor(() => expect(activateButton).not.toBeDisabled());
+    await userEvent.click(activateButton);
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(ACTIVATE_URL, expect.objectContaining({ method: "POST" }))
+    );
   });
 });
 

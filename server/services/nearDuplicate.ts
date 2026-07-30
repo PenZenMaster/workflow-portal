@@ -16,10 +16,27 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-07-24
- * Last Modified Date: 2026-07-24
+ * Last Modified Date: 2026-07-29
  * Comments:
  * - v1.00 issue #4 Phase 2 item 7 initial implementation
+ * - v1.01 issue #4 Phase 3 item J (slice 5): normalizePromptText moved
+ *   here from promptGenerator.ts - both are text-normalization/duplicate-
+ *   detection concerns, and collectionDiagnostics.ts needed it without
+ *   pulling in promptGenerator.ts (whose LLM-adapter dependency several
+ *   test files mock wholesale, which broke unrelated pure-function
+ *   imports from the same module)
  */
+
+// Normalization for exact-duplicate detection: case, leading numbering,
+// punctuation, and whitespace variants collapse to the same key.
+export function normalizePromptText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/^\s*\d+[.)]\s*/, "")
+    .replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 const STOPWORDS = new Set([
   "a", "an", "the",

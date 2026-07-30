@@ -61,7 +61,7 @@ import {
 } from "@shared/schema";
 import { deriveBrandContext } from "./brandContext";
 import { checkApprovedGeo, checkCoreService } from "./promptMetadataValidation";
-import { isNearDuplicate, jaccardSimilarity } from "./nearDuplicate";
+import { isNearDuplicate, jaccardSimilarity, normalizePromptText } from "./nearDuplicate";
 import { measurementCellKey, type MeasurementCell } from "./measurementCell";
 import {
   resolvePanelTypeQuotas,
@@ -154,17 +154,6 @@ const generatedItemSchema = z.object({
   location: z.string().nullable().optional(),
   rationale: z.string().nullable().optional(),
 });
-
-// Normalization for exact-duplicate detection: case, leading numbering,
-// punctuation, and whitespace variants collapse to the same key.
-export function normalizePromptText(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/^\s*\d+[.)]\s*/, "")
-    .replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 export function pickGenerationAdapter(): PlatformAdapter {
   // F4: internal generation uses the economy utility tier, never the
