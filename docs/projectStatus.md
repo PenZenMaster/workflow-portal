@@ -1,7 +1,37 @@
 ## Resume From
 
-Last session: 2026-07-29 (checkpoint)
-Branch: main | Version: v1.59.0 | 1160 tests passing | SHIPPED TO GIT, NOT yet packaged/deployed
+Last session: 2026-07-29 (shutdown)
+Branch: main | Version: v1.59.0 | 1160 tests passing | PACKAGED (workflow-portal-v1.59.0.tar.gz, git-tagged and pushed), NOT yet deployed to cPanel - user deploying and smoke-testing 2026-07-30
+
+Session 2026-07-29 (shutdown): npm run package run clean end-to-end for
+v1.55.0-v1.59.0 (issue #4 Phase 3, all 5 slices) - preflight, lint,
+check, db:check, full 1160-test suite, and build all passed; tarball
+created one level above repo root; v1.59.0 tag created and pushed. User
+will deploy to cPanel and smoke-test 2026-07-30 (tomorrow) - NOT done
+this session.
+NEXT SESSION (deploy + smoke test, per the checklist logged in the
+2026-07-29 checkpoint entry below): (1) cPanel deploy of
+workflow-portal-v1.59.0.tar.gz (migration 0024 - panel_type column - is
+the only pending schema change; standard TD-16 post-restart stale-worker
+check applies); (2) smoke test: create a collection with a non-default
+panel type (e.g. discovery), generate prompts, confirm the LLM prompt
+states exact resolved per-intent counts and the panel's brand
+constraint, and confirm one automatic retry fires on a deliberately
+short batch; (3) edit an existing prompt's intent type in the UI and
+confirm the derived "Legacy: X" category label updates and the PATCH
+body carries the derived category; (4) create a manual prompt via the
+upgraded Add-prompt form and confirm it saves with a real intentType/
+service/funnelStage/priority, not just text/category/geo; (5) try to
+activate a collection with unmet quota cells and confirm the UI disables
+Activate with an explanation and the button title actually accounts for
+prompts.length===0 vs hasQuotaShortfall correctly; then activate one
+that does satisfy quotas and confirm it succeeds; (6) after deploy is
+confirmed clean, decide whether to pick up issue #27 (phrasing/context-
+richness scoring - rides on the new methodology-summary panel) next, or
+move to other backlog; (7) user-owned: B-20 GBP API quota check, Groq
+API access.
+
+Session 2026-07-29 (checkpoint): issue #4 Phase 3 CLOSED - slices 4 and 5
 
 Session 2026-07-29 (checkpoint): issue #4 Phase 3 CLOSED - slices 4 and 5
 shipped, completing all 5 slices of the Phase 3 plan scoped 2026-07-28.
