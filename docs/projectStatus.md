@@ -1,39 +1,40 @@
 ## Resume From
 
 Last session: 2026-07-31
-Branch: main | Version: v1.60.1 | 1168 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
+Branch: main | Version: v1.60.1 | 1168 tests passing | DEPLOYED to cPanel, smoke-tested clean
 
-Session 2026-07-31: Backlog review of the 3 open GitHub issues. Issue #27
-(phrasing/context-richness scoring) confirmed fully shipped in v1.60.0 and
-CLOSED on GitHub (was left open after the code landed). Issue #4's last
-open acceptance-criteria gap - TD-26 - was scoped, TDD'd, and FIXED as
-v1.60.1: `PATCH /api/prompts/:id` now recomputes `brandContext`/
-`brandInPrompt` from edited text via the same `resolveBrandInputs` +
-`deriveBrandContext` wiring the two prompt-creation endpoints already had
-since v1.54.0. New `PromptStore.get(id)` added (was missing from
-`IPromptStore`) so the PATCH handler can resolve the prompt's
-`collectionId` for brand lookup before calling `update`. Test-first: new
-test written and confirmed RED (asserted the recomputed brandContext,
-route returned the stale client-supplied value), then GREEN after the fix
-landed; all 3 pre-existing PATCH tests updated to seed the new `get`
-mock. Full suite (1168 tests), lint, and typecheck all pass.
-docs/system-documentation.md and the TD-26 tech debt register row updated
-in the same change set; TD-26 marked Done.
-Issue #4 now has no known open acceptance-criteria gaps (the other
-previously-logged gap - item J's "changed prompts requiring
-revalidation" diagnostic - was explicitly scoped out in v1.59.0 as not
-computable from the current schema, not a criterion left unmet).
-NOT YET DONE: git commit/push of this fix; npm run package + cPanel
-deploy of v1.60.1 (git only so far).
-NEXT SESSION: (1) commit + push v1.60.1, then package + deploy to cPanel,
-smoke-test (edit an existing prompt's text via the pencil icon on a
-collection with configured client brands, confirm the saved brandContext
-badge updates to reflect the new text rather than staying stale); (2)
-decide whether to formally close issue #4 on GitHub now that all its
-acceptance criteria are met, or leave it open pending a final review;
-(3) no other backlog item is currently scoped and locked with the user -
-needs a fresh backlog/issue review if #4 closes; (4) user-owned: B-20 GBP
-API quota check, Groq API access (carried over, still not done).
+Session 2026-07-31: Backlog review of the 3 open GitHub issues, then
+closed out both. Issue #27 (phrasing/context-richness scoring) confirmed
+fully shipped in v1.60.0 and CLOSED on GitHub (was left open after the
+code landed). Issue #4's last open acceptance-criteria gap - TD-26 - was
+scoped, TDD'd, and FIXED as v1.60.1: `PATCH /api/prompts/:id` now
+recomputes `brandContext`/`brandInPrompt` from edited text via the same
+`resolveBrandInputs` + `deriveBrandContext` wiring the two prompt-
+creation endpoints already had since v1.54.0. New `PromptStore.get(id)`
+added (was missing from `IPromptStore`) so the PATCH handler can resolve
+the prompt's `collectionId` for brand lookup before calling `update`.
+Test-first: new test written and confirmed RED (asserted the recomputed
+brandContext, route returned the stale client-supplied value), then
+GREEN after the fix landed; all 3 pre-existing PATCH tests updated to
+seed the new `get` mock. Full suite (1168 tests), lint, and typecheck all
+pass. docs/system-documentation.md and the TD-26 tech debt register row
+updated in the same change set; TD-26 marked Done.
+v1.60.1 packaged, tagged, pushed, DEPLOYED to cPanel and SMOKE-TESTED
+clean by the user same session.
+ISSUE #4 NOW CLOSED on GitHub (2026-07-31) with a full summary comment -
+all acceptance criteria met across Phases 1-3 (v1.44.0-v1.60.0) plus the
+TD-26 follow-up (v1.60.1). The one previously-logged gap - item J's
+"changed prompts requiring revalidation" diagnostic - was explicitly
+scoped out in v1.59.0 as not computable from the current schema, not an
+unmet criterion. ISSUE #27 was already closed alongside it.
+Issue #3 (parent epic) is the only open GitHub issue remaining; #4 was
+its implementation spec (per the 2026-07-16 grooming note), so no
+concrete work is currently scoped under it.
+NEXT SESSION: (1) no backlog item is currently scoped and locked with the
+user - needs a fresh backlog/issue review, starting with issue #3 to see
+if any further epic scope remains or if it should close too; (2)
+user-owned: B-20 GBP API quota check, Groq API access (carried over,
+still not done).
 
 Session 2026-07-30: (1) v1.59.0 (issue #4 Phase 3, all 5 slices) deployed
 to cPanel and smoke-tested - all 5 checklist items passed. Post-deploy
