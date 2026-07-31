@@ -1,7 +1,39 @@
 ## Resume From
 
-Last session: 2026-07-29 (shutdown)
-Branch: main | Version: v1.59.0 | 1160 tests passing | PACKAGED (workflow-portal-v1.59.0.tar.gz, git-tagged and pushed), NOT yet deployed to cPanel - user deploying and smoke-testing 2026-07-30
+Last session: 2026-07-30
+Branch: main | Version: v1.60.0 | 1167 tests passing | DEPLOYED to cPanel, smoke-tested clean
+
+Session 2026-07-30: (1) v1.59.0 (issue #4 Phase 3, all 5 slices) deployed
+to cPanel and smoke-tested - all 5 checklist items passed. Post-deploy
+verification: migration 0024 (panel_type column) confirmed applied
+cleanly against prod data.db (14 existing collections backfilled to
+balanced_baseline, no data loss); TD-16 stale lsnode worker found (PID
+from Jul 25, predating this deploy) and killed. (2) Issue #27
+(phrasing/context-richness scoring) scoped and shipped as v1.60.0,
+TDD throughout. Design decision locked with the user: deterministic
+heuristics over LLM-as-judge, to keep the diagnostics pipeline pure and
+zero-cost (issue #27 framed this as an open choice, not prescribed).
+New `scorePhrasingRichness` (server/services/phrasingRichness.ts, pure
+function) classifies prompt text as context_rich or keyword_style via a
+2-of-3 signal heuristic: word count >= 8, question-form/first-person
+phrasing, contextual qualifier keyword (budget/event-type/quantity/
+timeframe). Wired into `computeCollectionDiagnostics` as a new
+`phrasingDistribution` field, surfaced as one more line on the existing
+"Methodology summary" panel - informational only, does not affect
+activation (same precedent as every diagnostic besides quotaShortfall).
+docs/system-documentation.md updated. v1.60.0 packaged clean (preflight,
+lint, check, db:check, full 1167-test suite, build all passed), tagged,
+pushed. User deployed and smoke-tested same session - clean, no stale
+TD-16 workers found this time.
+ISSUE #27 NOW COMPLETE - all acceptance criteria met (signal computed
+per prompt, surfaced on the existing diagnostics panel not a separate
+UI, documented; batching/budget-guard criterion N/A since the heuristic
+approach was chosen over LLM-as-judge).
+NEXT SESSION: (1) decide next backlog item - issue #27 was the last
+item explicitly queued after issue #4 Phase 3; no other issue currently
+scoped and locked with the user, so this needs a fresh backlog review;
+(2) user-owned: B-20 GBP API quota check, Groq API access (carried over,
+still not done).
 
 Session 2026-07-29 (shutdown): npm run package run clean end-to-end for
 v1.55.0-v1.59.0 (issue #4 Phase 3, all 5 slices) - preflight, lint,
