@@ -23,6 +23,10 @@
  * - v1.04 Epic 5 slice 3 (issue #29): strongRecommendationRate,
  *   firstChoiceRate, and rankDistribution added to both non-branded
  *   routes (definitions locked 2026-07-31)
+ * - v1.05 Epic 5 slice 4 (issue #29): trustedThirdPartySupportRate,
+ *   clientOwnedCitationRate, competitorOwnedCitationRate added to
+ *   GET .../metrics/overview and GET .../metrics/by-platform
+ *   (definitions locked 2026-07-31)
  */
 
 import type { Express } from "express";
@@ -117,6 +121,12 @@ export function registerMetricRoutes(app: Express): void {
         agg.totalResponses > 0
           ? agg.totalVisibilityScore / agg.totalResponses
           : 0,
+      // Epic 5 slice 4, definitions locked 2026-07-31: response-level rate
+      // for trust support, citation-level share for ownership (mirrors how
+      // AI SoV already relates to Mention Rate).
+      trustedThirdPartySupportRate: computeMentionRate(agg.totalTrustedResponses, agg.totalResponses),
+      clientOwnedCitationRate: computeAISoV(agg.totalClientOwnedCitations, agg.totalAllCitations),
+      competitorOwnedCitationRate: computeAISoV(agg.totalCompetitorOwnedCitations, agg.totalAllCitations),
       totalResponses: agg.totalResponses,
       period: req.query.period ?? "30d",
       fromDate,
@@ -133,12 +143,19 @@ export function registerMetricRoutes(app: Express): void {
     totalClientBrandMentions: number;
     totalVisibilityScore: number;
     totalResponses: number;
+    totalAllCitations: number;
+    totalClientOwnedCitations: number;
+    totalCompetitorOwnedCitations: number;
+    totalTrustedResponses: number;
   }) {
     return {
       mentionRate: computeMentionRate(agg.totalMentions, agg.totalResponses),
       citationFrequency: computeCitationFrequency(agg.totalCitations, agg.totalResponses),
       aiSoV: computeAISoV(agg.totalClientBrandMentions, agg.totalAllBrandMentions),
       avgVisibilityScore: agg.totalResponses > 0 ? agg.totalVisibilityScore / agg.totalResponses : 0,
+      trustedThirdPartySupportRate: computeMentionRate(agg.totalTrustedResponses, agg.totalResponses),
+      clientOwnedCitationRate: computeAISoV(agg.totalClientOwnedCitations, agg.totalAllCitations),
+      competitorOwnedCitationRate: computeAISoV(agg.totalCompetitorOwnedCitations, agg.totalAllCitations),
     };
   }
 
@@ -169,6 +186,10 @@ export function registerMetricRoutes(app: Express): void {
         totalClientBrandMentions: acc.totalClientBrandMentions + p.totalClientBrandMentions,
         totalVisibilityScore: acc.totalVisibilityScore + p.totalVisibilityScore,
         totalResponses: acc.totalResponses + p.totalResponses,
+        totalAllCitations: acc.totalAllCitations + p.totalAllCitations,
+        totalClientOwnedCitations: acc.totalClientOwnedCitations + p.totalClientOwnedCitations,
+        totalCompetitorOwnedCitations: acc.totalCompetitorOwnedCitations + p.totalCompetitorOwnedCitations,
+        totalTrustedResponses: acc.totalTrustedResponses + p.totalTrustedResponses,
       }),
       {
         totalCitations: 0,
@@ -177,6 +198,10 @@ export function registerMetricRoutes(app: Express): void {
         totalClientBrandMentions: 0,
         totalVisibilityScore: 0,
         totalResponses: 0,
+        totalAllCitations: 0,
+        totalClientOwnedCitations: 0,
+        totalCompetitorOwnedCitations: 0,
+        totalTrustedResponses: 0,
       }
     );
     const responseWeighted = computeAggregateMetrics(pooled);
@@ -185,7 +210,10 @@ export function registerMetricRoutes(app: Express): void {
     // high-volume platform can't drown out a low-volume one.
     const platformBalanced =
       platformMetrics.length === 0
-        ? { mentionRate: 0, citationFrequency: 0, aiSoV: 0, avgVisibilityScore: 0 }
+        ? {
+            mentionRate: 0, citationFrequency: 0, aiSoV: 0, avgVisibilityScore: 0,
+            trustedThirdPartySupportRate: 0, clientOwnedCitationRate: 0, competitorOwnedCitationRate: 0,
+          }
         : {
             mentionRate: platformMetrics.reduce((s, p) => s + p.mentionRate, 0) / platformMetrics.length,
             citationFrequency:
@@ -193,6 +221,12 @@ export function registerMetricRoutes(app: Express): void {
             aiSoV: platformMetrics.reduce((s, p) => s + p.aiSoV, 0) / platformMetrics.length,
             avgVisibilityScore:
               platformMetrics.reduce((s, p) => s + p.avgVisibilityScore, 0) / platformMetrics.length,
+            trustedThirdPartySupportRate:
+              platformMetrics.reduce((s, p) => s + p.trustedThirdPartySupportRate, 0) / platformMetrics.length,
+            clientOwnedCitationRate:
+              platformMetrics.reduce((s, p) => s + p.clientOwnedCitationRate, 0) / platformMetrics.length,
+            competitorOwnedCitationRate:
+              platformMetrics.reduce((s, p) => s + p.competitorOwnedCitationRate, 0) / platformMetrics.length,
           };
 
     ok(res, {

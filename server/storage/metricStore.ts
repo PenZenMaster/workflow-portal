@@ -20,6 +20,10 @@
  * - v1.04 Epic 5 slice 3 (issue #29): strongRecommendedNonBranded,
  *   firstChoiceNonBranded, clientRanks added to both non-branded
  *   aggregates (definitions locked 2026-07-31)
+ * - v1.05 Epic 5 slice 4 (issue #29): totalAllCitations,
+ *   totalClientOwnedCitations, totalCompetitorOwnedCitations,
+ *   totalTrustedResponses added to AggregateResult and both live
+ *   aggregates (definitions locked 2026-07-31)
  */
 
 import {
@@ -72,6 +76,13 @@ export interface AggregateResult {
   totalClientBrandMentions: number;
   totalVisibilityScore: number;
   totalResponses: number;
+  // Epic 5 (issue #29) slice 4, definitions locked 2026-07-31. Always 0 on
+  // aggregateForPeriod (snapshot deltas carry no citation-ownership
+  // breakdown) - only aggregateLiveForPeriod/...ByPlatform populate these.
+  totalAllCitations: number;            // every citation row across all responses in period (denominator for ownership share)
+  totalClientOwnedCitations: number;    // citation rows owned by the client brand
+  totalCompetitorOwnedCitations: number; // citation rows owned by any configured competitor brand
+  totalTrustedResponses: number;        // distinct responses with >= 1 trusted-third-party citation
 }
 
 // Epic 5 (issue #29) slice 1: same shape as AggregateResult, one entry per
@@ -246,6 +257,10 @@ export class MetricStore implements IMetricStore {
         (end?.clientBrandMentions ?? 0) - (baseline?.clientBrandMentions ?? 0),
       totalVisibilityScore: (end?.visibilityScoreSum ?? 0) - (baseline?.visibilityScoreSum ?? 0),
       totalResponses: (end?.promptResponseCount ?? 0) - (baseline?.promptResponseCount ?? 0),
+      totalAllCitations: 0,
+      totalClientOwnedCitations: 0,
+      totalCompetitorOwnedCitations: 0,
+      totalTrustedResponses: 0,
     };
   }
 
@@ -284,6 +299,10 @@ export class MetricStore implements IMetricStore {
       totalClientBrandMentions: 0,
       totalVisibilityScore: 0,
       totalResponses: 0,
+      totalAllCitations: 0,
+      totalClientOwnedCitations: 0,
+      totalCompetitorOwnedCitations: 0,
+      totalTrustedResponses: 0,
     };
     if (responseRows.length === 0) return empty;
 
@@ -295,6 +314,15 @@ export class MetricStore implements IMetricStore {
     // No client brand configured: mentions cannot be attributed, so the
     // client-side counts stay 0 (mirrors the aggregate-snapshot handler).
     const clientBrandId = clientBrand?.id ?? -1;
+
+    // Epic 5 slice 4: competitor-owned citation share needs every
+    // configured competitor brand id for this client.
+    const competitorBrandIds = this._db
+      .select({ id: brands.id })
+      .from(brands)
+      .where(and(eq(brands.clientId, clientId), eq(brands.kind, "competitor")))
+      .all()
+      .map((b) => b.id);
 
     const mentionRows = this._db
       .select({
@@ -349,6 +377,14 @@ export class MetricStore implements IMetricStore {
       result.totalAllBrandMentions += mentions.length;
       result.totalClientBrandMentions += mentions.filter((m) => m.brandId === clientBrandId).length;
       result.totalVisibilityScore += computeVisibilityScore(mentions, citations, clientBrandId);
+
+      // Epic 5 slice 4
+      if (citations.some((c) => c.isTrustedThirdParty)) result.totalTrustedResponses += 1;
+      result.totalAllCitations += citations.length;
+      result.totalClientOwnedCitations += citations.filter((c) => c.ownedByBrandId === clientBrandId).length;
+      result.totalCompetitorOwnedCitations += citations.filter(
+        (c) => c.ownedByBrandId !== null && competitorBrandIds.includes(c.ownedByBrandId)
+      ).length;
     }
     return result;
   }
@@ -391,6 +427,14 @@ export class MetricStore implements IMetricStore {
       .where(and(eq(brands.clientId, clientId), eq(brands.kind, "client")))
       .get();
     const clientBrandId = clientBrand?.id ?? -1;
+
+    // Epic 5 slice 4
+    const competitorBrandIds = this._db
+      .select({ id: brands.id })
+      .from(brands)
+      .where(and(eq(brands.clientId, clientId), eq(brands.kind, "competitor")))
+      .all()
+      .map((b) => b.id);
 
     const mentionRows = this._db
       .select({
@@ -444,6 +488,10 @@ export class MetricStore implements IMetricStore {
           totalClientBrandMentions: 0,
           totalVisibilityScore: 0,
           totalResponses: 0,
+          totalAllCitations: 0,
+          totalClientOwnedCitations: 0,
+          totalCompetitorOwnedCitations: 0,
+          totalTrustedResponses: 0,
         };
         byPlatform.set(platformId, bucket);
       }
@@ -462,6 +510,14 @@ export class MetricStore implements IMetricStore {
       bucket.totalAllBrandMentions += mentions.length;
       bucket.totalClientBrandMentions += mentions.filter((m) => m.brandId === clientBrandId).length;
       bucket.totalVisibilityScore += computeVisibilityScore(mentions, citations, clientBrandId);
+
+      // Epic 5 slice 4
+      if (citations.some((c) => c.isTrustedThirdParty)) bucket.totalTrustedResponses += 1;
+      bucket.totalAllCitations += citations.length;
+      bucket.totalClientOwnedCitations += citations.filter((c) => c.ownedByBrandId === clientBrandId).length;
+      bucket.totalCompetitorOwnedCitations += citations.filter(
+        (c) => c.ownedByBrandId !== null && competitorBrandIds.includes(c.ownedByBrandId)
+      ).length;
     }
 
     return Array.from(byPlatform.values());

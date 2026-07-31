@@ -726,6 +726,34 @@ distinction explicit, and the rank distribution shows whether the client
 tends to lead numbered lists or trail behind competitors when it does
 appear in one.
 
+**Slice 4 (definitions locked 2026-07-31):** three citation-based
+metrics, added to `GET .../metrics/overview` and its by-platform
+counterpart (not the non-branded family - citation trust/ownership isn't
+scoped to unbranded prompts the way recommendation metrics are):
+
+- **Trusted Third-Party Support Rate** = `responses with >= 1 trusted
+  citation / totalResponses × 100` - response-level, same shape as every
+  other `*Rate` metric and the same trust definition already used by the
+  visibility score's T component (`industry_authority`/
+  `local_authority`/`publisher_editorial` - see the Citation
+  Classification section above).
+- **Client-Owned Citation Rate** = `client-owned citations / total
+  citations across all responses × 100` - a citation-level share, not a
+  response-level rate. Deliberately distinct from the existing Citation
+  Frequency (which already means "responses where the client domain is
+  cited / total responses"): this instead answers "of every citation
+  these responses returned, what fraction point back to the client's own
+  site" - mirrors how AI SoV already relates to Mention Rate.
+- **Competitor-Owned Citation Rate** = `competitor-owned citations /
+  total citations × 100`, same citation-level share, scoped to any
+  configured competitor brand.
+
+**What it means to the client:** Citation Frequency tells you whether
+the client was cited at all; these three tell you what kind of source
+ecosystem is showing up alongside that citation - is the AI leaning on
+trustworthy third parties, mostly linking back to the client's own site,
+or frequently pointing at competitors instead.
+
 ### 2.3 Sentiment Classification
 
 The sentiment classifier is rule-based (no AI model — fully auditable).

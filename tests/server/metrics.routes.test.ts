@@ -58,6 +58,7 @@ describe("GET /api/clients/:id/metrics/overview", () => {
       totalCitations: 5, totalMentions: 8, totalAllBrandMentions: 20,
       totalClientBrandMentions: 6,
       totalVisibilityScore: 42.5, totalResponses: 10,
+      totalAllCitations: 6, totalClientOwnedCitations: 5, totalCompetitorOwnedCitations: 1, totalTrustedResponses: 3,
     });
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/overview?period=30d");
     expect(res.status).toBe(200);
@@ -72,6 +73,7 @@ describe("GET /api/clients/:id/metrics/overview", () => {
       totalCitations: 5, totalMentions: 8, totalAllBrandMentions: 20,
       totalClientBrandMentions: 6,
       totalVisibilityScore: 42.5, totalResponses: 10,
+      totalAllCitations: 6, totalClientOwnedCitations: 5, totalCompetitorOwnedCitations: 1, totalTrustedResponses: 3,
     });
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/overview?period=30d");
     expect(res.status).toBe(200);
@@ -83,11 +85,28 @@ describe("GET /api/clients/:id/metrics/overview", () => {
       totalCitations: 0, totalMentions: 0, totalAllBrandMentions: 0,
       totalClientBrandMentions: 0,
       totalVisibilityScore: 0, totalResponses: 0,
+      totalAllCitations: 0, totalClientOwnedCitations: 0, totalCompetitorOwnedCitations: 0, totalTrustedResponses: 0,
     });
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/overview?period=30d");
     expect(res.status).toBe(200);
     expect(mockMetricStore.aggregateLiveForPeriod).toHaveBeenCalledWith(1, expect.any(String), expect.any(String));
     expect(mockMetricStore.aggregateForPeriod).not.toHaveBeenCalled();
+  });
+
+  // Epic 5 (issue #29) slice 4: citation-ownership share and trusted-
+  // third-party support rate, definitions locked 2026-07-31.
+  it("computes trustedThirdPartySupportRate, clientOwnedCitationRate, and competitorOwnedCitationRate", async () => {
+    mockMetricStore.aggregateLiveForPeriod.mockResolvedValue({
+      totalCitations: 5, totalMentions: 8, totalAllBrandMentions: 20,
+      totalClientBrandMentions: 6,
+      totalVisibilityScore: 42.5, totalResponses: 10,
+      totalAllCitations: 8, totalClientOwnedCitations: 5, totalCompetitorOwnedCitations: 2, totalTrustedResponses: 3,
+    });
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/overview?period=30d");
+    expect(res.status).toBe(200);
+    expect(res.body.data.trustedThirdPartySupportRate).toBe(30); // 3/10
+    expect(res.body.data.clientOwnedCitationRate).toBeCloseTo(62.5); // 5/8
+    expect(res.body.data.competitorOwnedCitationRate).toBe(25); // 2/8
   });
 });
 
@@ -106,8 +125,8 @@ describe("GET /api/clients/:id/metrics/by-platform (Epic 5 slice 1, issue #29)",
 
   it("returns per-platform metrics with sample size, and honors the period param", async () => {
     mockMetricStore.aggregateLiveForPeriodByPlatform.mockResolvedValue([
-      { platformId: 1, slug: "perplexity", displayName: "Perplexity", totalCitations: 4, totalMentions: 8, totalAllBrandMentions: 10, totalClientBrandMentions: 6, totalVisibilityScore: 16, totalResponses: 10 },
-      { platformId: 4, slug: "anthropic", displayName: "Claude", totalCitations: 1, totalMentions: 1, totalAllBrandMentions: 2, totalClientBrandMentions: 1, totalVisibilityScore: 1, totalResponses: 2 },
+      { platformId: 1, slug: "perplexity", displayName: "Perplexity", totalCitations: 4, totalMentions: 8, totalAllBrandMentions: 10, totalClientBrandMentions: 6, totalVisibilityScore: 16, totalResponses: 10, totalAllCitations: 8, totalClientOwnedCitations: 4, totalCompetitorOwnedCitations: 2, totalTrustedResponses: 3 },
+      { platformId: 4, slug: "anthropic", displayName: "Claude", totalCitations: 1, totalMentions: 1, totalAllBrandMentions: 2, totalClientBrandMentions: 1, totalVisibilityScore: 1, totalResponses: 2, totalAllCitations: 1, totalClientOwnedCitations: 1, totalCompetitorOwnedCitations: 0, totalTrustedResponses: 0 },
     ]);
 
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/by-platform?period=90d");
@@ -121,6 +140,9 @@ describe("GET /api/clients/:id/metrics/by-platform (Epic 5 slice 1, issue #29)",
     expect(perplexity.citationFrequency).toBe(40);
     expect(perplexity.aiSoV).toBe(60);
     expect(perplexity.avgVisibilityScore).toBeCloseTo(1.6);
+    expect(perplexity.trustedThirdPartySupportRate).toBe(30); // 3/10
+    expect(perplexity.clientOwnedCitationRate).toBe(50); // 4/8
+    expect(perplexity.competitorOwnedCitationRate).toBe(25); // 2/8
 
     expect(res.body.data.defaultRollup).toBe("platform_balanced");
     expect(res.body.data.period).toBe("90d");
@@ -128,8 +150,8 @@ describe("GET /api/clients/:id/metrics/by-platform (Epic 5 slice 1, issue #29)",
 
   it("computes responseWeighted as the pooled totals across all platforms", async () => {
     mockMetricStore.aggregateLiveForPeriodByPlatform.mockResolvedValue([
-      { platformId: 1, slug: "perplexity", displayName: "Perplexity", totalCitations: 4, totalMentions: 8, totalAllBrandMentions: 10, totalClientBrandMentions: 6, totalVisibilityScore: 16, totalResponses: 10 },
-      { platformId: 4, slug: "anthropic", displayName: "Claude", totalCitations: 0, totalMentions: 0, totalAllBrandMentions: 0, totalClientBrandMentions: 0, totalVisibilityScore: 0, totalResponses: 10 },
+      { platformId: 1, slug: "perplexity", displayName: "Perplexity", totalCitations: 4, totalMentions: 8, totalAllBrandMentions: 10, totalClientBrandMentions: 6, totalVisibilityScore: 16, totalResponses: 10, totalAllCitations: 8, totalClientOwnedCitations: 4, totalCompetitorOwnedCitations: 2, totalTrustedResponses: 3 },
+      { platformId: 4, slug: "anthropic", displayName: "Claude", totalCitations: 0, totalMentions: 0, totalAllBrandMentions: 0, totalClientBrandMentions: 0, totalVisibilityScore: 0, totalResponses: 10, totalAllCitations: 0, totalClientOwnedCitations: 0, totalCompetitorOwnedCitations: 0, totalTrustedResponses: 0 },
     ]);
 
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/by-platform");
@@ -137,12 +159,14 @@ describe("GET /api/clients/:id/metrics/by-platform (Epic 5 slice 1, issue #29)",
     expect(res.body.data.combined.responseWeighted.citationFrequency).toBe(20);
     expect(res.body.data.combined.responseWeighted.aiSoV).toBe(60);
     expect(res.body.data.combined.responseWeighted.avgVisibilityScore).toBeCloseTo(0.8);
+    expect(res.body.data.combined.responseWeighted.trustedThirdPartySupportRate).toBe(15); // 3/20
+    expect(res.body.data.combined.responseWeighted.clientOwnedCitationRate).toBe(50); // 4/8
   });
 
   it("computes platformBalanced as the unweighted mean of each platform's own rate, diverging from responseWeighted when volumes differ", async () => {
     mockMetricStore.aggregateLiveForPeriodByPlatform.mockResolvedValue([
-      { platformId: 1, slug: "perplexity", displayName: "Perplexity", totalCitations: 0, totalMentions: 90, totalAllBrandMentions: 0, totalClientBrandMentions: 0, totalVisibilityScore: 0, totalResponses: 90 },
-      { platformId: 4, slug: "anthropic", displayName: "Claude", totalCitations: 0, totalMentions: 0, totalAllBrandMentions: 0, totalClientBrandMentions: 0, totalVisibilityScore: 0, totalResponses: 10 },
+      { platformId: 1, slug: "perplexity", displayName: "Perplexity", totalCitations: 0, totalMentions: 90, totalAllBrandMentions: 0, totalClientBrandMentions: 0, totalVisibilityScore: 0, totalResponses: 90, totalAllCitations: 0, totalClientOwnedCitations: 0, totalCompetitorOwnedCitations: 0, totalTrustedResponses: 0 },
+      { platformId: 4, slug: "anthropic", displayName: "Claude", totalCitations: 0, totalMentions: 0, totalAllBrandMentions: 0, totalClientBrandMentions: 0, totalVisibilityScore: 0, totalResponses: 10, totalAllCitations: 0, totalClientOwnedCitations: 0, totalCompetitorOwnedCitations: 0, totalTrustedResponses: 0 },
     ]);
 
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/by-platform");
@@ -158,6 +182,8 @@ describe("GET /api/clients/:id/metrics/by-platform (Epic 5 slice 1, issue #29)",
     expect(res.body.data.platforms).toEqual([]);
     expect(res.body.data.combined.responseWeighted.mentionRate).toBe(0);
     expect(res.body.data.combined.platformBalanced.mentionRate).toBe(0);
+    expect(res.body.data.combined.responseWeighted.trustedThirdPartySupportRate).toBe(0);
+    expect(res.body.data.combined.platformBalanced.clientOwnedCitationRate).toBe(0);
   });
 });
 

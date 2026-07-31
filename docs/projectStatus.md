@@ -1,7 +1,49 @@
 ## Resume From
 
 Last session: 2026-07-31
-Branch: main | Version: v1.63.0 | 1196 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
+Branch: main | Version: v1.64.0 | 1199 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
+
+Session 2026-07-31 (part 5): issue #29 slice 4 SHIPPED as v1.64.0. Metric
+shape confirmed with user before coding (Citation Frequency already means
+"responses where client is cited/total responses", which would have made
+a naive response-level "Client-Owned Citation Rate" a literal duplicate):
+Trusted Third-Party Support Rate stays response-level (responses with
+>= 1 trusted citation / totalResponses, same T-component trust definition
+already in scoring.ts); Client-Owned/Competitor-Owned Citation Rate are
+citation-level shares instead (client-owned or competitor-owned citations
+/ total citations across all responses) - mirrors how AI SoV already
+relates to Mention Rate, genuinely new information about citation
+composition rather than a renamed duplicate. Landed on the CORE live
+metric family (GET .../metrics/overview + .../metrics/by-platform), not
+the non-branded family slices 2-3 used - citation trust/ownership isn't
+inherently biased by branded-vs-unbranded prompt wording the way
+recommendation classification is, so no reason to scope it down.
+`AggregateResult` (server/storage/metricStore.ts) gained 4 fields
+(totalAllCitations, totalClientOwnedCitations,
+totalCompetitorOwnedCitations, totalTrustedResponses) - both
+`aggregateLiveForPeriod` and `aggregateLiveForPeriodByPlatform` extended
+in the same per-response loop that already iterates citations (no new
+query round-trip), now also fetching each client's competitor brand ids
+for ownership matching. The legacy snapshot-delta `aggregateForPeriod`
+(unused by any route since TD-24) returns 0 for all 4 new fields with a
+comment explaining why - snapshot deltas carry no citation-ownership
+breakdown. TDD throughout, RED confirmed on all new/extended tests before
+implementing. docs/system-documentation.md Section 2.2 extended. Full
+suite (1199 tests), lint, typecheck all pass. Still server-only, no UI
+yet - all 4 slices so far are API-only.
+NOT YET DONE: git commit/push of this slice; npm run package + cPanel
+deploy (v1.61.0-v1.64.0 all git-only so far - one combined deploy cycle,
+no schema migration in any of the four).
+NEXT SESSION: (1) commit + push v1.64.0, then package + deploy
+v1.61.0-v1.64.0 together to cPanel; (2) pick up issue #29 slice 5 (client
+UI - platform filter + decomposition view on ClientDetail.tsx, sample
+size display, rollup-method label; first real per-platform display
+anywhere in the app, per the 2026-07-31 exploration finding that
+RunDetail.tsx doesn't even show which platform a response came from
+today) - this is the slice that finally makes all 4 API-only slices
+visible to the user, and completes the epic's originally-scoped roadmap;
+(3) user-owned: B-20 GBP API quota check, Groq API access (carried over,
+still not done).
 
 Session 2026-07-31 (part 4): issue #29 slice 3 SHIPPED as v1.63.0 - the
 first genuinely new-metric slice (not just re-grouping existing

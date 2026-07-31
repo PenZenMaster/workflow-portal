@@ -472,7 +472,35 @@ describe("MetricStore.aggregateLiveForPeriod (TD-24)", () => {
       totalClientBrandMentions: 0,
       totalVisibilityScore: 0,
       totalResponses: 0,
+      totalAllCitations: 0,
+      totalClientOwnedCitations: 0,
+      totalCompetitorOwnedCitations: 0,
+      totalTrustedResponses: 0,
     });
+  });
+
+  // Epic 5 (issue #29) slice 4: citation-ownership share and trusted-
+  // third-party support totals, definitions locked 2026-07-31.
+  it("counts citation-ownership and trust totals across all responses", async () => {
+    const { db, store, mentionStore, run, completeResponse } = await seed();
+    const resp1 = await completeResponse(run.id);
+    const resp2 = await completeResponse(run.id);
+    await mentionStore.create({ responseId: resp1, brandId: 10, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+
+    db.insert(responseCitations).values([
+      // resp1: one client-owned + one trusted third-party citation
+      { responseId: resp1, url: "https://acme.com/about", rootDomain: "acme.com", ownedByBrandId: 10, position: 1, isTrustedThirdParty: 0 },
+      { responseId: resp1, url: "https://trusted.org/review", rootDomain: "trusted.org", ownedByBrandId: null, position: 2, isTrustedThirdParty: 1 },
+      // resp2: one competitor-owned + one unrelated (unowned, untrusted)
+      { responseId: resp2, url: "https://rival.com", rootDomain: "rival.com", ownedByBrandId: 11, position: 1, isTrustedThirdParty: 0 },
+      { responseId: resp2, url: "https://randomblog.com", rootDomain: "randomblog.com", ownedByBrandId: null, position: 2, isTrustedThirdParty: 0 },
+    ]).run();
+
+    const agg = await store.aggregateLiveForPeriod(1, WIDE_FROM, WIDE_TO);
+    expect(agg.totalAllCitations).toBe(4);
+    expect(agg.totalClientOwnedCitations).toBe(1);
+    expect(agg.totalCompetitorOwnedCitations).toBe(1);
+    expect(agg.totalTrustedResponses).toBe(1); // only resp1 has a trusted citation
   });
 });
 
@@ -564,8 +592,16 @@ describe("MetricStore.aggregateLiveForPeriodByPlatform (Epic 5 slice 1)", () => 
         totalClientBrandMentions: acc.totalClientBrandMentions + p.totalClientBrandMentions,
         totalVisibilityScore: acc.totalVisibilityScore + p.totalVisibilityScore,
         totalResponses: acc.totalResponses + p.totalResponses,
+        totalAllCitations: acc.totalAllCitations + p.totalAllCitations,
+        totalClientOwnedCitations: acc.totalClientOwnedCitations + p.totalClientOwnedCitations,
+        totalCompetitorOwnedCitations: acc.totalCompetitorOwnedCitations + p.totalCompetitorOwnedCitations,
+        totalTrustedResponses: acc.totalTrustedResponses + p.totalTrustedResponses,
       }),
-      { totalCitations: 0, totalMentions: 0, totalAllBrandMentions: 0, totalClientBrandMentions: 0, totalVisibilityScore: 0, totalResponses: 0 }
+      {
+        totalCitations: 0, totalMentions: 0, totalAllBrandMentions: 0, totalClientBrandMentions: 0,
+        totalVisibilityScore: 0, totalResponses: 0,
+        totalAllCitations: 0, totalClientOwnedCitations: 0, totalCompetitorOwnedCitations: 0, totalTrustedResponses: 0,
+      }
     );
     expect(summed).toEqual(pooled);
   });
@@ -588,6 +624,29 @@ describe("MetricStore.aggregateLiveForPeriodByPlatform (Epic 5 slice 1)", () => 
     const { store } = await seed();
     const byPlatform = await store.aggregateLiveForPeriodByPlatform(3, WIDE_FROM, WIDE_TO);
     expect(byPlatform).toEqual([]);
+  });
+
+  // Epic 5 (issue #29) slice 4: citation-ownership share and trusted-
+  // third-party support totals, per platform.
+  it("counts citation-ownership and trust totals per platform", async () => {
+    const { db, store, completeResponse } = await seed();
+    const p1 = await completeResponse(1);
+    const p4 = await completeResponse(4);
+
+    db.insert(responseCitations).values([
+      { responseId: p1, url: "https://acme.com", rootDomain: "acme.com", ownedByBrandId: 10, position: 1, isTrustedThirdParty: 0 },
+      { responseId: p1, url: "https://trusted.org", rootDomain: "trusted.org", ownedByBrandId: null, position: 2, isTrustedThirdParty: 1 },
+      { responseId: p4, url: "https://rival.com", rootDomain: "rival.com", ownedByBrandId: 11, position: 1, isTrustedThirdParty: 0 },
+    ]).run();
+
+    const byPlatform = await store.aggregateLiveForPeriodByPlatform(1, WIDE_FROM, WIDE_TO);
+    const perplexity = byPlatform.find((p) => p.platformId === 1)!;
+    const anthropic = byPlatform.find((p) => p.platformId === 4)!;
+    expect(perplexity.totalAllCitations).toBe(2);
+    expect(perplexity.totalClientOwnedCitations).toBe(1);
+    expect(perplexity.totalTrustedResponses).toBe(1);
+    expect(anthropic.totalAllCitations).toBe(1);
+    expect(anthropic.totalCompetitorOwnedCitations).toBe(1);
   });
 });
 
