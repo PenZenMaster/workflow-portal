@@ -26,6 +26,9 @@
  * - v1.06 issue #4 Phase 3 item J (slice 5): GET .../diagnostics
  *   (methodology summary), activate gated on quotaShortfall (409
  *   QUOTA_NOT_MET) - the only blocking check, per user decision
+ * - v1.07 TD-26 fix: PATCH /api/prompts/:id now recomputes brandContext/
+ *   brandInPrompt from the edited text too, closing the gap left when
+ *   v1.03 only wired the two creation endpoints
  */
 
 import type { Express } from "express";
@@ -503,7 +506,27 @@ export function registerPromptRoutes(app: Express): void {
       const parsed = insertPromptSchema.safeParse(req.body);
       if (!parsed.success)
         throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
-      const prompt = await promptStore.update(id, withDerivedCategory(parsed.data));
+
+      const existing = await promptStore.get(id);
+      if (!existing)
+        throw new AppError(404, "Prompt not found", "PROMPT_NOT_FOUND");
+
+      // TD-26 fix: brandContext/brandInPrompt must be recomputed from the
+      // edited text too, not just at creation time (issue #4 Problem #6 /
+      // item G) - otherwise an analyst editing a saved prompt's text via
+      // the edit form leaves a stale classification behind.
+      let data = withDerivedCategory(parsed.data);
+      const brandInputs = await resolveBrandInputs(existing.collectionId);
+      if (brandInputs) {
+        const brandContext = deriveBrandContext(data.text, brandInputs.clientBrandInputs, brandInputs.competitorBrandInputs);
+        data = {
+          ...data,
+          brandContext,
+          brandInPrompt: brandContext === "client_branded" || brandContext === "client_and_competitor",
+        };
+      }
+
+      const prompt = await promptStore.update(id, data);
       if (!prompt)
         throw new AppError(404, "Prompt not found", "PROMPT_NOT_FOUND");
       ok(res, prompt);

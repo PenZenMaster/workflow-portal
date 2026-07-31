@@ -93,6 +93,7 @@ function toValues(
 
 export interface IPromptStore {
   listByCollection(collectionId: number): Promise<Prompt[]>;
+  get(id: number): Promise<Prompt | undefined>;
   create(collectionId: number, data: InsertPrompt): Promise<Prompt>;
   bulkCreate(
     collectionId: number,
@@ -113,6 +114,15 @@ export class PromptStore implements IPromptStore {
       .where(eq(prompts.collectionId, collectionId))
       .all();
     return rows.map(hydrate).sort((a, b) => a.position - b.position);
+  }
+
+  async get(id: number): Promise<Prompt | undefined> {
+    const row = this._db
+      .select()
+      .from(prompts)
+      .where(eq(prompts.id, id))
+      .get();
+    return row ? hydrate(row) : undefined;
   }
 
   async create(collectionId: number, data: InsertPrompt): Promise<Prompt> {

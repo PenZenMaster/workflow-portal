@@ -1,7 +1,39 @@
 ## Resume From
 
-Last session: 2026-07-30
-Branch: main | Version: v1.60.0 | 1167 tests passing | DEPLOYED to cPanel, smoke-tested clean
+Last session: 2026-07-31
+Branch: main | Version: v1.60.1 | 1168 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
+
+Session 2026-07-31: Backlog review of the 3 open GitHub issues. Issue #27
+(phrasing/context-richness scoring) confirmed fully shipped in v1.60.0 and
+CLOSED on GitHub (was left open after the code landed). Issue #4's last
+open acceptance-criteria gap - TD-26 - was scoped, TDD'd, and FIXED as
+v1.60.1: `PATCH /api/prompts/:id` now recomputes `brandContext`/
+`brandInPrompt` from edited text via the same `resolveBrandInputs` +
+`deriveBrandContext` wiring the two prompt-creation endpoints already had
+since v1.54.0. New `PromptStore.get(id)` added (was missing from
+`IPromptStore`) so the PATCH handler can resolve the prompt's
+`collectionId` for brand lookup before calling `update`. Test-first: new
+test written and confirmed RED (asserted the recomputed brandContext,
+route returned the stale client-supplied value), then GREEN after the fix
+landed; all 3 pre-existing PATCH tests updated to seed the new `get`
+mock. Full suite (1168 tests), lint, and typecheck all pass.
+docs/system-documentation.md and the TD-26 tech debt register row updated
+in the same change set; TD-26 marked Done.
+Issue #4 now has no known open acceptance-criteria gaps (the other
+previously-logged gap - item J's "changed prompts requiring
+revalidation" diagnostic - was explicitly scoped out in v1.59.0 as not
+computable from the current schema, not a criterion left unmet).
+NOT YET DONE: git commit/push of this fix; npm run package + cPanel
+deploy of v1.60.1 (git only so far).
+NEXT SESSION: (1) commit + push v1.60.1, then package + deploy to cPanel,
+smoke-test (edit an existing prompt's text via the pencil icon on a
+collection with configured client brands, confirm the saved brandContext
+badge updates to reflect the new text rather than staying stale); (2)
+decide whether to formally close issue #4 on GitHub now that all its
+acceptance criteria are met, or leave it open pending a final review;
+(3) no other backlog item is currently scoped and locked with the user -
+needs a fresh backlog/issue review if #4 closes; (4) user-owned: B-20 GBP
+API quota check, Groq API access (carried over, still not done).
 
 Session 2026-07-30: (1) v1.59.0 (issue #4 Phase 3, all 5 slices) deployed
 to cPanel and smoke-tested - all 5 checklist items passed. Post-deploy
@@ -2055,7 +2087,7 @@ Confirmed decisions:
 | ID  | Severity | Status | Description | File |
 |-----|----------|--------|-------------|------|
 | TD-25 | Low | Open (accepted risk) | Dependabot alert #19: `brace-expansion` DoS (GHSA-mh99-v99m-4gvg, high CVSS) via transitive `minimatch` in eslint/@vitest/coverage-v8. Only fix path is a major bump (@vitest/coverage-v8 3.x -> 4.1.10, likely forcing vitest 3.x -> 4.x too) — deliberately not done 2026-07-24 (user decision) to avoid an unplanned toolchain upgrade mid-sprint. Actual exposure is ~nil: dev-only tool, glob patterns come from this repo's own trusted config, never untrusted input. Revisit alongside a deliberate vitest 4.x upgrade slice. | package.json (devDependencies) |
-| TD-26 | Low | Open | `PATCH /api/prompts/:id` does not recompute `brandContext`/`brandInPrompt` when `text` is edited - the v1.54.0 fix (issue #4 Phase 2 item 8) only covers the two prompt-*creation* endpoints (`POST .../prompts`, `POST .../prompts/bulk`), matching issue #4 Problem #6's original framing about the review panel's pre-save edit flow, not post-save editing of an already-persisted prompt. Found 2026-07-29 while implementing issue #4 Phase 3 item I (slice 4) - editing an existing prompt's text via the edit-form pencil icon (available since before Phase 3) can leave a stale `brandContext`. Fix needs the same `resolveBrandInputs` + `deriveBrandContext` wiring the other two endpoints already have. | server/routes/prompts.ts (PATCH /api/prompts/:id) |
+| TD-26 | Low | Done | `PATCH /api/prompts/:id` did not recompute `brandContext`/`brandInPrompt` when `text` was edited - the v1.54.0 fix (issue #4 Phase 2 item 8) only covered the two prompt-*creation* endpoints (`POST .../prompts`, `POST .../prompts/bulk`). Found 2026-07-29 while implementing issue #4 Phase 3 item I (slice 4). Fixed 2026-07-31 (v1.60.1, issue #4 acceptance criterion "editing prompt text triggers metadata revalidation"): PATCH now loads the existing prompt via new `PromptStore.get`, resolves its `collectionId`, and applies the same `resolveBrandInputs` + `deriveBrandContext` wiring the other two endpoints already had. | server/routes/prompts.ts (PATCH /api/prompts/:id) |
 | TD-10 | Medium | Done | Session error callbacks lack request context in logs | server/routes/auth.ts |
 | TD-12 | Low | Open | Hardcoded seed data — no versioning or rollback | server/seed.ts |
 | TD-13 | Low | Open | skipLibCheck: true masks dep type errors | tsconfig.json |

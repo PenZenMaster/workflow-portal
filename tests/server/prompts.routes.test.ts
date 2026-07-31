@@ -28,6 +28,7 @@ const mockCollectionStore = {
 };
 const mockPromptStore = {
   listByCollection: vi.fn(),
+  get: vi.fn(),
   create: vi.fn(),
   bulkCreate: vi.fn(),
   update: vi.fn(),
@@ -927,7 +928,7 @@ describe("PATCH /api/prompts/:id", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns 404 when not found", async () => {
-    mockPromptStore.update.mockResolvedValue(undefined);
+    mockPromptStore.get.mockResolvedValue(undefined);
     const res = await request(buildApp("analyst"))
       .patch("/api/prompts/999")
       .send({ text: "Updated", category: "informational" });
@@ -935,6 +936,7 @@ describe("PATCH /api/prompts/:id", () => {
   });
 
   it("returns 200 with updated prompt", async () => {
+    mockPromptStore.get.mockResolvedValue(SAMPLE_PROMPT);
     mockPromptStore.update.mockResolvedValue({ ...SAMPLE_PROMPT, text: "Updated" });
     const res = await request(buildApp("analyst"))
       .patch("/api/prompts/1")
@@ -944,6 +946,7 @@ describe("PATCH /api/prompts/:id", () => {
   });
 
   it("derives category from intentType, overriding a stale client-supplied category (issue #4 Phase 3 item I)", async () => {
+    mockPromptStore.get.mockResolvedValue(SAMPLE_PROMPT);
     mockPromptStore.update.mockResolvedValue(SAMPLE_PROMPT);
 
     await request(buildApp("analyst"))
@@ -953,6 +956,29 @@ describe("PATCH /api/prompts/:id", () => {
     expect(mockPromptStore.update).toHaveBeenCalledWith(
       1,
       expect.objectContaining({ category: "local" })
+    );
+  });
+
+  it("recomputes brandContext/brandInPrompt from the actual text on edit, overriding a stale client-supplied value (TD-26 fix)", async () => {
+    mockPromptStore.get.mockResolvedValue(SAMPLE_PROMPT); // collectionId 1
+    mockCollectionStore.get.mockResolvedValue(SAMPLE_COLLECTION); // clientId 10
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: null, createdAt: Date.now() },
+    ]);
+    mockPromptStore.update.mockResolvedValue(SAMPLE_PROMPT);
+
+    await request(buildApp("analyst"))
+      .patch("/api/prompts/1")
+      .send({
+        text: "Is Acme Plumbing a good choice?",
+        category: "informational",
+        brandContext: "unbranded",
+        brandInPrompt: false,
+      });
+
+    expect(mockPromptStore.update).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ brandContext: "client_branded", brandInPrompt: true })
     );
   });
 });

@@ -979,17 +979,16 @@ established. Callers that don't supply `intentType` (older clients, or a
 still-unclassified prompt) keep sending `category` directly - fully
 backward compatible.
 
-**Known gap, found while implementing this slice, not fixed here:**
-`PATCH /api/prompts/:id` still does not recompute `brandContext` when
-`text` is edited - the v1.54.0 fix only covers the two prompt-*creation*
-endpoints (matching issue #4 Problem #6's original framing, which was
-about the review panel's pre-save edit flow, not post-save editing of an
-already-persisted prompt). Since the edit form has allowed text edits
-since before Phase 3, this means editing an existing prompt's text via
-the pencil icon can leave a stale `brandContext` today. Logged as TD-26
-(see tech debt register) rather than fixed here, since it's unrelated to
-manual-creation scope and needs its own `resolveBrandInputs` wiring in
-the PATCH handler.
+**TD-26 CLOSED:** `PATCH /api/prompts/:id` now recomputes `brandContext`/
+`brandInPrompt` from the edited `text` too, via the same
+`resolveBrandInputs` + `deriveBrandContext` wiring the two prompt-
+*creation* endpoints already had since v1.54.0. The handler first loads
+the existing prompt (new `PromptStore.get`) to resolve its
+`collectionId` for brand lookup, then always overrides any
+client-supplied `brandContext`/`brandInPrompt` from the actual submitted
+text - never trusting the client, same precedent as the creation
+endpoints. Editing an existing prompt's text via the pencil icon can no
+longer leave a stale `brandContext` behind.
 
 **Methodology summary + activation gate (v1.59.0, issue #4 Phase 3 item
 J) - Phase 3 CLOSES with this slice.** A collection's persisted prompts
