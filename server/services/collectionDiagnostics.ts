@@ -6,22 +6,26 @@
  * Pre-activation methodology summary for a collection's persisted
  * prompts (issue #4 Phase 3 item J, slice 5): intent/brand-context/
  * funnel-stage distributions, geo/service coverage, exact and near-
- * duplicate detection across the whole stored set, and quotaShortfall
- * resolved against the collection's panel type - the only diagnostic
- * that blocks activation (POST /api/prompt-collections/:id/activate).
- * Everything else is informational, same warn-don't-block precedent as
- * the rest of issue #4. Pure function, no DB access.
+ * duplicate detection across the whole stored set, phrasing/context-
+ * richness distribution (issue #27), and quotaShortfall resolved
+ * against the collection's panel type - the only diagnostic that blocks
+ * activation (POST /api/prompt-collections/:id/activate). Everything
+ * else is informational, same warn-don't-block precedent as the rest of
+ * issue #4. Pure function, no DB access.
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-07-29
- * Last Modified Date: 2026-07-29
+ * Last Modified Date: 2026-07-30
  * Comments:
  * - v1.00 issue #4 Phase 3 slice 5 initial implementation
+ * - v1.01 issue #27: added phrasingDistribution (scorePhrasingRichness
+ *   per prompt, informational only)
  */
 
 import type { CollectionDiagnostics, Prompt, PromptPanelType } from "@shared/schema";
 import { normalizePromptText, isNearDuplicate, jaccardSimilarity } from "./nearDuplicate";
 import { resolvePanelTypeQuotas, computeQuotaShortfall } from "./panelTypeQuotas";
+import { scorePhrasingRichness } from "./phrasingRichness";
 
 export function computeCollectionDiagnostics(prompts: Prompt[], panelType: PromptPanelType): CollectionDiagnostics {
   const intentDistribution: CollectionDiagnostics["intentDistribution"] = {};
@@ -29,6 +33,7 @@ export function computeCollectionDiagnostics(prompts: Prompt[], panelType: Promp
   const funnelStageDistribution: CollectionDiagnostics["funnelStageDistribution"] = {};
   const geoSet = new Set<string>();
   const serviceSet = new Set<string>();
+  const phrasingDistribution: CollectionDiagnostics["phrasingDistribution"] = {};
 
   for (const p of prompts) {
     const intentKey = p.intentType ?? "unclassified";
@@ -41,6 +46,9 @@ export function computeCollectionDiagnostics(prompts: Prompt[], panelType: Promp
 
     if (p.geo) geoSet.add(p.geo);
     if (p.service) serviceSet.add(p.service);
+
+    const phrasingKey = scorePhrasingRichness(p.text);
+    phrasingDistribution[phrasingKey] = (phrasingDistribution[phrasingKey] ?? 0) + 1;
   }
 
   // Exact-duplicate groups: bucket by normalized text, keep only groups
@@ -91,5 +99,6 @@ export function computeCollectionDiagnostics(prompts: Prompt[], panelType: Promp
     duplicateGroups,
     nearDuplicatePairs,
     quotaShortfall,
+    phrasingDistribution,
   };
 }

@@ -550,9 +550,9 @@ export type GenerationResult = {
 // buckets intent/brandContext nulls (prompts never classified - legacy
 // data, or manual prompts created before item I). quotaShortfall is
 // resolved against promptCount, same resolver as generation-time
-// enforcement (slice 2) - the only diagnostic that blocks activation
-// (issue #27's phrasing/context-richness signal is a separate, not-yet-
-// built follow-on issue, not part of this type).
+// enforcement (slice 2) - the only diagnostic that blocks activation.
+// phrasingDistribution (issue #27, added 2026-07-30) is informational
+// only, same as every other diagnostic here besides quotaShortfall.
 export type CollectionDiagnostics = {
   promptCount: number;
   intentDistribution: Partial<Record<PromptIntentType | "unclassified", number>>;
@@ -563,6 +563,7 @@ export type CollectionDiagnostics = {
   duplicateGroups: string[][];
   nearDuplicatePairs: { textA: string; textB: string; similarityPct: number }[];
   quotaShortfall: Partial<Record<PromptIntentType, number>>;
+  phrasingDistribution: Partial<Record<"context_rich" | "keyword_style", number>>;
 };
 
 export type ClientReadiness = {

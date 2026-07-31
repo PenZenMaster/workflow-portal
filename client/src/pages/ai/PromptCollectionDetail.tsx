@@ -428,6 +428,9 @@ export default function PromptCollectionDetail() {
             {" - "}Geo coverage: {diagnostics.geoCoverage.length}
             {" - "}Service coverage: {diagnostics.serviceCoverage.length}
           </p>
+          <p className="text-xs text-muted-foreground">
+            Phrasing: {Object.entries(diagnostics.phrasingDistribution).map(([k, v]) => `${k}: ${v}`).join(", ") || "none"}
+          </p>
           {(diagnostics.duplicateGroups.length > 0 || diagnostics.nearDuplicatePairs.length > 0) && (
             <p className="text-xs text-amber-700 dark:text-amber-500">
               {diagnostics.duplicateGroups.length} duplicate group(s), {diagnostics.nearDuplicatePairs.length} near-duplicate pair(s) - informational, does not block activation

@@ -113,6 +113,7 @@ const EMPTY_DIAGNOSTICS = {
   duplicateGroups: [],
   nearDuplicatePairs: [],
   quotaShortfall: {},
+  phrasingDistribution: {},
 };
 
 const SAMPLE_SCHEDULE = {
@@ -246,6 +247,18 @@ describe("PromptCollectionDetail — methodology summary + activation gate (issu
     expect(await screen.findByText(/methodology summary/i)).toBeInTheDocument();
     expect(screen.getByText(/geographic_discovery: 1/i)).toBeInTheDocument();
     expect(screen.getByText(/quotas satisfied/i)).toBeInTheDocument();
+  });
+
+  it("renders phrasingDistribution on the methodology summary panel (issue #27)", async () => {
+    promptsResponse = { data: [{ ...EXISTING_PROMPT }] };
+    diagnosticsResponse = {
+      data: { ...EMPTY_DIAGNOSTICS, promptCount: 2, phrasingDistribution: { context_rich: 1, keyword_style: 1 } },
+    };
+    renderPage();
+
+    expect(await screen.findByText(/methodology summary/i)).toBeInTheDocument();
+    expect(screen.getByText(/context_rich: 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/keyword_style: 1/i)).toBeInTheDocument();
   });
 
   it("disables Activate and explains the shortfall when quotaShortfall is non-empty", async () => {

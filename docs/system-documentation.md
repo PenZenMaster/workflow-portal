@@ -1039,6 +1039,41 @@ silently dropping unrelated pure-function exports like
 `normalizePromptText` for any other code importing from the same module
 path during those tests.
 
+**Phrasing / context-richness scoring (v1.60.0, issue #27).** The three
+other audit dimensions from `docs/Feature-Request-AI-Prompt-Audit.md`
+(intent diversity, branded/unbranded bias, geographic granularity) were
+already covered by `intentType`, `brandContext`, `geo`, and the
+methodology-summary diagnostics above; this closes the fourth: whether a
+prompt reads like a natural, persona-rich question a real user would ask
+("I'm planning a 200-person outdoor wedding in San Francisco. How many
+portable restrooms do I need?") versus a bare keyword phrase pasted into
+a list ("Portable restroom rental in San Francisco"). AI answer engines
+respond to natural language and situational context, not keywords - a
+collection padded with keyword-style prompts produces less
+representative measurement data.
+
+`scorePhrasingRichness` (`server/services/phrasingRichness.ts`, pure
+function, no LLM cost - a deterministic-heuristics vs. LLM-as-judge
+design decision locked with the user 2026-07-30) classifies each
+prompt's text as `context_rich` or `keyword_style` by counting three
+signals and requiring at least 2 of 3:
+
+1. Word count >= 8
+2. Question-form or first-person phrasing - contains `?`, opens with a
+   question word (who/what/when/where/why/how/which/can/does/do/is/are),
+   or contains a first-person marker (`I'm`, `I am`, `I need`, `my `,
+   `we're`, `we need`)
+3. A contextual qualifier - budget/cost/price, event-type words
+   (wedding/event/party), quantity phrasing (`how many`, `N-person`,
+   `N guests`), or a timeframe word (today/tomorrow/weekend/deadline/
+   date/asap/urgent)
+
+`computeCollectionDiagnostics` aggregates this per prompt into
+`phrasingDistribution: Partial<Record<"context_rich" | "keyword_style",
+number>>`, shown as one more line on the "Methodology summary" panel.
+Informational only, same warn-don't-block precedent as every other
+diagnostic here besides `quotaShortfall` - does not affect activation.
+
 The portal supports seven prompt categories. Use each to cover different stages of the buyer journey.
 
 **Category prompts** — broad discovery queries

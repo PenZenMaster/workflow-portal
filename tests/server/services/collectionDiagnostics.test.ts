@@ -134,5 +134,19 @@ describe("computeCollectionDiagnostics", () => {
     expect(diagnostics.quotaShortfall).toEqual({});
     expect(diagnostics.duplicateGroups).toEqual([]);
     expect(diagnostics.nearDuplicatePairs).toEqual([]);
+    expect(diagnostics.phrasingDistribution).toEqual({});
+  });
+
+  it("summarizes phrasingDistribution using scorePhrasingRichness per prompt (issue #27)", () => {
+    const prompts = [
+      makePrompt({ id: 1, text: "Portable restroom rental in San Francisco" }),
+      makePrompt({
+        id: 2,
+        text: "I'm planning a 200-person outdoor wedding in San Francisco. How many portable restrooms do I need and who provides luxury trailers?",
+      }),
+      makePrompt({ id: 3, text: "Commercial roofing contractors specializing in flat roof replacement services nationwide" }),
+    ];
+    const diagnostics = computeCollectionDiagnostics(prompts, "balanced_baseline");
+    expect(diagnostics.phrasingDistribution).toEqual({ keyword_style: 2, context_rich: 1 });
   });
 });
