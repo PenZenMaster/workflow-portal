@@ -17,6 +17,9 @@
  *   same live aggregate grouped by platform instead of pooled
  * - v1.03 Epic 5 slice 2 (issue #29): aggregateNonBrandedByPlatform -
  *   same non-branded aggregate grouped by platform instead of pooled
+ * - v1.04 Epic 5 slice 3 (issue #29): strongRecommendedNonBranded,
+ *   firstChoiceNonBranded, clientRanks added to both non-branded
+ *   aggregates (definitions locked 2026-07-31)
  */
 
 import {
@@ -30,6 +33,7 @@ import {
   responseRecommendations,
   platforms,
   RECOMMENDED_STATUSES,
+  STRONG_RECOMMENDED_STATUSES,
 } from "@shared/schema";
 import type { MetricSnapshotDaily } from "@shared/schema";
 import { eq, and, gte, lt, lte, desc, sql, inArray } from "drizzle-orm";
@@ -89,6 +93,10 @@ export interface NonBrandedAggregate {
   recommendedNonBranded: number; // distinct non-branded responses with effective status recommended-and-up for a client brand
   clientRecommended: number;     // recommendation rows (client brands) at recommended-and-up
   allBrandRecommended: number;   // recommendation rows (all brands) at recommended-and-up
+  // Epic 5 (issue #29) slice 3, definitions locked 2026-07-31:
+  strongRecommendedNonBranded: number; // distinct non-branded responses, client effective status strongly_recommended-and-up
+  firstChoiceNonBranded: number;       // distinct non-branded responses, client effective status first_choice
+  clientRanks: number[];               // non-null rank values from the client brand's non-branded recommendation rows
 }
 
 // Epic 5 (issue #29) slice 2: same shape as NonBrandedAggregate, one entry
@@ -479,6 +487,15 @@ export class MetricStore implements IMetricStore {
       sql`coalesce(${responseRecommendations.humanStatus}, ${responseRecommendations.status})`,
       [...RECOMMENDED_STATUSES]
     );
+    // Epic 5 slice 3: strict subsets of effectiveRecommended.
+    const effectiveStrongOrAbove = inArray(
+      sql`coalesce(${responseRecommendations.humanStatus}, ${responseRecommendations.status})`,
+      [...STRONG_RECOMMENDED_STATUSES]
+    );
+    const effectiveFirstChoice = inArray(
+      sql`coalesce(${responseRecommendations.humanStatus}, ${responseRecommendations.status})`,
+      ["first_choice"]
+    );
 
     const clientBrandIds = this._db
       .select({ id: brands.id })
@@ -506,6 +523,21 @@ export class MetricStore implements IMetricStore {
         .where(where)
         .get()?.n ?? 0;
 
+    // Distinct-response count of client-brand recommendation rows matching
+    // an effective-status predicate (recommendedNonBranded, slice 3's
+    // strongRecommendedNonBranded/firstChoiceNonBranded all share this shape).
+    const countClientResponsesWhere = (statusPredicate: SQL): number =>
+      clientBrandIds.length === 0
+        ? 0
+        : this._db
+            .select({ n: sql<number>`count(distinct ${responsesRaw.id})` })
+            .from(responsesRaw)
+            .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+            .innerJoin(prompts, eq(responsesRaw.promptId, prompts.id))
+            .innerJoin(responseRecommendations, eq(responseRecommendations.responseId, responsesRaw.id))
+            .where(and(nonBranded, inArray(responseRecommendations.brandId, clientBrandIds), statusPredicate))
+            .get()?.n ?? 0;
+
     const mentionedNonBranded =
       clientBrandIds.length === 0
         ? 0
@@ -518,28 +550,31 @@ export class MetricStore implements IMetricStore {
             .where(and(nonBranded, inArray(responseMentions.brandId, clientBrandIds)))
             .get()?.n ?? 0;
 
-    const recommendedNonBranded =
+    const recommendedNonBranded = countClientResponsesWhere(effectiveRecommended);
+
+    // Epic 5 slice 3: non-null rank values from the client brand's
+    // non-branded recommendation rows (rank distribution inputs).
+    const clientRanks: number[] =
       clientBrandIds.length === 0
-        ? 0
+        ? []
         : this._db
-            .select({ n: sql<number>`count(distinct ${responsesRaw.id})` })
-            .from(responsesRaw)
+            .select({ rank: responseRecommendations.rank })
+            .from(responseRecommendations)
+            .innerJoin(responsesRaw, eq(responseRecommendations.responseId, responsesRaw.id))
             .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
             .innerJoin(prompts, eq(responsesRaw.promptId, prompts.id))
-            .innerJoin(responseRecommendations, eq(responseRecommendations.responseId, responsesRaw.id))
-            .where(
-              and(
-                nonBranded,
-                inArray(responseRecommendations.brandId, clientBrandIds),
-                effectiveRecommended
-              )
-            )
-            .get()?.n ?? 0;
+            .where(and(nonBranded, inArray(responseRecommendations.brandId, clientBrandIds)))
+            .all()
+            .map((r) => r.rank)
+            .filter((r): r is number => r !== null);
 
     return {
       nonBrandedResponses: countResponses(nonBranded),
       mentionedNonBranded,
       recommendedNonBranded,
+      strongRecommendedNonBranded: countClientResponsesWhere(effectiveStrongOrAbove),
+      firstChoiceNonBranded: countClientResponsesWhere(effectiveFirstChoice),
+      clientRanks,
       clientRecommended:
         clientBrandIds.length === 0
           ? 0
@@ -575,6 +610,15 @@ export class MetricStore implements IMetricStore {
       sql`coalesce(${responseRecommendations.humanStatus}, ${responseRecommendations.status})`,
       [...RECOMMENDED_STATUSES]
     );
+    // Epic 5 slice 3: strict subsets of effectiveRecommended.
+    const effectiveStrongOrAbove = inArray(
+      sql`coalesce(${responseRecommendations.humanStatus}, ${responseRecommendations.status})`,
+      [...STRONG_RECOMMENDED_STATUSES]
+    );
+    const effectiveFirstChoice = inArray(
+      sql`coalesce(${responseRecommendations.humanStatus}, ${responseRecommendations.status})`,
+      ["first_choice"]
+    );
 
     const clientBrandIds = this._db
       .select({ id: brands.id })
@@ -589,6 +633,22 @@ export class MetricStore implements IMetricStore {
       slug: platforms.slug,
       displayName: platforms.displayName,
     };
+
+    // Distinct-response-per-platform count of client-brand recommendation
+    // rows matching an effective-status predicate.
+    const countClientResponsesByPlatformWhere = (statusPredicate: SQL): PlatformCount[] =>
+      clientBrandIds.length === 0
+        ? []
+        : this._db
+            .select({ ...platformCols, n: sql<number>`count(distinct ${responsesRaw.id})` })
+            .from(responsesRaw)
+            .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+            .innerJoin(prompts, eq(responsesRaw.promptId, prompts.id))
+            .innerJoin(platforms, eq(responsesRaw.platformId, platforms.id))
+            .innerJoin(responseRecommendations, eq(responseRecommendations.responseId, responsesRaw.id))
+            .where(and(nonBranded, inArray(responseRecommendations.brandId, clientBrandIds), statusPredicate))
+            .groupBy(responsesRaw.platformId, platforms.slug, platforms.displayName)
+            .all();
 
     const countResponsesByPlatform = (where: SQL | undefined): PlatformCount[] =>
       this._db
@@ -627,25 +687,9 @@ export class MetricStore implements IMetricStore {
             .groupBy(responsesRaw.platformId, platforms.slug, platforms.displayName)
             .all();
 
-    const recommendedNonBrandedByPlatform: PlatformCount[] =
-      clientBrandIds.length === 0
-        ? []
-        : this._db
-            .select({ ...platformCols, n: sql<number>`count(distinct ${responsesRaw.id})` })
-            .from(responsesRaw)
-            .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
-            .innerJoin(prompts, eq(responsesRaw.promptId, prompts.id))
-            .innerJoin(platforms, eq(responsesRaw.platformId, platforms.id))
-            .innerJoin(responseRecommendations, eq(responseRecommendations.responseId, responsesRaw.id))
-            .where(
-              and(
-                nonBranded,
-                inArray(responseRecommendations.brandId, clientBrandIds),
-                effectiveRecommended
-              )
-            )
-            .groupBy(responsesRaw.platformId, platforms.slug, platforms.displayName)
-            .all();
+    const recommendedNonBrandedByPlatform = countClientResponsesByPlatformWhere(effectiveRecommended);
+    const strongRecommendedNonBrandedByPlatform = countClientResponsesByPlatformWhere(effectiveStrongOrAbove);
+    const firstChoiceNonBrandedByPlatform = countClientResponsesByPlatformWhere(effectiveFirstChoice);
 
     const clientRecommendedByPlatform: PlatformCount[] =
       clientBrandIds.length === 0
@@ -655,6 +699,21 @@ export class MetricStore implements IMetricStore {
           );
 
     const allBrandRecommendedByPlatform = countRecommendationsByPlatform(and(nonBranded, effectiveRecommended));
+
+    // Epic 5 slice 3: non-null rank values from the client brand's
+    // non-branded recommendation rows, per platform.
+    const clientRankRowsByPlatform: Array<{ platformId: number; slug: string; displayName: string; rank: number | null }> =
+      clientBrandIds.length === 0
+        ? []
+        : this._db
+            .select({ ...platformCols, rank: responseRecommendations.rank })
+            .from(responseRecommendations)
+            .innerJoin(responsesRaw, eq(responseRecommendations.responseId, responsesRaw.id))
+            .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+            .innerJoin(prompts, eq(responsesRaw.promptId, prompts.id))
+            .innerJoin(platforms, eq(responsesRaw.platformId, platforms.id))
+            .where(and(nonBranded, inArray(responseRecommendations.brandId, clientBrandIds)))
+            .all();
 
     const byPlatform = new Map<number, PlatformNonBrandedAggregate>();
     const bucket = (platformId: number, slug: string, displayName: string): PlatformNonBrandedAggregate => {
@@ -669,6 +728,9 @@ export class MetricStore implements IMetricStore {
           recommendedNonBranded: 0,
           clientRecommended: 0,
           allBrandRecommended: 0,
+          strongRecommendedNonBranded: 0,
+          firstChoiceNonBranded: 0,
+          clientRanks: [],
         };
         byPlatform.set(platformId, b);
       }
@@ -685,6 +747,13 @@ export class MetricStore implements IMetricStore {
       bucket(row.platformId, row.slug, row.displayName).clientRecommended = row.n;
     for (const row of allBrandRecommendedByPlatform)
       bucket(row.platformId, row.slug, row.displayName).allBrandRecommended = row.n;
+    for (const row of strongRecommendedNonBrandedByPlatform)
+      bucket(row.platformId, row.slug, row.displayName).strongRecommendedNonBranded = row.n;
+    for (const row of firstChoiceNonBrandedByPlatform)
+      bucket(row.platformId, row.slug, row.displayName).firstChoiceNonBranded = row.n;
+    for (const row of clientRankRowsByPlatform) {
+      if (row.rank !== null) bucket(row.platformId, row.slug, row.displayName).clientRanks.push(row.rank);
+    }
 
     return Array.from(byPlatform.values());
   }

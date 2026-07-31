@@ -683,6 +683,50 @@ describe("MetricStore.aggregateNonBranded", () => {
     expect(agg.clientRecommended).toBe(1);
   });
 
+  // Epic 5 (issue #29) slice 3: Strong Recommendation Rate / First Choice
+  // Rate / rank distribution inputs, definitions locked 2026-07-31.
+  it("counts strongRecommendedNonBranded as strongly_recommended-and-up, excluding plain recommended", async () => {
+    const { store, recStore, run, completeResponse } = await seed();
+    const r1 = await completeResponse(run.id, 100); // strongly_recommended — counted
+    const r2 = await completeResponse(run.id, 100); // first_choice — counted
+    const r3 = await completeResponse(run.id, 100); // recommended — NOT counted
+
+    await recStore.bulkCreate([{ responseId: r1, brandId: 10, status: "strongly_recommended", confidence: 0.8, classifierVersion: CLASSIFIER }]);
+    await recStore.bulkCreate([{ responseId: r2, brandId: 10, status: "first_choice", confidence: 0.9, classifierVersion: CLASSIFIER }]);
+    await recStore.bulkCreate([{ responseId: r3, brandId: 10, status: "recommended", confidence: 0.7, classifierVersion: CLASSIFIER }]);
+
+    const agg = await store.aggregateNonBranded(1, WIDE_FROM, WIDE_TO);
+    expect(agg.strongRecommendedNonBranded).toBe(2);
+    expect(agg.firstChoiceNonBranded).toBe(1);
+  });
+
+  it("respects the human override for strong/first-choice counts, same as recommendedNonBranded", async () => {
+    const { store, recStore, run, completeResponse } = await seed();
+    const r1 = await completeResponse(run.id, 100);
+    const [rec1] = await recStore.bulkCreate([{ responseId: r1, brandId: 10, status: "listed_option", confidence: 0.7, classifierVersion: CLASSIFIER }]);
+    await recStore.setHumanStatus(rec1.id, "first_choice", 1);
+
+    const agg = await store.aggregateNonBranded(1, WIDE_FROM, WIDE_TO);
+    expect(agg.strongRecommendedNonBranded).toBe(1);
+    expect(agg.firstChoiceNonBranded).toBe(1);
+  });
+
+  it("collects clientRanks from the client brand's non-branded recommendation rows, omitting nulls", async () => {
+    const { store, recStore, run, completeResponse } = await seed();
+    const r1 = await completeResponse(run.id, 100); // rank 1
+    const r2 = await completeResponse(run.id, 100); // rank 3
+    const r3 = await completeResponse(run.id, 100); // unranked (prose mention, rank null)
+
+    await recStore.bulkCreate([
+      { responseId: r1, brandId: 10, status: "first_choice", rank: 1, confidence: 0.9, classifierVersion: CLASSIFIER },
+      { responseId: r2, brandId: 10, status: "listed_option", rank: 3, confidence: 0.9, classifierVersion: CLASSIFIER },
+      { responseId: r3, brandId: 10, status: "recommended", rank: null, confidence: 0.7, classifierVersion: CLASSIFIER },
+    ]);
+
+    const agg = await store.aggregateNonBranded(1, WIDE_FROM, WIDE_TO);
+    expect(agg.clientRanks.sort()).toEqual([1, 3]);
+  });
+
   it("computes Recommendation SoV inputs across client and competitor brands on non-branded responses", async () => {
     const { store, recStore, run, completeResponse } = await seed();
     const r1 = await completeResponse(run.id, 100);
@@ -811,7 +855,7 @@ describe("MetricStore.aggregateNonBrandedByPlatform (Epic 5 slice 2)", () => {
     const p4 = await completeResponse(4);
     await mentionStore.create({ responseId: p1, brandId: 10, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
     await recStore.bulkCreate([
-      { responseId: p1, brandId: 10, status: "recommended", confidence: 0.7, classifierVersion: CLASSIFIER },
+      { responseId: p1, brandId: 10, status: "recommended", rank: 2, confidence: 0.7, classifierVersion: CLASSIFIER },
       { responseId: p4, brandId: 11, status: "strongly_recommended", confidence: 0.8, classifierVersion: CLASSIFIER },
     ]);
 
@@ -825,10 +869,36 @@ describe("MetricStore.aggregateNonBrandedByPlatform (Epic 5 slice 2)", () => {
         recommendedNonBranded: acc.recommendedNonBranded + p.recommendedNonBranded,
         clientRecommended: acc.clientRecommended + p.clientRecommended,
         allBrandRecommended: acc.allBrandRecommended + p.allBrandRecommended,
+        strongRecommendedNonBranded: acc.strongRecommendedNonBranded + p.strongRecommendedNonBranded,
+        firstChoiceNonBranded: acc.firstChoiceNonBranded + p.firstChoiceNonBranded,
+        clientRanks: [...acc.clientRanks, ...p.clientRanks],
       }),
-      { nonBrandedResponses: 0, mentionedNonBranded: 0, recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0 }
+      {
+        nonBrandedResponses: 0, mentionedNonBranded: 0, recommendedNonBranded: 0,
+        clientRecommended: 0, allBrandRecommended: 0,
+        strongRecommendedNonBranded: 0, firstChoiceNonBranded: 0, clientRanks: [] as number[],
+      }
     );
-    expect(summed).toEqual(pooled);
+    expect({ ...summed, clientRanks: summed.clientRanks.sort() }).toEqual({ ...pooled, clientRanks: pooled.clientRanks.sort() });
+  });
+
+  it("counts strongRecommendedNonBranded/firstChoiceNonBranded per platform", async () => {
+    const { store, recStore, completeResponse } = await seed();
+    const p1 = await completeResponse(1);
+    const p4 = await completeResponse(4);
+
+    await recStore.bulkCreate([{ responseId: p1, brandId: 10, status: "first_choice", rank: 1, confidence: 0.9, classifierVersion: CLASSIFIER }]);
+    await recStore.bulkCreate([{ responseId: p4, brandId: 10, status: "recommended", confidence: 0.7, classifierVersion: CLASSIFIER }]);
+
+    const byPlatform = await store.aggregateNonBrandedByPlatform(1, WIDE_FROM, WIDE_TO);
+    const perplexity = byPlatform.find((p) => p.platformId === 1)!;
+    const anthropic = byPlatform.find((p) => p.platformId === 4)!;
+    expect(perplexity.strongRecommendedNonBranded).toBe(1);
+    expect(perplexity.firstChoiceNonBranded).toBe(1);
+    expect(perplexity.clientRanks).toEqual([1]);
+    expect(anthropic.strongRecommendedNonBranded).toBe(0);
+    expect(anthropic.firstChoiceNonBranded).toBe(0);
+    expect(anthropic.clientRanks).toEqual([]);
   });
 
   it("returns an empty array for a client with no non-branded responses", async () => {

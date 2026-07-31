@@ -972,6 +972,15 @@ export const RECOMMENDED_STATUSES = [
   "first_choice",
 ] as const;
 
+// Subset of RECOMMENDED_STATUSES that counts as a "strong" recommendation
+// (issue #3 Epic 5 slice 3, definition locked 2026-07-31): excludes plain
+// "recommended", keeping Strong Recommendation Rate a strict subset of the
+// existing Recommendation Rate over the same nonBrandedResponses denominator.
+export const STRONG_RECOMMENDED_STATUSES = [
+  "strongly_recommended",
+  "first_choice",
+] as const;
+
 // Analyst human-status override (FR-11): the machine status is retained;
 // the override drives reporting.
 export const recommendationOverrideSchema = z.object({

@@ -226,6 +226,9 @@ describe("GET /api/clients/:id/metrics/non-branded", () => {
     recommendedNonBranded: 5,
     clientRecommended: 6,
     allBrandRecommended: 24,
+    strongRecommendedNonBranded: 3,
+    firstChoiceNonBranded: 1,
+    clientRanks: [1, 2, 5],
   };
 
   it("returns 401 when not authenticated", async () => {
@@ -257,12 +260,41 @@ describe("GET /api/clients/:id/metrics/non-branded", () => {
     mockMetricStore.aggregateNonBranded.mockResolvedValue({
       nonBrandedResponses: 0, mentionedNonBranded: 0,
       recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0,
+      strongRecommendedNonBranded: 0, firstChoiceNonBranded: 0, clientRanks: [],
     });
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/non-branded");
     expect(res.status).toBe(200);
     expect(res.body.data.mentionRate).toBe(0);
     expect(res.body.data.recommendationRate).toBe(0);
     expect(res.body.data.recommendationSoV).toBe(0);
+    expect(res.body.data.strongRecommendationRate).toBe(0);
+    expect(res.body.data.firstChoiceRate).toBe(0);
+    expect(res.body.data.rankDistribution.avgRank).toBeNull();
+    expect(res.body.data.rankDistribution.medianRank).toBeNull();
+    expect(res.body.data.rankDistribution.rank1Frequency).toBe(0);
+    expect(res.body.data.rankDistribution.top3Frequency).toBe(0);
+    expect(res.body.data.rankDistribution.unrankedFrequency).toBe(0);
+  });
+
+  // Epic 5 (issue #29) slice 3: Strong Recommendation Rate / First Choice
+  // Rate / rank distribution, definitions locked 2026-07-31.
+  it("computes strongRecommendationRate and firstChoiceRate over nonBrandedResponses", async () => {
+    mockMetricStore.aggregateNonBranded.mockResolvedValue(AGG);
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/non-branded");
+    expect(res.body.data.strongRecommendationRate).toBe(15); // 3/20
+    expect(res.body.data.firstChoiceRate).toBe(5);            // 1/20
+  });
+
+  it("computes rank distribution over mentionedNonBranded as the denominator, avg/median only over ranked responses", async () => {
+    mockMetricStore.aggregateNonBranded.mockResolvedValue(AGG); // clientRanks [1,2,5], mentionedNonBranded 8
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/non-branded");
+    const rd = res.body.data.rankDistribution;
+    expect(rd.avgRank).toBeCloseTo((1 + 2 + 5) / 3);
+    expect(rd.medianRank).toBe(2);
+    expect(rd.rank1Frequency).toBeCloseTo((1 / 8) * 100);
+    expect(rd.top3Frequency).toBeCloseTo((2 / 8) * 100); // ranks 1 and 2 are <= 3
+    expect(rd.unrankedFrequency).toBeCloseTo(((8 - 3) / 8) * 100); // 5 mentioned responses have no rank
+    expect(rd.mentionedCount).toBe(8);
   });
 });
 
@@ -281,8 +313,8 @@ describe("GET /api/clients/:id/metrics/non-branded/by-platform (Epic 5 slice 2, 
 
   it("returns per-platform non-branded metrics with sample size, and honors the period param", async () => {
     mockMetricStore.aggregateNonBrandedByPlatform.mockResolvedValue([
-      { platformId: 1, slug: "perplexity", displayName: "Perplexity", nonBrandedResponses: 20, mentionedNonBranded: 8, recommendedNonBranded: 5, clientRecommended: 6, allBrandRecommended: 24 },
-      { platformId: 4, slug: "anthropic", displayName: "Claude", nonBrandedResponses: 10, mentionedNonBranded: 2, recommendedNonBranded: 1, clientRecommended: 1, allBrandRecommended: 4 },
+      { platformId: 1, slug: "perplexity", displayName: "Perplexity", nonBrandedResponses: 20, mentionedNonBranded: 8, recommendedNonBranded: 5, clientRecommended: 6, allBrandRecommended: 24, strongRecommendedNonBranded: 3, firstChoiceNonBranded: 1, clientRanks: [1, 2, 5] },
+      { platformId: 4, slug: "anthropic", displayName: "Claude", nonBrandedResponses: 10, mentionedNonBranded: 2, recommendedNonBranded: 1, clientRecommended: 1, allBrandRecommended: 4, strongRecommendedNonBranded: 0, firstChoiceNonBranded: 0, clientRanks: [] },
     ]);
 
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/non-branded/by-platform?period=90d");
@@ -295,6 +327,10 @@ describe("GET /api/clients/:id/metrics/non-branded/by-platform (Epic 5 slice 2, 
     expect(perplexity.mentionRate).toBe(40);
     expect(perplexity.recommendationRate).toBe(25);
     expect(perplexity.recommendationSoV).toBe(25);
+    expect(perplexity.strongRecommendationRate).toBe(15); // 3/20
+    expect(perplexity.firstChoiceRate).toBe(5);            // 1/20
+    expect(perplexity.rankDistribution.avgRank).toBeCloseTo((1 + 2 + 5) / 3);
+    expect(perplexity.rankDistribution.mentionedCount).toBe(8);
 
     expect(res.body.data.defaultRollup).toBe("platform_balanced");
     expect(res.body.data.period).toBe("90d");
@@ -302,21 +338,24 @@ describe("GET /api/clients/:id/metrics/non-branded/by-platform (Epic 5 slice 2, 
 
   it("computes responseWeighted as the pooled totals across all platforms", async () => {
     mockMetricStore.aggregateNonBrandedByPlatform.mockResolvedValue([
-      { platformId: 1, slug: "perplexity", displayName: "Perplexity", nonBrandedResponses: 20, mentionedNonBranded: 8, recommendedNonBranded: 5, clientRecommended: 6, allBrandRecommended: 24 },
-      { platformId: 4, slug: "anthropic", displayName: "Claude", nonBrandedResponses: 20, mentionedNonBranded: 0, recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0 },
+      { platformId: 1, slug: "perplexity", displayName: "Perplexity", nonBrandedResponses: 20, mentionedNonBranded: 8, recommendedNonBranded: 5, clientRecommended: 6, allBrandRecommended: 24, strongRecommendedNonBranded: 3, firstChoiceNonBranded: 1, clientRanks: [1] },
+      { platformId: 4, slug: "anthropic", displayName: "Claude", nonBrandedResponses: 20, mentionedNonBranded: 0, recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0, strongRecommendedNonBranded: 0, firstChoiceNonBranded: 0, clientRanks: [] },
     ]);
 
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/non-branded/by-platform");
-    // pooled: mentioned 8/40=20%, recommended 5/40=12.5%, SoV 6/24=25%
+    // pooled: mentioned 8/40=20%, recommended 5/40=12.5%, SoV 6/24=25%, strong 3/40=7.5%
     expect(res.body.data.combined.responseWeighted.mentionRate).toBe(20);
     expect(res.body.data.combined.responseWeighted.recommendationRate).toBe(12.5);
     expect(res.body.data.combined.responseWeighted.recommendationSoV).toBe(25);
+    expect(res.body.data.combined.responseWeighted.strongRecommendationRate).toBe(7.5);
+    expect(res.body.data.combined.responseWeighted.rankDistribution.mentionedCount).toBe(8);
+    expect(res.body.data.combined.responseWeighted.rankDistribution.avgRank).toBe(1);
   });
 
   it("computes platformBalanced as the unweighted mean of each platform's own rate, diverging from responseWeighted when volumes differ", async () => {
     mockMetricStore.aggregateNonBrandedByPlatform.mockResolvedValue([
-      { platformId: 1, slug: "perplexity", displayName: "Perplexity", nonBrandedResponses: 90, mentionedNonBranded: 90, recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0 },
-      { platformId: 4, slug: "anthropic", displayName: "Claude", nonBrandedResponses: 10, mentionedNonBranded: 0, recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0 },
+      { platformId: 1, slug: "perplexity", displayName: "Perplexity", nonBrandedResponses: 90, mentionedNonBranded: 90, recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0, strongRecommendedNonBranded: 0, firstChoiceNonBranded: 0, clientRanks: [] },
+      { platformId: 4, slug: "anthropic", displayName: "Claude", nonBrandedResponses: 10, mentionedNonBranded: 0, recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0, strongRecommendedNonBranded: 0, firstChoiceNonBranded: 0, clientRanks: [] },
     ]);
 
     const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/non-branded/by-platform");
@@ -331,6 +370,7 @@ describe("GET /api/clients/:id/metrics/non-branded/by-platform (Epic 5 slice 2, 
     expect(res.status).toBe(200);
     expect(res.body.data.platforms).toEqual([]);
     expect(res.body.data.combined.responseWeighted.mentionRate).toBe(0);
+    expect(res.body.data.combined.responseWeighted.rankDistribution.avgRank).toBeNull();
     expect(res.body.data.combined.platformBalanced.mentionRate).toBe(0);
   });
 });

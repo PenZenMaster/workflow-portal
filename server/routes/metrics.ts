@@ -20,6 +20,9 @@
  * - v1.03 Epic 5 slice 2 (issue #29): GET .../metrics/non-branded/by-
  *   platform - same per-platform + dual-rollup pattern for the
  *   non-branded mention rate, recommendation rate, and recommendation SoV
+ * - v1.04 Epic 5 slice 3 (issue #29): strongRecommendationRate,
+ *   firstChoiceRate, and rankDistribution added to both non-branded
+ *   routes (definitions locked 2026-07-31)
  */
 
 import type { Express } from "express";
@@ -48,6 +51,39 @@ function parsePageParam(raw: unknown, name: string): number | undefined {
   if (typeof raw !== "string" || !Number.isInteger(n) || n < 0)
     throw new AppError(400, `Invalid ${name}`, "INVALID_PAGINATION");
   return n;
+}
+
+// Epic 5 (issue #29) slice 3, definitions locked 2026-07-31: avg/median
+// rank computed only over ranked (non-null) responses; the frequency
+// metrics use mentionedCount (all non-branded responses where the client
+// brand was mentioned at all) as their denominator, so unrankedFrequency
+// includes mentioned-but-never-in-a-numbered-list responses.
+function computeRankDistribution(
+  clientRanks: number[],
+  mentionedCount: number
+): {
+  avgRank: number | null;
+  medianRank: number | null;
+  rank1Frequency: number;
+  top3Frequency: number;
+  unrankedFrequency: number;
+  mentionedCount: number;
+} {
+  const rankedCount = clientRanks.length;
+  const pct = (n: number): number => (mentionedCount > 0 ? (n / mentionedCount) * 100 : 0);
+  const sorted = [...clientRanks].sort((a, b) => a - b);
+  const mid = Math.floor(rankedCount / 2);
+  const medianRank =
+    rankedCount === 0 ? null : rankedCount % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+
+  return {
+    avgRank: rankedCount > 0 ? clientRanks.reduce((s, r) => s + r, 0) / rankedCount : null,
+    medianRank,
+    rank1Frequency: pct(clientRanks.filter((r) => r === 1).length),
+    top3Frequency: pct(clientRanks.filter((r) => r <= 3).length),
+    unrankedFrequency: pct(mentionedCount - rankedCount),
+    mentionedCount,
+  };
 }
 
 function periodToDates(period: string): { fromDate: string; toDate: string } {
@@ -272,6 +308,12 @@ export function registerMetricRoutes(app: Express): void {
         agg.nonBrandedResponses
       ),
       recommendationSoV: computeAISoV(agg.clientRecommended, agg.allBrandRecommended),
+      strongRecommendationRate: computeRecommendationRate(
+        agg.strongRecommendedNonBranded,
+        agg.nonBrandedResponses
+      ),
+      firstChoiceRate: computeRecommendationRate(agg.firstChoiceNonBranded, agg.nonBrandedResponses),
+      rankDistribution: computeRankDistribution(agg.clientRanks, agg.mentionedNonBranded),
       clientRecommended: agg.clientRecommended,
       allBrandRecommended: agg.allBrandRecommended,
       period: req.query.period ?? "30d",
@@ -300,10 +342,19 @@ export function registerMetricRoutes(app: Express): void {
         recommendedNonBranded: number;
         clientRecommended: number;
         allBrandRecommended: number;
+        strongRecommendedNonBranded: number;
+        firstChoiceNonBranded: number;
+        clientRanks: number[];
       }) => ({
         mentionRate: computeMentionRate(agg.mentionedNonBranded, agg.nonBrandedResponses),
         recommendationRate: computeRecommendationRate(agg.recommendedNonBranded, agg.nonBrandedResponses),
         recommendationSoV: computeAISoV(agg.clientRecommended, agg.allBrandRecommended),
+        strongRecommendationRate: computeRecommendationRate(
+          agg.strongRecommendedNonBranded,
+          agg.nonBrandedResponses
+        ),
+        firstChoiceRate: computeRecommendationRate(agg.firstChoiceNonBranded, agg.nonBrandedResponses),
+        rankDistribution: computeRankDistribution(agg.clientRanks, agg.mentionedNonBranded),
       });
 
       const platformMetrics = byPlatform.map((p) => ({
@@ -323,6 +374,9 @@ export function registerMetricRoutes(app: Express): void {
           recommendedNonBranded: acc.recommendedNonBranded + p.recommendedNonBranded,
           clientRecommended: acc.clientRecommended + p.clientRecommended,
           allBrandRecommended: acc.allBrandRecommended + p.allBrandRecommended,
+          strongRecommendedNonBranded: acc.strongRecommendedNonBranded + p.strongRecommendedNonBranded,
+          firstChoiceNonBranded: acc.firstChoiceNonBranded + p.firstChoiceNonBranded,
+          clientRanks: [...acc.clientRanks, ...p.clientRanks],
         }),
         {
           nonBrandedResponses: 0,
@@ -330,20 +384,45 @@ export function registerMetricRoutes(app: Express): void {
           recommendedNonBranded: 0,
           clientRecommended: 0,
           allBrandRecommended: 0,
+          strongRecommendedNonBranded: 0,
+          firstChoiceNonBranded: 0,
+          clientRanks: [] as number[],
         }
       );
       const responseWeighted = computeNonBrandedMetrics(pooled);
 
       // platformBalanced: unweighted mean of each platform's own rate.
+      // avgRank/medianRank average only over platforms that have ranked
+      // data at all - a platform with no client mentions contributes no
+      // opinion to "how does the client rank when listed."
+      const meanOr = (values: (number | null)[]): number | null => {
+        const defined = values.filter((v): v is number => v !== null);
+        return defined.length > 0 ? defined.reduce((s, v) => s + v, 0) / defined.length : null;
+      };
+      const mean = (values: number[]): number =>
+        values.length > 0 ? values.reduce((s, v) => s + v, 0) / values.length : 0;
+
       const platformBalanced =
         platformMetrics.length === 0
-          ? { mentionRate: 0, recommendationRate: 0, recommendationSoV: 0 }
+          ? {
+              mentionRate: 0, recommendationRate: 0, recommendationSoV: 0,
+              strongRecommendationRate: 0, firstChoiceRate: 0,
+              rankDistribution: computeRankDistribution([], 0),
+            }
           : {
-              mentionRate: platformMetrics.reduce((s, p) => s + p.mentionRate, 0) / platformMetrics.length,
-              recommendationRate:
-                platformMetrics.reduce((s, p) => s + p.recommendationRate, 0) / platformMetrics.length,
-              recommendationSoV:
-                platformMetrics.reduce((s, p) => s + p.recommendationSoV, 0) / platformMetrics.length,
+              mentionRate: mean(platformMetrics.map((p) => p.mentionRate)),
+              recommendationRate: mean(platformMetrics.map((p) => p.recommendationRate)),
+              recommendationSoV: mean(platformMetrics.map((p) => p.recommendationSoV)),
+              strongRecommendationRate: mean(platformMetrics.map((p) => p.strongRecommendationRate)),
+              firstChoiceRate: mean(platformMetrics.map((p) => p.firstChoiceRate)),
+              rankDistribution: {
+                avgRank: meanOr(platformMetrics.map((p) => p.rankDistribution.avgRank)),
+                medianRank: meanOr(platformMetrics.map((p) => p.rankDistribution.medianRank)),
+                rank1Frequency: mean(platformMetrics.map((p) => p.rankDistribution.rank1Frequency)),
+                top3Frequency: mean(platformMetrics.map((p) => p.rankDistribution.top3Frequency)),
+                unrankedFrequency: mean(platformMetrics.map((p) => p.rankDistribution.unrankedFrequency)),
+                mentionedCount: platformMetrics.reduce((s, p) => s + p.rankDistribution.mentionedCount, 0),
+              },
             };
 
       ok(res, {

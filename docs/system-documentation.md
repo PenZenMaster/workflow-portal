@@ -690,6 +690,42 @@ same zero-response-platform exclusion rule, same
 `responseWeighted`-matches-the-pooled-endpoint invariant (here, against
 `GET .../metrics/non-branded`).
 
+**Slice 3 (definitions locked 2026-07-31):** three genuinely new metrics,
+added to both `GET .../metrics/non-branded` and its by-platform
+counterpart, over the client brand only:
+
+- **Strong Recommendation Rate** = `(strongly_recommended + first_choice
+  effective-status responses) / nonBrandedResponses × 100` — a strict
+  subset of the existing Recommendation Rate (which also counts plain
+  `recommended`), so `strongRecommendationRate <= recommendationRate`
+  always holds for the same period.
+- **First Choice Rate** = `first_choice effective-status responses /
+  nonBrandedResponses × 100`.
+- **Rank distribution** (`rankDistribution`) - how the client ranks when
+  it does appear in a numbered list, sourced from
+  `response_recommendations.rank` (the classifier's already-computed
+  min-position value, not re-derived from raw mention rows):
+  - Denominator for `rank1Frequency`/`top3Frequency`/`unrankedFrequency`
+    is `mentionedCount` (= the existing `mentionedNonBranded` count - all
+    non-branded responses where the client brand was mentioned at all,
+    since a `response_recommendations` row only exists for a brand that
+    was actually mentioned - see Section 2.5).
+  - `avgRank`/`medianRank` are computed only over the ranked subset
+    (non-null `rank` values) - both are `null` when the client was never
+    in a numbered list during the period, rather than a misleading 0.
+  - On the by-platform route, `platformBalanced`'s `avgRank`/`medianRank`
+    average only over platforms that had at least one ranked response
+    (a platform with zero ranked mentions contributes no opinion on "how
+    does the client rank when listed" rather than dragging the average
+    toward a value it never earned).
+
+**What it means to the client:** Recommendation Rate alone can't
+distinguish "usually just listed as an option" from "usually the clear
+top pick" - Strong Recommendation Rate and First Choice Rate make that
+distinction explicit, and the rank distribution shows whether the client
+tends to lead numbered lists or trail behind competitors when it does
+appear in one.
+
 ### 2.3 Sentiment Classification
 
 The sentiment classifier is rule-based (no AI model — fully auditable).
