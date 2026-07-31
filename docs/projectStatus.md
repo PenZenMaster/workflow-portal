@@ -1,9 +1,46 @@
 ## Resume From
 
 Last session: 2026-07-31
-Branch: main | Version: v1.60.1 | 1168 tests passing | DEPLOYED to cPanel, smoke-tested clean
+Branch: main | Version: v1.61.0 | 1179 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
 
-Session 2026-07-31: Backlog review of the 3 open GitHub issues, then
+Session 2026-07-31 (part 2): full gap analysis of issue #3's 13-epic
+measurement program against the actual codebase (verified by reading
+schema/services/routes, not memory) - only Epic 2 (manifests) and Epic 4
+(closed as issue #4) were actually done; 7 of the remaining 11 epics had
+zero code, 3 had only adjacent building blocks. Epic 5 (Platform-Level
+Reporting) picked as next priority with the user. Opened new tracking
+issue #29 "Epic 5: Platform-Level Reporting" (mirrors the issue #4
+one-issue-per-epic, sliced-TDD-versions pattern) with a 6-slice roadmap
+posted as its scope. Slice 1 SHIPPED as v1.61.0, TDD throughout (RED
+confirmed on all new tests before implementing): new
+`MetricStore.aggregateLiveForPeriodByPlatform` (server/storage/
+metricStore.ts) mirrors the existing TD-24 live aggregate but grouped by
+`responses_raw.platform_id` instead of pooled; a platform with zero
+completed responses in the period is omitted rather than shown as a
+misleading 0%. New `GET /api/clients/:id/metrics/by-platform` route
+returns per-platform Mention Rate/Citation Frequency/AI SoV/Avg
+Visibility Score with sample size (`totalResponses`), plus a `combined`
+object with both rollup methods always labeled via `defaultRollup`:
+`responseWeighted` (pooled totals, verified-equal to `/metrics/overview`
+for the same inputs) and `platformBalanced` (unweighted mean of each
+platform's own rate - the default, so a high-volume platform can't
+drown out a low-volume one). Server-only slice, no UI yet (that's slice
+5). docs/system-documentation.md Section 2.2 gained a new subsection
+documenting the route, both rollups, and the known gap (missing-citation-
+capability distinction needs issue #3 Epic 1's provider-capability
+declarations, which don't exist yet - explicitly deferred, not silently
+missed). Full suite (1179 tests), lint, and typecheck all pass.
+NOT YET DONE: git commit/push of this slice; npm run package + cPanel
+deploy of v1.61.0 (git only so far). No UI changes yet - nothing
+user-visible to smoke-test beyond the raw API response.
+NEXT SESSION: (1) commit + push v1.61.0, then package + deploy to cPanel
+(no schema/migration involved - pure new route + store method); (2) pick
+up issue #29 slice 2 (non-branded metrics by platform, extending
+`aggregateNonBranded` the same way) or continue the epic-5 roadmap in
+order; (3) user-owned: B-20 GBP API quota check, Groq API access
+(carried over, still not done).
+
+Session 2026-07-31 (part 1): Backlog review of the 3 open GitHub issues, then
 closed out both. Issue #27 (phrasing/context-richness scoring) confirmed
 fully shipped in v1.60.0 and CLOSED on GitHub (was left open after the
 code landed). Issue #4's last open acceptance-criteria gap - TD-26 - was

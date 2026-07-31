@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { eq } from "drizzle-orm";
-import { brands, prompts, responsesRaw, responseMentions, responseCitations } from "@shared/schema";
+import { brands, prompts, responsesRaw, responseMentions, responseCitations, platforms } from "@shared/schema";
 import { SCHEMA_SQL } from "../../../server/storage";
 import { MentionStore } from "../../../server/storage/mentionStore";
 import { CitationStore } from "../../../server/storage/citationStore";
@@ -473,6 +473,121 @@ describe("MetricStore.aggregateLiveForPeriod (TD-24)", () => {
       totalVisibilityScore: 0,
       totalResponses: 0,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Epic 5 (issue #29) slice 1: platform-level breakdown of the live aggregate,
+// plus the two combined-rollup methods (response-weighted = pooled totals,
+// platform-balanced = unweighted mean of each platform's own rate).
+describe("MetricStore.aggregateLiveForPeriodByPlatform (Epic 5 slice 1)", () => {
+  const WIDE_FROM = "2000-01-01";
+  const WIDE_TO = "2100-01-01";
+
+  async function seed() {
+    const db = makeDb();
+    const store = new MetricStore(db);
+    const runStore = new RunStore(db);
+    const responseStore = new ResponseStore(db);
+    const mentionStore = new MentionStore(db);
+
+    const now = Date.now();
+    db.insert(brands).values([
+      { id: 10, clientId: 1, canonicalName: "Acme", kind: "client", createdAt: now },
+      { id: 11, clientId: 1, canonicalName: "Rival", kind: "competitor", createdAt: now },
+    ]).run();
+    db.insert(platforms).values([
+      { id: 1, slug: "perplexity", displayName: "Perplexity" },
+      { id: 4, slug: "anthropic", displayName: "Claude" },
+    ]).run();
+
+    const run = await runStore.create({ clientId: 1, collectionId: 1, batchId: "b1", totalPrompts: 5, triggeredBy: "manual" });
+
+    async function completeResponse(platformId: number): Promise<number> {
+      const r = await responseStore.create({ runId: run.id, promptId: 100, platformId, queryText: "q" });
+      await responseStore.updateResult(r.id, { status: "complete", responseText: "text" });
+      return r.id;
+    }
+
+    return { db, store, mentionStore, run, completeResponse };
+  }
+
+  it("groups the aggregate by platform, one entry per platform with completed responses in period", async () => {
+    const { store, mentionStore, completeResponse } = await seed();
+    const p1a = await completeResponse(1);
+    const p1b = await completeResponse(1);
+    const p4a = await completeResponse(4);
+    void p1b;
+
+    await mentionStore.create({ responseId: p1a, brandId: 10, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+    await mentionStore.create({ responseId: p4a, brandId: 10, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+
+    const byPlatform = await store.aggregateLiveForPeriodByPlatform(1, WIDE_FROM, WIDE_TO);
+    expect(byPlatform).toHaveLength(2);
+
+    const perplexity = byPlatform.find((p) => p.platformId === 1)!;
+    expect(perplexity.slug).toBe("perplexity");
+    expect(perplexity.displayName).toBe("Perplexity");
+    expect(perplexity.totalResponses).toBe(2);
+    expect(perplexity.totalClientBrandMentions).toBe(1);
+
+    const anthropic = byPlatform.find((p) => p.platformId === 4)!;
+    expect(anthropic.totalResponses).toBe(1);
+    expect(anthropic.totalClientBrandMentions).toBe(1);
+  });
+
+  it("excludes a platform with zero completed responses in the period, rather than reporting a 0% sample", async () => {
+    const { store, completeResponse } = await seed();
+    await completeResponse(1); // platform 4 never used
+
+    const byPlatform = await store.aggregateLiveForPeriodByPlatform(1, WIDE_FROM, WIDE_TO);
+    expect(byPlatform.map((p) => p.platformId)).toEqual([1]);
+  });
+
+  it("sums back to the same totals as the pooled aggregateLiveForPeriod (response-weighted equivalence)", async () => {
+    const { store, mentionStore, completeResponse } = await seed();
+    const p1a = await completeResponse(1);
+    const p1b = await completeResponse(1);
+    const p4a = await completeResponse(4);
+    await mentionStore.create({ responseId: p1a, brandId: 10, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+    await mentionStore.create({ responseId: p1b, brandId: 11, matchedText: "Rival", matchType: "exact", section: "body", confidence: 1 });
+    await mentionStore.create({ responseId: p4a, brandId: 11, matchedText: "Rival", matchType: "exact", section: "body", confidence: 1 });
+
+    const byPlatform = await store.aggregateLiveForPeriodByPlatform(1, WIDE_FROM, WIDE_TO);
+    const pooled = await store.aggregateLiveForPeriod(1, WIDE_FROM, WIDE_TO);
+
+    const summed = byPlatform.reduce(
+      (acc, p) => ({
+        totalCitations: acc.totalCitations + p.totalCitations,
+        totalMentions: acc.totalMentions + p.totalMentions,
+        totalAllBrandMentions: acc.totalAllBrandMentions + p.totalAllBrandMentions,
+        totalClientBrandMentions: acc.totalClientBrandMentions + p.totalClientBrandMentions,
+        totalVisibilityScore: acc.totalVisibilityScore + p.totalVisibilityScore,
+        totalResponses: acc.totalResponses + p.totalResponses,
+      }),
+      { totalCitations: 0, totalMentions: 0, totalAllBrandMentions: 0, totalClientBrandMentions: 0, totalVisibilityScore: 0, totalResponses: 0 }
+    );
+    expect(summed).toEqual(pooled);
+  });
+
+  it("never mixes another client's data into any platform's bucket", async () => {
+    const { db, store, completeResponse } = await seed();
+    const runStore = new RunStore(db);
+    const responseStore = new ResponseStore(db);
+    db.insert(brands).values([{ id: 20, clientId: 2, canonicalName: "Other Co", kind: "client", createdAt: Date.now() }]).run();
+    const runOther = await runStore.create({ clientId: 2, collectionId: 2, batchId: "b2", totalPrompts: 1, triggeredBy: "manual" });
+    const other = await responseStore.create({ runId: runOther.id, promptId: 200, platformId: 1, queryText: "q" });
+    await responseStore.updateResult(other.id, { status: "complete", responseText: "text" });
+
+    await completeResponse(1);
+    const byPlatform = await store.aggregateLiveForPeriodByPlatform(1, WIDE_FROM, WIDE_TO);
+    expect(byPlatform.find((p) => p.platformId === 1)!.totalResponses).toBe(1);
+  });
+
+  it("returns an empty array for a client with no responses", async () => {
+    const { store } = await seed();
+    const byPlatform = await store.aggregateLiveForPeriodByPlatform(3, WIDE_FROM, WIDE_TO);
+    expect(byPlatform).toEqual([]);
   });
 });
 

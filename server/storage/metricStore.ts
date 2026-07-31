@@ -13,6 +13,8 @@
  * Comments:
  * - v1.00 Sprint 4 initial implementation
  * - v1.01 YLG slice b: aggregateNonBranded live aggregate
+ * - v1.02 Epic 5 slice 1 (issue #29): aggregateLiveForPeriodByPlatform -
+ *   same live aggregate grouped by platform instead of pooled
  */
 
 import {
@@ -24,6 +26,7 @@ import {
   responseMentions,
   responseCitations,
   responseRecommendations,
+  platforms,
   RECOMMENDED_STATUSES,
 } from "@shared/schema";
 import type { MetricSnapshotDaily } from "@shared/schema";
@@ -65,6 +68,16 @@ export interface AggregateResult {
   totalResponses: number;
 }
 
+// Epic 5 (issue #29) slice 1: same shape as AggregateResult, one entry per
+// platform that had at least one completed response in the period. A
+// platform with zero responses is omitted entirely rather than reported as
+// a 0% sample.
+export interface PlatformAggregateResult extends AggregateResult {
+  platformId: number;
+  slug: string;
+  displayName: string;
+}
+
 // Live aggregate over the non-branded slice of the prompt panel (YLG
 // slice b). Not snapshot-based: metric_snapshots_daily carries no
 // branded/non-branded split, so this is computed from the raw tables.
@@ -81,6 +94,11 @@ export interface IMetricStore {
   listByClient(clientId: number, fromDate: string, toDate: string): Promise<MetricSnapshotDaily[]>;
   aggregateForPeriod(clientId: number, fromDate: string, toDate: string): Promise<AggregateResult>;
   aggregateLiveForPeriod(clientId: number, fromDate: string, toDate: string): Promise<AggregateResult>;
+  aggregateLiveForPeriodByPlatform(
+    clientId: number,
+    fromDate: string,
+    toDate: string
+  ): Promise<PlatformAggregateResult[]>;
   aggregateNonBranded(clientId: number, fromDate: string, toDate: string): Promise<NonBrandedAggregate>;
 }
 
@@ -310,6 +328,120 @@ export class MetricStore implements IMetricStore {
       result.totalVisibilityScore += computeVisibilityScore(mentions, citations, clientBrandId);
     }
     return result;
+  }
+
+  // Epic 5 (issue #29) slice 1: same live-aggregate query as
+  // aggregateLiveForPeriod (TD-24), grouped by platform instead of pooled.
+  async aggregateLiveForPeriodByPlatform(
+    clientId: number,
+    fromDate: string,
+    toDate: string
+  ): Promise<PlatformAggregateResult[]> {
+    const fromMs = Date.parse(`${fromDate}T00:00:00.000Z`);
+    const toExclusiveMs = Date.parse(`${toDate}T00:00:00.000Z`) + 86_400_000;
+
+    const inPeriod = and(
+      eq(promptRuns.clientId, clientId),
+      eq(responsesRaw.status, "complete"),
+      gte(responsesRaw.capturedAt, fromMs),
+      lt(responsesRaw.capturedAt, toExclusiveMs)
+    );
+
+    const responseRows = this._db
+      .select({
+        id: responsesRaw.id,
+        platformId: responsesRaw.platformId,
+        slug: platforms.slug,
+        displayName: platforms.displayName,
+      })
+      .from(responsesRaw)
+      .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+      .innerJoin(platforms, eq(responsesRaw.platformId, platforms.id))
+      .where(inPeriod)
+      .all();
+
+    if (responseRows.length === 0) return [];
+
+    const clientBrand = this._db
+      .select({ id: brands.id })
+      .from(brands)
+      .where(and(eq(brands.clientId, clientId), eq(brands.kind, "client")))
+      .get();
+    const clientBrandId = clientBrand?.id ?? -1;
+
+    const mentionRows = this._db
+      .select({
+        responseId: responseMentions.responseId,
+        brandId: responseMentions.brandId,
+        section: responseMentions.section,
+        recommendationRank: responseMentions.recommendationRank,
+      })
+      .from(responseMentions)
+      .innerJoin(responsesRaw, eq(responseMentions.responseId, responsesRaw.id))
+      .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+      .where(inPeriod)
+      .all();
+
+    const citationRows = this._db
+      .select({
+        responseId: responseCitations.responseId,
+        ownedByBrandId: responseCitations.ownedByBrandId,
+        isTrustedThirdParty: responseCitations.isTrustedThirdParty,
+      })
+      .from(responseCitations)
+      .innerJoin(responsesRaw, eq(responseCitations.responseId, responsesRaw.id))
+      .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+      .where(inPeriod)
+      .all();
+
+    const mentionsByResponse = new Map<number, typeof mentionRows>();
+    for (const m of mentionRows) {
+      const list = mentionsByResponse.get(m.responseId);
+      if (list) list.push(m);
+      else mentionsByResponse.set(m.responseId, [m]);
+    }
+    const citationsByResponse = new Map<number, typeof citationRows>();
+    for (const c of citationRows) {
+      const list = citationsByResponse.get(c.responseId);
+      if (list) list.push(c);
+      else citationsByResponse.set(c.responseId, [c]);
+    }
+
+    const byPlatform = new Map<number, PlatformAggregateResult>();
+    for (const { id, platformId, slug, displayName } of responseRows) {
+      let bucket = byPlatform.get(platformId);
+      if (!bucket) {
+        bucket = {
+          platformId,
+          slug,
+          displayName,
+          totalCitations: 0,
+          totalMentions: 0,
+          totalAllBrandMentions: 0,
+          totalClientBrandMentions: 0,
+          totalVisibilityScore: 0,
+          totalResponses: 0,
+        };
+        byPlatform.set(platformId, bucket);
+      }
+
+      const mentions = mentionsByResponse.get(id) ?? [];
+      const citations = (citationsByResponse.get(id) ?? []).map((c) => ({
+        ownedByBrandId: c.ownedByBrandId,
+        isTrustedThirdParty: c.isTrustedThirdParty === 1,
+      }));
+
+      const hasClientMention = mentions.some((m) => m.brandId === clientBrandId);
+      const hasClientCitation = citations.some((c) => c.ownedByBrandId === clientBrandId);
+      bucket.totalResponses += 1;
+      if (hasClientMention || hasClientCitation) bucket.totalMentions += 1;
+      if (hasClientCitation) bucket.totalCitations += 1;
+      bucket.totalAllBrandMentions += mentions.length;
+      bucket.totalClientBrandMentions += mentions.filter((m) => m.brandId === clientBrandId).length;
+      bucket.totalVisibilityScore += computeVisibilityScore(mentions, citations, clientBrandId);
+    }
+
+    return Array.from(byPlatform.values());
   }
 
   async aggregateNonBranded(

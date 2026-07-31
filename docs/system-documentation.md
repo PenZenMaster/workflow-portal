@@ -639,6 +639,47 @@ parser prefixed a second scheme and the comparison never matched. Both
 formats now work. Brands with URL-formatted domains need their runs
 re-parsed for corrected ownership attribution.
 
+#### Platform-Level Reporting (Epic 5 slice 1, issue #29)
+
+`GET /api/clients/:id/metrics/by-platform?period=30d|90d|365d` breaks the
+four core live metrics (Mention Rate, Citation Frequency, AI SoV, Average
+Visibility Score) out per platform, using the same live raw-table
+aggregation as `GET .../metrics/overview` (TD-24) grouped by
+`responses_raw.platform_id` instead of pooled. A platform with zero
+completed responses in the requested period is omitted from the
+`platforms` array entirely rather than reported as a 0% score — absence
+of a sample is not evidence of poor performance.
+
+The response also includes a `combined` object with **two rollup
+methods**, always labeled via `defaultRollup`:
+
+- **`responseWeighted`** — every platform's raw counts pooled back
+  together, then run through the same formulas as `/metrics/overview`.
+  This is mathematically identical to what `/metrics/overview` returns
+  for the same client and period (verified by test) — a high-volume
+  platform dominates the combined number in proportion to its response
+  count. Intended for technical/debugging use where volume-weighting is
+  expected.
+- **`platformBalanced`** (the default) — the unweighted arithmetic mean
+  of each included platform's own metric value, so a platform run 10
+  times a month can't be drowned out by one run 200 times. Intended for
+  executive reporting, where each platform's brand-visibility behavior
+  should count equally regardless of how often it happens to be queried.
+
+**What it means to the client:** different AI platforms can disagree
+sharply on brand visibility (e.g. strong on Perplexity, weak on Claude);
+a single pooled number can hide that. This endpoint makes per-platform
+performance and sample size visible side by side, and makes explicit
+which of the two legitimate ways of combining them was used for any
+given number shown in a report.
+
+**Known gap (deferred to a later Epic 5 slice, tracked on issue #29):**
+this endpoint does not yet distinguish "platform doesn't support
+citations at all" from "platform supports citations but wasn't cited" —
+that requires the per-provider capability declarations proposed in issue
+#3 Epic 1, which don't exist yet. Until then, a platform lacking citation
+support will show a low Citation Frequency rather than "not applicable."
+
 ### 2.3 Sentiment Classification
 
 The sentiment classifier is rule-based (no AI model — fully auditable).

@@ -14,6 +14,9 @@
  * - v1.00 Sprint 4 initial implementation
  * - v1.01 B-26: mentions list paginated (limit/offset, newest first),
  *   response envelope now { mentions, total }
+ * - v1.02 Epic 5 slice 1 (issue #29): GET .../metrics/by-platform - per-
+ *   platform breakdown of the core live metrics, plus platform-balanced
+ *   and response-weighted combined rollups, both labeled
  */
 
 import type { Express } from "express";
@@ -77,6 +80,87 @@ export function registerMetricRoutes(app: Express): void {
           : 0,
       totalResponses: agg.totalResponses,
       period: req.query.period ?? "30d",
+      fromDate,
+      toDate,
+    });
+  });
+
+  // --- Platform breakdown (Epic 5 slice 1, issue #29) -----------------------
+
+  function computeAggregateMetrics(agg: {
+    totalCitations: number;
+    totalMentions: number;
+    totalAllBrandMentions: number;
+    totalClientBrandMentions: number;
+    totalVisibilityScore: number;
+    totalResponses: number;
+  }) {
+    return {
+      mentionRate: computeMentionRate(agg.totalMentions, agg.totalResponses),
+      citationFrequency: computeCitationFrequency(agg.totalCitations, agg.totalResponses),
+      aiSoV: computeAISoV(agg.totalClientBrandMentions, agg.totalAllBrandMentions),
+      avgVisibilityScore: agg.totalResponses > 0 ? agg.totalVisibilityScore / agg.totalResponses : 0,
+    };
+  }
+
+  app.get("/api/clients/:id/metrics/by-platform", requireAuth, async (req, res) => {
+    const clientId = Number(req.params.id);
+    if (Number.isNaN(clientId))
+      throw new AppError(400, "Invalid client id", "INVALID_ID");
+
+    const period = typeof req.query.period === "string" ? req.query.period : "30d";
+    const { fromDate, toDate } = periodToDates(period);
+    const byPlatform = await metricStore.aggregateLiveForPeriodByPlatform(clientId, fromDate, toDate);
+
+    const platformMetrics = byPlatform.map((p) => ({
+      platformId: p.platformId,
+      slug: p.slug,
+      displayName: p.displayName,
+      totalResponses: p.totalResponses,
+      ...computeAggregateMetrics(p),
+    }));
+
+    // responseWeighted: pool every platform's raw counts back together —
+    // must equal GET .../metrics/overview for the same client/period.
+    const pooled = byPlatform.reduce(
+      (acc, p) => ({
+        totalCitations: acc.totalCitations + p.totalCitations,
+        totalMentions: acc.totalMentions + p.totalMentions,
+        totalAllBrandMentions: acc.totalAllBrandMentions + p.totalAllBrandMentions,
+        totalClientBrandMentions: acc.totalClientBrandMentions + p.totalClientBrandMentions,
+        totalVisibilityScore: acc.totalVisibilityScore + p.totalVisibilityScore,
+        totalResponses: acc.totalResponses + p.totalResponses,
+      }),
+      {
+        totalCitations: 0,
+        totalMentions: 0,
+        totalAllBrandMentions: 0,
+        totalClientBrandMentions: 0,
+        totalVisibilityScore: 0,
+        totalResponses: 0,
+      }
+    );
+    const responseWeighted = computeAggregateMetrics(pooled);
+
+    // platformBalanced: unweighted mean of each platform's own rate — a
+    // high-volume platform can't drown out a low-volume one.
+    const platformBalanced =
+      platformMetrics.length === 0
+        ? { mentionRate: 0, citationFrequency: 0, aiSoV: 0, avgVisibilityScore: 0 }
+        : {
+            mentionRate: platformMetrics.reduce((s, p) => s + p.mentionRate, 0) / platformMetrics.length,
+            citationFrequency:
+              platformMetrics.reduce((s, p) => s + p.citationFrequency, 0) / platformMetrics.length,
+            aiSoV: platformMetrics.reduce((s, p) => s + p.aiSoV, 0) / platformMetrics.length,
+            avgVisibilityScore:
+              platformMetrics.reduce((s, p) => s + p.avgVisibilityScore, 0) / platformMetrics.length,
+          };
+
+    ok(res, {
+      platforms: platformMetrics,
+      combined: { platformBalanced, responseWeighted },
+      defaultRollup: "platform_balanced",
+      period,
       fromDate,
       toDate,
     });
