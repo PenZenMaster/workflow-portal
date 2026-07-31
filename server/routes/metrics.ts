@@ -17,6 +17,9 @@
  * - v1.02 Epic 5 slice 1 (issue #29): GET .../metrics/by-platform - per-
  *   platform breakdown of the core live metrics, plus platform-balanced
  *   and response-weighted combined rollups, both labeled
+ * - v1.03 Epic 5 slice 2 (issue #29): GET .../metrics/non-branded/by-
+ *   platform - same per-platform + dual-rollup pattern for the
+ *   non-branded mention rate, recommendation rate, and recommendation SoV
  */
 
 import type { Express } from "express";
@@ -276,6 +279,83 @@ export function registerMetricRoutes(app: Express): void {
       toDate,
     });
   });
+
+  // --- Non-branded panel metrics, by platform (Epic 5 slice 2, issue #29) --
+
+  app.get(
+    "/api/clients/:id/metrics/non-branded/by-platform",
+    requireAuth,
+    async (req, res) => {
+      const clientId = Number(req.params.id);
+      if (Number.isNaN(clientId))
+        throw new AppError(400, "Invalid client id", "INVALID_ID");
+
+      const period = typeof req.query.period === "string" ? req.query.period : "30d";
+      const { fromDate, toDate } = periodToDates(period);
+      const byPlatform = await metricStore.aggregateNonBrandedByPlatform(clientId, fromDate, toDate);
+
+      const computeNonBrandedMetrics = (agg: {
+        nonBrandedResponses: number;
+        mentionedNonBranded: number;
+        recommendedNonBranded: number;
+        clientRecommended: number;
+        allBrandRecommended: number;
+      }) => ({
+        mentionRate: computeMentionRate(agg.mentionedNonBranded, agg.nonBrandedResponses),
+        recommendationRate: computeRecommendationRate(agg.recommendedNonBranded, agg.nonBrandedResponses),
+        recommendationSoV: computeAISoV(agg.clientRecommended, agg.allBrandRecommended),
+      });
+
+      const platformMetrics = byPlatform.map((p) => ({
+        platformId: p.platformId,
+        slug: p.slug,
+        displayName: p.displayName,
+        nonBrandedResponses: p.nonBrandedResponses,
+        ...computeNonBrandedMetrics(p),
+      }));
+
+      // responseWeighted: pool every platform's raw counts back together —
+      // must equal GET .../metrics/non-branded for the same client/period.
+      const pooled = byPlatform.reduce(
+        (acc, p) => ({
+          nonBrandedResponses: acc.nonBrandedResponses + p.nonBrandedResponses,
+          mentionedNonBranded: acc.mentionedNonBranded + p.mentionedNonBranded,
+          recommendedNonBranded: acc.recommendedNonBranded + p.recommendedNonBranded,
+          clientRecommended: acc.clientRecommended + p.clientRecommended,
+          allBrandRecommended: acc.allBrandRecommended + p.allBrandRecommended,
+        }),
+        {
+          nonBrandedResponses: 0,
+          mentionedNonBranded: 0,
+          recommendedNonBranded: 0,
+          clientRecommended: 0,
+          allBrandRecommended: 0,
+        }
+      );
+      const responseWeighted = computeNonBrandedMetrics(pooled);
+
+      // platformBalanced: unweighted mean of each platform's own rate.
+      const platformBalanced =
+        platformMetrics.length === 0
+          ? { mentionRate: 0, recommendationRate: 0, recommendationSoV: 0 }
+          : {
+              mentionRate: platformMetrics.reduce((s, p) => s + p.mentionRate, 0) / platformMetrics.length,
+              recommendationRate:
+                platformMetrics.reduce((s, p) => s + p.recommendationRate, 0) / platformMetrics.length,
+              recommendationSoV:
+                platformMetrics.reduce((s, p) => s + p.recommendationSoV, 0) / platformMetrics.length,
+            };
+
+      ok(res, {
+        platforms: platformMetrics,
+        combined: { platformBalanced, responseWeighted },
+        defaultRollup: "platform_balanced",
+        period,
+        fromDate,
+        toDate,
+      });
+    }
+  );
 
   // --- Mentions list -------------------------------------------------------
 

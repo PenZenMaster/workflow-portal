@@ -715,3 +715,125 @@ describe("MetricStore.aggregateNonBranded", () => {
     expect(outOfRange.nonBrandedResponses).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Epic 5 (issue #29) slice 2: platform breakdown of the non-branded
+// aggregate, same shape/philosophy as slice 1's live aggregate breakdown.
+describe("MetricStore.aggregateNonBrandedByPlatform (Epic 5 slice 2)", () => {
+  const WIDE_FROM = "2000-01-01";
+  const WIDE_TO = "2100-01-01";
+  const CLASSIFIER = "rules-1.0";
+
+  async function seed() {
+    const db = makeDb();
+    const store = new MetricStore(db);
+    const runStore = new RunStore(db);
+    const responseStore = new ResponseStore(db);
+    const mentionStore = new MentionStore(db);
+    const recStore = new RecommendationStore(db);
+
+    const now = Date.now();
+    db.insert(brands).values([
+      { id: 10, clientId: 1, canonicalName: "Acme", kind: "client", createdAt: now },
+      { id: 11, clientId: 1, canonicalName: "Rival", kind: "competitor", createdAt: now },
+    ]).run();
+    db.insert(prompts).values([
+      { id: 100, collectionId: 1, text: "best metal shop near me", brandContext: "unbranded", createdAt: now, updatedAt: now },
+    ]).run();
+    db.insert(platforms).values([
+      { id: 1, slug: "perplexity", displayName: "Perplexity" },
+      { id: 4, slug: "anthropic", displayName: "Claude" },
+    ]).run();
+
+    const run = await runStore.create({ clientId: 1, collectionId: 1, batchId: "b1", totalPrompts: 3, triggeredBy: "manual" });
+
+    async function completeResponse(platformId: number): Promise<number> {
+      const r = await responseStore.create({ runId: run.id, promptId: 100, platformId, queryText: "q" });
+      await responseStore.updateResult(r.id, { status: "complete", responseText: "text" });
+      return r.id;
+    }
+
+    return { db, store, mentionStore, recStore, run, completeResponse };
+  }
+
+  it("groups non-branded counts by platform, one entry per platform with non-branded responses in period", async () => {
+    const { store, mentionStore, completeResponse } = await seed();
+    const p1a = await completeResponse(1);
+    await completeResponse(1);
+    const p4a = await completeResponse(4);
+
+    await mentionStore.create({ responseId: p1a, brandId: 10, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+    await mentionStore.create({ responseId: p4a, brandId: 10, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+
+    const byPlatform = await store.aggregateNonBrandedByPlatform(1, WIDE_FROM, WIDE_TO);
+    expect(byPlatform).toHaveLength(2);
+
+    const perplexity = byPlatform.find((p) => p.platformId === 1)!;
+    expect(perplexity.slug).toBe("perplexity");
+    expect(perplexity.displayName).toBe("Perplexity");
+    expect(perplexity.nonBrandedResponses).toBe(2);
+    expect(perplexity.mentionedNonBranded).toBe(1);
+
+    const anthropic = byPlatform.find((p) => p.platformId === 4)!;
+    expect(anthropic.nonBrandedResponses).toBe(1);
+    expect(anthropic.mentionedNonBranded).toBe(1);
+  });
+
+  it("excludes a platform with zero non-branded responses in the period", async () => {
+    const { store, completeResponse } = await seed();
+    await completeResponse(1); // platform 4 unused
+
+    const byPlatform = await store.aggregateNonBrandedByPlatform(1, WIDE_FROM, WIDE_TO);
+    expect(byPlatform.map((p) => p.platformId)).toEqual([1]);
+  });
+
+  it("counts recommendation rows per platform at recommended-and-up, with human override taking precedence", async () => {
+    const { store, recStore, completeResponse } = await seed();
+    const p1 = await completeResponse(1);
+    const p4 = await completeResponse(4);
+
+    const [rec1] = await recStore.bulkCreate([
+      { responseId: p1, brandId: 10, status: "listed_option", confidence: 0.7, classifierVersion: CLASSIFIER },
+    ]);
+    await recStore.setHumanStatus(rec1.id, "first_choice", 1);
+    await recStore.bulkCreate([
+      { responseId: p4, brandId: 10, status: "recommended", confidence: 0.7, classifierVersion: CLASSIFIER },
+    ]);
+
+    const byPlatform = await store.aggregateNonBrandedByPlatform(1, WIDE_FROM, WIDE_TO);
+    expect(byPlatform.find((p) => p.platformId === 1)!.clientRecommended).toBe(1);
+    expect(byPlatform.find((p) => p.platformId === 4)!.clientRecommended).toBe(1);
+  });
+
+  it("sums back to the same totals as the pooled aggregateNonBranded", async () => {
+    const { store, mentionStore, recStore, completeResponse } = await seed();
+    const p1 = await completeResponse(1);
+    const p4 = await completeResponse(4);
+    await mentionStore.create({ responseId: p1, brandId: 10, matchedText: "Acme", matchType: "exact", section: "body", confidence: 1 });
+    await recStore.bulkCreate([
+      { responseId: p1, brandId: 10, status: "recommended", confidence: 0.7, classifierVersion: CLASSIFIER },
+      { responseId: p4, brandId: 11, status: "strongly_recommended", confidence: 0.8, classifierVersion: CLASSIFIER },
+    ]);
+
+    const byPlatform = await store.aggregateNonBrandedByPlatform(1, WIDE_FROM, WIDE_TO);
+    const pooled = await store.aggregateNonBranded(1, WIDE_FROM, WIDE_TO);
+
+    const summed = byPlatform.reduce(
+      (acc, p) => ({
+        nonBrandedResponses: acc.nonBrandedResponses + p.nonBrandedResponses,
+        mentionedNonBranded: acc.mentionedNonBranded + p.mentionedNonBranded,
+        recommendedNonBranded: acc.recommendedNonBranded + p.recommendedNonBranded,
+        clientRecommended: acc.clientRecommended + p.clientRecommended,
+        allBrandRecommended: acc.allBrandRecommended + p.allBrandRecommended,
+      }),
+      { nonBrandedResponses: 0, mentionedNonBranded: 0, recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0 }
+    );
+    expect(summed).toEqual(pooled);
+  });
+
+  it("returns an empty array for a client with no non-branded responses", async () => {
+    const { store } = await seed();
+    const byPlatform = await store.aggregateNonBrandedByPlatform(3, WIDE_FROM, WIDE_TO);
+    expect(byPlatform).toEqual([]);
+  });
+});

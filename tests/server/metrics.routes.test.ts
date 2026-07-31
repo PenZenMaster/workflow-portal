@@ -6,7 +6,7 @@ import { buildAuthApp } from "./_helpers/buildAuthApp";
 
 const mockMentionStore = { listByResponse: vi.fn(), listByClient: vi.fn(), countByClient: vi.fn(), bulkCreate: vi.fn(), deleteByResponse: vi.fn(), create: vi.fn() };
 const mockCitationStore = { listByResponse: vi.fn(), bulkCreate: vi.fn(), deleteByResponse: vi.fn(), create: vi.fn() };
-const mockMetricStore = { upsert: vi.fn(), listByClient: vi.fn(), aggregateForPeriod: vi.fn(), aggregateLiveForPeriod: vi.fn(), aggregateLiveForPeriodByPlatform: vi.fn(), aggregateNonBranded: vi.fn() };
+const mockMetricStore = { upsert: vi.fn(), listByClient: vi.fn(), aggregateForPeriod: vi.fn(), aggregateLiveForPeriod: vi.fn(), aggregateLiveForPeriodByPlatform: vi.fn(), aggregateNonBranded: vi.fn(), aggregateNonBrandedByPlatform: vi.fn() };
 const mockResponseStore = { get: vi.fn(), aggregateTokensByClient: vi.fn() };
 const mockBrandStore = { listByClient: vi.fn() };
 const mockAliasStore = { listByBrand: vi.fn() };
@@ -263,6 +263,75 @@ describe("GET /api/clients/:id/metrics/non-branded", () => {
     expect(res.body.data.mentionRate).toBe(0);
     expect(res.body.data.recommendationRate).toBe(0);
     expect(res.body.data.recommendationSoV).toBe(0);
+  });
+});
+
+describe("GET /api/clients/:id/metrics/non-branded/by-platform (Epic 5 slice 2, issue #29)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/clients/1/metrics/non-branded/by-platform");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 for an invalid client id", async () => {
+    const res = await request(buildApp("analyst")).get("/api/clients/abc/metrics/non-branded/by-platform");
+    expect(res.status).toBe(400);
+  });
+
+  it("returns per-platform non-branded metrics with sample size, and honors the period param", async () => {
+    mockMetricStore.aggregateNonBrandedByPlatform.mockResolvedValue([
+      { platformId: 1, slug: "perplexity", displayName: "Perplexity", nonBrandedResponses: 20, mentionedNonBranded: 8, recommendedNonBranded: 5, clientRecommended: 6, allBrandRecommended: 24 },
+      { platformId: 4, slug: "anthropic", displayName: "Claude", nonBrandedResponses: 10, mentionedNonBranded: 2, recommendedNonBranded: 1, clientRecommended: 1, allBrandRecommended: 4 },
+    ]);
+
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/non-branded/by-platform?period=90d");
+    expect(res.status).toBe(200);
+    expect(mockMetricStore.aggregateNonBrandedByPlatform).toHaveBeenCalledWith(1, expect.any(String), expect.any(String));
+
+    expect(res.body.data.platforms).toHaveLength(2);
+    const perplexity = res.body.data.platforms.find((p: { platformId: number }) => p.platformId === 1);
+    expect(perplexity.nonBrandedResponses).toBe(20);
+    expect(perplexity.mentionRate).toBe(40);
+    expect(perplexity.recommendationRate).toBe(25);
+    expect(perplexity.recommendationSoV).toBe(25);
+
+    expect(res.body.data.defaultRollup).toBe("platform_balanced");
+    expect(res.body.data.period).toBe("90d");
+  });
+
+  it("computes responseWeighted as the pooled totals across all platforms", async () => {
+    mockMetricStore.aggregateNonBrandedByPlatform.mockResolvedValue([
+      { platformId: 1, slug: "perplexity", displayName: "Perplexity", nonBrandedResponses: 20, mentionedNonBranded: 8, recommendedNonBranded: 5, clientRecommended: 6, allBrandRecommended: 24 },
+      { platformId: 4, slug: "anthropic", displayName: "Claude", nonBrandedResponses: 20, mentionedNonBranded: 0, recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0 },
+    ]);
+
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/non-branded/by-platform");
+    // pooled: mentioned 8/40=20%, recommended 5/40=12.5%, SoV 6/24=25%
+    expect(res.body.data.combined.responseWeighted.mentionRate).toBe(20);
+    expect(res.body.data.combined.responseWeighted.recommendationRate).toBe(12.5);
+    expect(res.body.data.combined.responseWeighted.recommendationSoV).toBe(25);
+  });
+
+  it("computes platformBalanced as the unweighted mean of each platform's own rate, diverging from responseWeighted when volumes differ", async () => {
+    mockMetricStore.aggregateNonBrandedByPlatform.mockResolvedValue([
+      { platformId: 1, slug: "perplexity", displayName: "Perplexity", nonBrandedResponses: 90, mentionedNonBranded: 90, recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0 },
+      { platformId: 4, slug: "anthropic", displayName: "Claude", nonBrandedResponses: 10, mentionedNonBranded: 0, recommendedNonBranded: 0, clientRecommended: 0, allBrandRecommended: 0 },
+    ]);
+
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/non-branded/by-platform");
+    expect(res.body.data.combined.responseWeighted.mentionRate).toBe(90);
+    expect(res.body.data.combined.platformBalanced.mentionRate).toBe(50);
+  });
+
+  it("returns an empty platforms array and zeroed combined rollups when there are no non-branded responses in the period", async () => {
+    mockMetricStore.aggregateNonBrandedByPlatform.mockResolvedValue([]);
+
+    const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/non-branded/by-platform");
+    expect(res.status).toBe(200);
+    expect(res.body.data.platforms).toEqual([]);
+    expect(res.body.data.combined.responseWeighted.mentionRate).toBe(0);
+    expect(res.body.data.combined.platformBalanced.mentionRate).toBe(0);
   });
 });
 

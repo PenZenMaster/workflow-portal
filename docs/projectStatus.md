@@ -1,7 +1,39 @@
 ## Resume From
 
 Last session: 2026-07-31
-Branch: main | Version: v1.61.0 | 1179 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
+Branch: main | Version: v1.62.0 | 1190 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
+
+Session 2026-07-31 (part 3): issue #29 slice 2 SHIPPED as v1.62.0, same
+TDD discipline (RED confirmed on all 11 new tests before implementing).
+New `MetricStore.aggregateNonBrandedByPlatform` (server/storage/
+metricStore.ts) mirrors the existing `aggregateNonBranded` query set
+(response/mention/recommendation counts scoped to `brand_context =
+'unbranded'` prompts) but grouped by platform via SQL `GROUP BY
+platform_id` on each of the 5 underlying count queries, merged into
+per-platform buckets in JS. New `GET /api/clients/:id/metrics/
+non-branded/by-platform` route - same shape as slice 1's route
+(`platforms[]` with sample size, `combined.{responseWeighted,
+platformBalanced}`, `defaultRollup`) applied to Mention Rate/
+Recommendation Rate/Recommendation SoV instead of the 4 core live
+metrics. `responseWeighted` verified-equal to the pooled
+`GET .../metrics/non-branded` endpoint for the same inputs, same as
+slice 1's invariant against `/metrics/overview`. Kept as its own route
+(mirrors how `/overview` and `/non-branded` are already separate today)
+rather than folding into slice 1's route. docs/system-documentation.md
+Section 2.2 Platform-Level Reporting subsection extended to cover both
+slices under one heading. Full suite (1190 tests), lint, and typecheck
+all pass. Still server-only, no UI yet.
+NOT YET DONE: git commit/push of this slice; npm run package + cPanel
+deploy (v1.61.0 AND v1.62.0 both git-only so far - one combined deploy
+cycle makes sense given neither has a schema migration).
+NEXT SESSION: (1) commit + push v1.62.0, then package + deploy v1.61.0+
+v1.62.0 together to cPanel (no migration involved for either); (2) pick
+up issue #29 slice 3 (net-new metrics: Strong Recommendation Rate, First
+Choice Rate, rank distribution - needs new logic reading
+`responseMentions.recommendationRank`, not just re-grouping existing
+aggregates) or continue the epic-5 roadmap in order; (3) user-owned:
+B-20 GBP API quota check, Groq API access (carried over, still not
+done).
 
 Session 2026-07-31 (part 2): full gap analysis of issue #3's 13-epic
 measurement program against the actual codebase (verified by reading

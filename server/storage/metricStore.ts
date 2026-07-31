@@ -15,6 +15,8 @@
  * - v1.01 YLG slice b: aggregateNonBranded live aggregate
  * - v1.02 Epic 5 slice 1 (issue #29): aggregateLiveForPeriodByPlatform -
  *   same live aggregate grouped by platform instead of pooled
+ * - v1.03 Epic 5 slice 2 (issue #29): aggregateNonBrandedByPlatform -
+ *   same non-branded aggregate grouped by platform instead of pooled
  */
 
 import {
@@ -89,6 +91,14 @@ export interface NonBrandedAggregate {
   allBrandRecommended: number;   // recommendation rows (all brands) at recommended-and-up
 }
 
+// Epic 5 (issue #29) slice 2: same shape as NonBrandedAggregate, one entry
+// per platform with non-branded responses in the period.
+export interface PlatformNonBrandedAggregate extends NonBrandedAggregate {
+  platformId: number;
+  slug: string;
+  displayName: string;
+}
+
 export interface IMetricStore {
   upsert(data: SnapshotInput): Promise<MetricSnapshotDaily>;
   listByClient(clientId: number, fromDate: string, toDate: string): Promise<MetricSnapshotDaily[]>;
@@ -100,6 +110,11 @@ export interface IMetricStore {
     toDate: string
   ): Promise<PlatformAggregateResult[]>;
   aggregateNonBranded(clientId: number, fromDate: string, toDate: string): Promise<NonBrandedAggregate>;
+  aggregateNonBrandedByPlatform(
+    clientId: number,
+    fromDate: string,
+    toDate: string
+  ): Promise<PlatformNonBrandedAggregate[]>;
 }
 
 export class MetricStore implements IMetricStore {
@@ -537,5 +552,140 @@ export class MetricStore implements IMetricStore {
             ),
       allBrandRecommended: countRecommendations(and(nonBranded, effectiveRecommended)),
     };
+  }
+
+  // Epic 5 (issue #29) slice 2: same non-branded aggregate as
+  // aggregateNonBranded, grouped by platform instead of pooled.
+  async aggregateNonBrandedByPlatform(
+    clientId: number,
+    fromDate: string,
+    toDate: string
+  ): Promise<PlatformNonBrandedAggregate[]> {
+    const fromMs = Date.parse(`${fromDate}T00:00:00.000Z`);
+    const toExclusiveMs = Date.parse(`${toDate}T00:00:00.000Z`) + 86_400_000;
+
+    const inPeriod = and(
+      eq(promptRuns.clientId, clientId),
+      eq(responsesRaw.status, "complete"),
+      gte(responsesRaw.capturedAt, fromMs),
+      lt(responsesRaw.capturedAt, toExclusiveMs)
+    );
+    const nonBranded = and(inPeriod, eq(prompts.brandContext, "unbranded"));
+    const effectiveRecommended = inArray(
+      sql`coalesce(${responseRecommendations.humanStatus}, ${responseRecommendations.status})`,
+      [...RECOMMENDED_STATUSES]
+    );
+
+    const clientBrandIds = this._db
+      .select({ id: brands.id })
+      .from(brands)
+      .where(and(eq(brands.clientId, clientId), eq(brands.kind, "client")))
+      .all()
+      .map((b) => b.id);
+
+    type PlatformCount = { platformId: number; slug: string; displayName: string; n: number };
+    const platformCols = {
+      platformId: responsesRaw.platformId,
+      slug: platforms.slug,
+      displayName: platforms.displayName,
+    };
+
+    const countResponsesByPlatform = (where: SQL | undefined): PlatformCount[] =>
+      this._db
+        .select({ ...platformCols, n: sql<number>`count(distinct ${responsesRaw.id})` })
+        .from(responsesRaw)
+        .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+        .innerJoin(prompts, eq(responsesRaw.promptId, prompts.id))
+        .innerJoin(platforms, eq(responsesRaw.platformId, platforms.id))
+        .where(where)
+        .groupBy(responsesRaw.platformId, platforms.slug, platforms.displayName)
+        .all();
+
+    const countRecommendationsByPlatform = (where: SQL | undefined): PlatformCount[] =>
+      this._db
+        .select({ ...platformCols, n: sql<number>`count(distinct ${responseRecommendations.id})` })
+        .from(responseRecommendations)
+        .innerJoin(responsesRaw, eq(responseRecommendations.responseId, responsesRaw.id))
+        .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+        .innerJoin(prompts, eq(responsesRaw.promptId, prompts.id))
+        .innerJoin(platforms, eq(responsesRaw.platformId, platforms.id))
+        .where(where)
+        .groupBy(responsesRaw.platformId, platforms.slug, platforms.displayName)
+        .all();
+
+    const mentionedNonBrandedByPlatform: PlatformCount[] =
+      clientBrandIds.length === 0
+        ? []
+        : this._db
+            .select({ ...platformCols, n: sql<number>`count(distinct ${responsesRaw.id})` })
+            .from(responsesRaw)
+            .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+            .innerJoin(prompts, eq(responsesRaw.promptId, prompts.id))
+            .innerJoin(platforms, eq(responsesRaw.platformId, platforms.id))
+            .innerJoin(responseMentions, eq(responseMentions.responseId, responsesRaw.id))
+            .where(and(nonBranded, inArray(responseMentions.brandId, clientBrandIds)))
+            .groupBy(responsesRaw.platformId, platforms.slug, platforms.displayName)
+            .all();
+
+    const recommendedNonBrandedByPlatform: PlatformCount[] =
+      clientBrandIds.length === 0
+        ? []
+        : this._db
+            .select({ ...platformCols, n: sql<number>`count(distinct ${responsesRaw.id})` })
+            .from(responsesRaw)
+            .innerJoin(promptRuns, eq(responsesRaw.runId, promptRuns.id))
+            .innerJoin(prompts, eq(responsesRaw.promptId, prompts.id))
+            .innerJoin(platforms, eq(responsesRaw.platformId, platforms.id))
+            .innerJoin(responseRecommendations, eq(responseRecommendations.responseId, responsesRaw.id))
+            .where(
+              and(
+                nonBranded,
+                inArray(responseRecommendations.brandId, clientBrandIds),
+                effectiveRecommended
+              )
+            )
+            .groupBy(responsesRaw.platformId, platforms.slug, platforms.displayName)
+            .all();
+
+    const clientRecommendedByPlatform: PlatformCount[] =
+      clientBrandIds.length === 0
+        ? []
+        : countRecommendationsByPlatform(
+            and(nonBranded, inArray(responseRecommendations.brandId, clientBrandIds), effectiveRecommended)
+          );
+
+    const allBrandRecommendedByPlatform = countRecommendationsByPlatform(and(nonBranded, effectiveRecommended));
+
+    const byPlatform = new Map<number, PlatformNonBrandedAggregate>();
+    const bucket = (platformId: number, slug: string, displayName: string): PlatformNonBrandedAggregate => {
+      let b = byPlatform.get(platformId);
+      if (!b) {
+        b = {
+          platformId,
+          slug,
+          displayName,
+          nonBrandedResponses: 0,
+          mentionedNonBranded: 0,
+          recommendedNonBranded: 0,
+          clientRecommended: 0,
+          allBrandRecommended: 0,
+        };
+        byPlatform.set(platformId, b);
+      }
+      return b;
+    };
+
+    for (const row of countResponsesByPlatform(nonBranded))
+      bucket(row.platformId, row.slug, row.displayName).nonBrandedResponses = row.n;
+    for (const row of mentionedNonBrandedByPlatform)
+      bucket(row.platformId, row.slug, row.displayName).mentionedNonBranded = row.n;
+    for (const row of recommendedNonBrandedByPlatform)
+      bucket(row.platformId, row.slug, row.displayName).recommendedNonBranded = row.n;
+    for (const row of clientRecommendedByPlatform)
+      bucket(row.platformId, row.slug, row.displayName).clientRecommended = row.n;
+    for (const row of allBrandRecommendedByPlatform)
+      bucket(row.platformId, row.slug, row.displayName).allBrandRecommended = row.n;
+
+    return Array.from(byPlatform.values());
   }
 }

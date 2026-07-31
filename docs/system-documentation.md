@@ -639,9 +639,9 @@ parser prefixed a second scheme and the comparison never matched. Both
 formats now work. Brands with URL-formatted domains need their runs
 re-parsed for corrected ownership attribution.
 
-#### Platform-Level Reporting (Epic 5 slice 1, issue #29)
+#### Platform-Level Reporting (Epic 5, issue #29)
 
-`GET /api/clients/:id/metrics/by-platform?period=30d|90d|365d` breaks the
+`GET /api/clients/:id/metrics/by-platform?period=30d|90d|365d` (slice 1) breaks the
 four core live metrics (Mention Rate, Citation Frequency, AI SoV, Average
 Visibility Score) out per platform, using the same live raw-table
 aggregation as `GET .../metrics/overview` (TD-24) grouped by
@@ -679,6 +679,16 @@ citations at all" from "platform supports citations but wasn't cited" —
 that requires the per-provider capability declarations proposed in issue
 #3 Epic 1, which don't exist yet. Until then, a platform lacking citation
 support will show a low Citation Frequency rather than "not applicable."
+
+**Slice 2:** `GET /api/clients/:id/metrics/non-branded/by-platform`
+applies the identical per-platform + dual-rollup pattern to the
+non-branded panel metrics (Section 2.2's Mention Rate/Recommendation
+Rate/Recommendation SoV over `brand_context = 'unbranded'` responses
+only) instead of the four core live metrics — same `platforms` /
+`combined.{responseWeighted,platformBalanced}` / `defaultRollup` shape,
+same zero-response-platform exclusion rule, same
+`responseWeighted`-matches-the-pooled-endpoint invariant (here, against
+`GET .../metrics/non-branded`).
 
 ### 2.3 Sentiment Classification
 
