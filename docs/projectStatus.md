@@ -1,7 +1,12 @@
 ## Resume From
 
-Last session: 2026-07-31
-Branch: main | Version: v1.67.0 | 1231 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
+Last session: 2026-07-31 (shutdown)
+Branch: main | Version: v1.67.0 | 1231 tests passing | SHIPPED to git and PUSHED, NOT yet packaged/deployed to cPanel
+
+NEXT SESSION (3 items):
+1. Package + deploy v1.61.0-v1.67.0 together to cPanel (one combined cycle - no schema migration across any of these seven versions).
+2. Pick up issue #30 (Epic 3: Measurement Health) slice 3 - source-classification completeness, a new client/run-scoped aggregation in `sourceDomainStore.ts` (today's `listUnreviewed()` is global/unscoped). Slice 4 after that needs a schema migration (parseStatus/parsedAt on responses_raw) - first one since v1.60.1/TD-26.
+3. User-owned, carried over: B-20 GBP API quota check, Groq API access.
 
 Session 2026-07-31 (part 9): issue #30 slice 2 SHIPPED as v1.67.0 -
 prompt-metadata completeness and brand-alias coverage folded into the
