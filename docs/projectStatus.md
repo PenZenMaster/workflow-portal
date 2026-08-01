@@ -1,7 +1,44 @@
 ## Resume From
 
 Last session: 2026-07-31
-Branch: main | Version: v1.66.0 | 1222 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
+Branch: main | Version: v1.67.0 | 1231 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
+
+Session 2026-07-31 (part 9): issue #30 slice 2 SHIPPED as v1.67.0 -
+prompt-metadata completeness and brand-alias coverage folded into the
+health computation, both reusing existing precedent rather than building
+new logic: `computeCollectionDiagnostics` (issue #4 Phase 3 item J) for
+intent/brandContext "unclassified" counts, and `computeReadiness` (B-15)
+for the competitor-brand-alias check. Both are setup/data-quality signals
+that can only ever produce `healthy_with_warnings`, never `degraded`/
+`invalid_for_reporting` - matches the warn-don't-block precedent used
+everywhere else in this app.
+Refactored `computeMeasurementHealth` from 4 positional args to a single
+`MeasurementHealthInputs` object now that it takes 6 inputs, before later
+slices (3 more planned) add even more - mechanical change, all slice 1
+tests updated to the new call shape and re-verified green, no behavior
+change. Route (`server/routes/runs.ts`) now also fetches the run's
+collection + prompts (for diagnostics) and calls `computeReadiness`
+(reuses the SAME mocked stores already in `runs.routes.test.ts` via
+`clientReadiness.ts`'s own imports from `../storage` - no new module mock
+needed, just safe default resolved values added to `mockBrandStore`,
+`mockPromptCollectionStore`, `mockPromptStore`, `mockAliasStore` so every
+existing test in the file keeps working without every test having to
+know about the new dependency chain).
+TDD throughout: pure-function tests written first and confirmed RED for
+the refactor + 7 new test cases; the 2 new route-level tests were added
+after the route wiring already existed (pragmatic exception - the
+underlying logic was already RED/GREEN'd at the pure-function layer, the
+route layer here is thin glue already validated by the other 7
+measurement-health route tests using the identical wiring pattern).
+docs/system-documentation.md extended. Full suite (1231 tests), lint,
+typecheck all pass.
+NOT YET DONE: git commit/push of this slice; npm run package + cPanel
+deploy (no schema migration in this slice, or any of issue #30 so far).
+NEXT SESSION: (1) commit + push v1.67.0, then package + deploy; (2) pick
+up issue #30 slice 3 (source-classification completeness - new client/
+run-scoped aggregation in sourceDomainStore.ts) or continue the roadmap
+in order; (3) user-owned: B-20 GBP API quota check, Groq API access
+(carried over, still not done).
 
 Session 2026-07-31 (part 8): Epic 3 (Measurement Health) kicked off.
 Three parallel research passes against the codebase mapped all 10

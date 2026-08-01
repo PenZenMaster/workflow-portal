@@ -330,6 +330,19 @@ Inputs and status derivation (locked 2026-08-01):
 - **Run comparability** (reuses `compareManifests` as-is) —
   `not_comparable` is `invalid_for_reporting`; `comparable_with_warning`
   is `healthy_with_warnings`.
+- **Prompt-metadata completeness** (added v1.66.0 slice 2, reuses
+  `computeCollectionDiagnostics` from issue #4 Phase 3 item J, scoped to
+  the run's collection) — any prompt missing `intentType` or
+  `brandContext` classification is `healthy_with_warnings`.
+- **Brand-alias coverage** (added v1.66.0 slice 2, reuses
+  `computeReadiness` from B-15, scoped to the run's client) — competitor
+  brands configured with zero aliases is `healthy_with_warnings`.
+
+Prompt-metadata completeness and brand-alias coverage are setup/data-
+quality signals, not measurement failures — they can only ever produce a
+warning, never `degraded` or `invalid_for_reporting`, matching the warn-
+don't-block precedent used throughout this app (issue #4's diagnostics,
+source classification, etc.).
 
 Precedence when multiple conditions apply: `invalid_for_reporting` >
 `degraded` > `healthy_with_warnings` > `healthy`. Unlike

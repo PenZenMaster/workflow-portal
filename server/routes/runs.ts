@@ -19,6 +19,9 @@
  *   comparability into a healthy/healthy_with_warnings/degraded/
  *   invalid_for_reporting status; degrades gracefully (no 404) when a
  *   manifest or baseline is missing, unlike /comparability
+ * - v1.03 issue #30 slice 2: measurement-health also folds in prompt-
+ *   metadata completeness (reuses computeCollectionDiagnostics) and
+ *   brand-alias coverage (reuses computeReadiness)
  */
 
 import type { Express } from "express";
@@ -47,6 +50,8 @@ import { buildPromptTokenContext, expandPromptText, type ClientBrandContext } fr
 import { assembleManifest } from "../services/manifest";
 import { compareManifests } from "../services/comparability";
 import { computeMeasurementHealth } from "../services/measurementHealth";
+import { computeCollectionDiagnostics } from "../services/collectionDiagnostics";
+import { computeReadiness } from "../services/clientReadiness";
 import { SCORING_VERSION } from "../services/scoring";
 import { PARSER_VERSION } from "../services/parser";
 import { RECOMMENDATION_CLASSIFIER_VERSION } from "../services/recommendation";
@@ -280,7 +285,27 @@ export function registerRunRoutes(app: Express): void {
       new Set(responses.filter((r) => r.status === "complete").map((r) => r.platformId))
     );
 
-    ok(res, computeMeasurementHealth(run, manifest ?? null, comparability, completedPlatformIds));
+    // issue #30 slice 2: prompt-metadata completeness reuses
+    // computeCollectionDiagnostics (issue #4 Phase 3 item J); brand-alias
+    // coverage reuses computeReadiness (B-15) - both already compute
+    // exactly what this needs, scoped to this run's collection/client.
+    const collection = await promptCollectionStore.get(run.collectionId);
+    const collectionDiagnostics = collection
+      ? computeCollectionDiagnostics(await promptStore.listByCollection(run.collectionId), collection.panelType)
+      : null;
+    const clientReadiness = await computeReadiness(run.clientId);
+
+    ok(
+      res,
+      computeMeasurementHealth({
+        run,
+        manifest: manifest ?? null,
+        comparability,
+        completedPlatformIds,
+        collectionDiagnostics,
+        clientReadiness,
+      })
+    );
   });
 
   app.get(

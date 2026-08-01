@@ -32,22 +32,27 @@ const mockScheduleStore = {
   update: vi.fn(),
   delete: vi.fn(),
 };
-const mockPromptStore = { listByCollection: vi.fn() };
+const mockPromptStore = { listByCollection: vi.fn().mockResolvedValue([]) };
 const mockJobStore = { listByKindAndResponseIds: vi.fn() };
 const mockJobRunner = { register: vi.fn(), enqueue: vi.fn() };
 const mockClientStore = { get: vi.fn() };
-const mockBrandStore = { listByClient: vi.fn() };
+const mockBrandStore = { listByClient: vi.fn().mockResolvedValue([]) };
 
 const mockManifestStore = {
   create: vi.fn().mockResolvedValue({ id: 1 }),
   getByRunId: vi.fn(),
   getPreviousManifest: vi.fn(),
 };
+const mockPromptCollectionStore = {
+  get: vi.fn().mockResolvedValue({ id: 5, version: "3", panelType: "balanced_baseline" }),
+  listByClient: vi.fn().mockResolvedValue([]),
+};
+const mockAliasStore = { listByBrand: vi.fn().mockResolvedValue([]) };
 
 vi.mock("../../server/storage", () => ({
   storage: { countUsers: vi.fn() },
   platformStore: { seedDefaults: vi.fn().mockResolvedValue(undefined), list: vi.fn() },
-  promptCollectionStore: { get: vi.fn().mockResolvedValue({ id: 5, version: "3" }) },
+  promptCollectionStore: mockPromptCollectionStore,
   promptMethodologyStore: { getActive: vi.fn().mockResolvedValue({ version: "1.0" }) },
   promptStore: mockPromptStore,
   runStore: mockRunStore,
@@ -56,7 +61,7 @@ vi.mock("../../server/storage", () => ({
   jobStore: mockJobStore,
   clientStore: mockClientStore,
   brandStore: mockBrandStore,
-  aliasStore: { listByBrand: vi.fn().mockResolvedValue([]) },
+  aliasStore: mockAliasStore,
   manifestStore: mockManifestStore,
   competitorStore: {},
   clientUserStore: {},
@@ -492,6 +497,40 @@ describe("GET /api/runs/:id/measurement-health (issue #30 slice 1)", () => {
     const res = await request(buildApp("analyst")).get("/api/runs/5/measurement-health?against=abc");
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("INVALID_AGAINST");
+  });
+
+  // issue #30 slice 2: prompt-metadata completeness + brand-alias coverage.
+  it("flags healthy_with_warnings when the run's collection has prompts missing intent/brand-context classification", async () => {
+    mockRunStore.get.mockResolvedValue(HEALTH_RUN);
+    mockManifestStore.getByRunId.mockResolvedValue(undefined);
+    mockResponseStore.listByRun.mockResolvedValue([]);
+    mockPromptCollectionStore.get.mockResolvedValue({ id: 5, version: "3", panelType: "balanced_baseline" });
+    mockPromptStore.listByCollection.mockResolvedValue([
+      { id: 1, intentType: null, brandContext: null, funnelStage: "awareness", geo: null, service: null, text: "a" },
+      { id: 2, intentType: "provider_recommendation", brandContext: "unbranded", funnelStage: "awareness", geo: null, service: null, text: "b" },
+    ]);
+
+    const res = await request(buildApp("analyst")).get("/api/runs/5/measurement-health");
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("healthy_with_warnings");
+    expect(res.body.data.promptMetadataCompleteness).toEqual({ unclassifiedCount: 1, promptCount: 2 });
+  });
+
+  it("flags healthy_with_warnings when the client's competitor brands have no aliases configured", async () => {
+    mockRunStore.get.mockResolvedValue(HEALTH_RUN);
+    mockManifestStore.getByRunId.mockResolvedValue(undefined);
+    mockResponseStore.listByRun.mockResolvedValue([]);
+    mockPromptStore.listByCollection.mockResolvedValue([]);
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme", kind: "client", primaryDomain: null, createdAt: Date.now() },
+      { id: 2, clientId: 10, canonicalName: "Rival", kind: "competitor", primaryDomain: null, createdAt: Date.now() },
+    ]);
+    mockAliasStore.listByBrand.mockResolvedValue([]); // no aliases on the competitor
+
+    const res = await request(buildApp("analyst")).get("/api/runs/5/measurement-health");
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("healthy_with_warnings");
+    expect(res.body.data.brandAliasCoverage).toEqual({ competitorBrandCount: 1, competitorBrandsWithAliasCount: 0 });
   });
 });
 
