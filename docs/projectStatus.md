@@ -1,7 +1,57 @@
 ## Resume From
 
 Last session: 2026-07-31
-Branch: main | Version: v1.64.0 | 1199 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
+Branch: main | Version: v1.65.0 | 1203 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
+
+Session 2026-07-31 (part 6): issue #29 slice 5 SHIPPED as v1.65.0 - closes
+out the originally-scoped Epic 5 roadmap (slice 6 was found blocked on
+unstarted Epic 1 provider-capability work and explicitly deferred, per
+discussion earlier this session). New `PlatformBreakdownSection`
+(client/src/pages/ai/sections/PlatformBreakdownSection.tsx) is the first
+real per-platform display anywhere in the client UI - all 4 prior slices
+were API-only. Two tables consuming the two by-platform endpoints
+(core live metrics from slice 1/4, non-branded/recommendation metrics
+from slice 2/3), each with its own per-platform rows + sample size, an
+"All Platforms" footer row showing the platform-balanced combined value
+(the API's own default), and a muted caption stating the response-weighted
+equivalent - satisfies "the active rollup method must always be labeled"
+without adding a toggle control, staying consistent with every other
+section on this page (none have interactive controls). Rank distribution
+scoped down to just `avgRank` as one column rather than all 5 fields, to
+keep the table readable - full data stays available via the API for a
+future slice if wanted. Wired into `ClientDetail.tsx` directly after
+`OverviewSection` (the platform-level decomposition of the same metrics
+Overview shows). Followed `TokenUsageSection.tsx`'s exact structural
+precedent (plain `<table>`, `useQuery` + isLoading/empty/data three-state
+render) - no shared StatTile component exists in this codebase, so none
+was invented. TDD: new test file
+`PlatformBreakdownSection.test.tsx` (RTL, `vi.stubGlobal("fetch", ...)`
+branching by URL since this component calls two endpoints, unlike every
+existing single-endpoint section test) confirmed RED before implementing.
+Full suite (1203 tests), lint, typecheck all pass.
+BROWSER VERIFICATION SKIPPED this session (user decision): dev server was
+started and the login page confirmed rendering v1.65.0 correctly, but the
+Chrome extension's automated tab and the user's manual sign-in kept
+landing in different browser contexts/sessions after several attempts:
+user chose to accept the 4 passing component tests as sufficient rather
+than keep troubleshooting the automation mismatch. Dev server was stopped
+afterward. NEXT SESSION should do a real click-through on
+portal.fullmetaljacketseo.com (or local dev, signed in normally without
+browser automation) before or shortly after this ships to production, to
+catch anything only a real render would show (table overflow at 9 columns
+on narrower viewports was not visually checked).
+NOT YET DONE: git commit/push of this slice; npm run package + cPanel
+deploy (v1.61.0-v1.65.0 all git-only so far - one combined deploy cycle,
+no schema migration across any of the five).
+NEXT SESSION: (1) commit + push v1.65.0, then package + deploy
+v1.61.0-v1.65.0 together to cPanel, and do the real-browser check noted
+above as part of that deploy's smoke test; (2) issue #29 / Epic 5's
+originally-scoped roadmap is now COMPLETE (slices 1-5 all shipped; slice 6
+deferred, blocked on Epic 1) - decide whether to close issue #29, and if
+so what's next on the broader issue #3 program (Epic 3 Measurement Health
+was the other Phase-1-completing candidate from the 2026-07-31 gap
+analysis); (3) user-owned: B-20 GBP API quota check, Groq API access
+(carried over, still not done).
 
 Session 2026-07-31 (part 5): issue #29 slice 4 SHIPPED as v1.64.0. Metric
 shape confirmed with user before coding (Citation Frequency already means
