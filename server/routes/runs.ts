@@ -14,6 +14,11 @@
  * - v1.00 Sprint 3 initial implementation
  * - v1.01 issue #2 F6: monthly token budget guard on run creation and
  *   retry-failed
+ * - v1.02 issue #3 Epic 3 slice 1 (issue #30): GET .../measurement-health
+ *   rolls up completion/failure rate, platform coverage, and run
+ *   comparability into a healthy/healthy_with_warnings/degraded/
+ *   invalid_for_reporting status; degrades gracefully (no 404) when a
+ *   manifest or baseline is missing, unlike /comparability
  */
 
 import type { Express } from "express";
@@ -41,6 +46,7 @@ import { computeNextFireAt } from "../services/scheduling";
 import { buildPromptTokenContext, expandPromptText, type ClientBrandContext } from "../services/promptTokens";
 import { assembleManifest } from "../services/manifest";
 import { compareManifests } from "../services/comparability";
+import { computeMeasurementHealth } from "../services/measurementHealth";
 import { SCORING_VERSION } from "../services/scoring";
 import { PARSER_VERSION } from "../services/parser";
 import { RECOMMENDATION_CLASSIFIER_VERSION } from "../services/recommendation";
@@ -232,6 +238,49 @@ export function registerRunRoutes(app: Express): void {
     }
 
     ok(res, compareManifests(baseline, manifest));
+  });
+
+  // issue #3 Epic 3 slice 1 (issue #30): measurement health is a
+  // best-effort rollup, not solely about comparability like the route
+  // above - a missing manifest or baseline degrades gracefully (null
+  // inputs to computeMeasurementHealth) rather than 404ing the whole
+  // response. An explicit ?against= that doesn't resolve is still a real
+  // user error, so that case keeps the same 404 as /comparability.
+  app.get("/api/runs/:id/measurement-health", requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+
+    const run = await runStore.get(id);
+    if (!run) throw new AppError(404, "Run not found", "RUN_NOT_FOUND");
+
+    const manifest = await manifestStore.getByRunId(id);
+
+    let baseline = null;
+    if (manifest) {
+      if (req.query.against !== undefined) {
+        const againstId = Number(req.query.against);
+        if (Number.isNaN(againstId))
+          throw new AppError(400, "Invalid against run id", "INVALID_AGAINST");
+        baseline = await manifestStore.getByRunId(againstId);
+        if (!baseline)
+          throw new AppError(404, "Baseline manifest not found", "BASELINE_MANIFEST_NOT_FOUND");
+      } else {
+        baseline = await manifestStore.getPreviousManifest(
+          manifest.clientId,
+          manifest.collectionId,
+          manifest.runId
+        );
+      }
+    }
+
+    const comparability = manifest && baseline ? compareManifests(baseline, manifest) : null;
+
+    const responses = await responseStore.listByRun(id);
+    const completedPlatformIds = Array.from(
+      new Set(responses.filter((r) => r.status === "complete").map((r) => r.platformId))
+    );
+
+    ok(res, computeMeasurementHealth(run, manifest ?? null, comparability, completedPlatformIds));
   });
 
   app.get(

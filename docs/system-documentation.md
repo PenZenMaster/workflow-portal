@@ -312,6 +312,48 @@ before explaining the numbers. Warnings should be disclosed as
 footnotes on trend charts. Runs without a manifest (pre-v1.40.0, or no
 earlier run) show no banner: comparability is unknown, not asserted.
 
+#### Measurement Health (added v1.66.0, issue #3 Epic 3 slice 1, tracked on issue #30)
+
+`GET /api/runs/:id/measurement-health` rolls up several data-quality
+signals for one run into a single status: `healthy`,
+`healthy_with_warnings`, `degraded`, or `invalid_for_reporting`.
+
+Inputs and status derivation (locked 2026-08-01):
+
+- **Completion rate** (`completedPrompts / totalPrompts`, from the run's
+  own counters) — below 50% is `invalid_for_reporting`.
+- **Provider failure rate** (`failedPrompts / totalPrompts`) — above 20%
+  is `degraded`; any failures at or below 20% is `healthy_with_warnings`.
+- **Platform coverage** — the manifest's configured platforms vs. which
+  platforms actually have a completed response; any manifest platform
+  with zero completed responses is `healthy_with_warnings`.
+- **Run comparability** (reuses `compareManifests` as-is) —
+  `not_comparable` is `invalid_for_reporting`; `comparable_with_warning`
+  is `healthy_with_warnings`.
+
+Precedence when multiple conditions apply: `invalid_for_reporting` >
+`degraded` > `healthy_with_warnings` > `healthy`. Unlike
+`/comparability`, this endpoint never 404s on a missing manifest or
+baseline — a run with no manifest still gets a health status from
+completion/failure rate alone (platform coverage and comparability are
+simply omitted, not treated as errors), since a health check needs to
+work on exactly the runs most likely to have something wrong with them,
+including legacy pre-manifest runs.
+
+**Deferred, not scored** (`{ measurable: false }` in the response):
+replicate completion and model consistency. Neither has the underlying
+instrumentation yet — no run in this codebase actually executes more
+than one replicate per prompt despite the schema supporting it, and no
+manifest records a "requested model" to compare against the actual
+model a provider returned. Both are separate future initiatives, not
+Epic 3 scope (see issue #30).
+
+**Client meaning:** a `degraded` or `invalid_for_reporting` run's
+numbers should be treated with caution or excluded from trend reading
+entirely — the underlying data collection had a real problem (high
+failure rate, low completion, or a config change that breaks
+comparability), not just normal measurement noise.
+
 #### Prompt Generation Provenance (added v1.43.0)
 
 Every "Generate with AI" event writes an immutable

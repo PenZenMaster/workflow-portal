@@ -379,6 +379,122 @@ describe("GET /api/runs/:id/comparability (E2b)", () => {
   });
 });
 
+describe("GET /api/runs/:id/measurement-health (issue #30 slice 1)", () => {
+  const HEALTH_RUN = { ...SAMPLE_RUN, id: 5, clientId: 10, collectionId: 5, totalPrompts: 10, completedPrompts: 10, failedPrompts: 0 };
+
+  const MANIFEST = {
+    id: 7,
+    runId: 5,
+    clientId: 10,
+    collectionId: 5,
+    purpose: "ad_hoc" as const,
+    methodologyVersion: "1.0",
+    panelVersion: "3",
+    scoringVersion: "1.0",
+    parserVersion: "1.0",
+    classifierVersion: "rules-1.0",
+    platformIds: [1],
+    promptCount: 1,
+    replicateCount: 1,
+    expectedResponseCount: 1,
+    configSnapshot: JSON.stringify({
+      methodologyVersion: "1.0", panelVersion: "3", scoringVersion: "1.0",
+      parserVersion: "1.0", classifierVersion: "rules-1.0", platformIds: [1],
+      prompts: [], brands: [],
+    }),
+    configHash: "aa",
+    createdAt: Date.now(),
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/runs/5/measurement-health");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 RUN_NOT_FOUND when the run does not exist", async () => {
+    mockRunStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("analyst")).get("/api/runs/5/measurement-health");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("RUN_NOT_FOUND");
+  });
+
+  it("returns 200 with a full health result when a manifest and baseline both exist", async () => {
+    mockRunStore.get.mockResolvedValue(HEALTH_RUN);
+    mockManifestStore.getByRunId.mockResolvedValue(MANIFEST);
+    mockManifestStore.getPreviousManifest.mockResolvedValue({ ...MANIFEST, id: 6, runId: 3 });
+    mockResponseStore.listByRun.mockResolvedValue([
+      { ...SAMPLE_RESPONSE, id: 100, runId: 5, platformId: 1, status: "complete" },
+    ]);
+
+    const res = await request(buildApp("analyst")).get("/api/runs/5/measurement-health");
+    expect(res.status).toBe(200);
+    expect(res.body.data.runId).toBe(5);
+    expect(res.body.data.status).toBeTruthy();
+    expect(res.body.data.comparability.status).toBe("fully_comparable");
+    expect(mockManifestStore.getPreviousManifest).toHaveBeenCalledWith(10, 5, 5);
+  });
+
+  it("degrades gracefully (no 404) when the run has no manifest, still computing from completion/failure rate alone", async () => {
+    mockRunStore.get.mockResolvedValue(HEALTH_RUN);
+    mockManifestStore.getByRunId.mockResolvedValue(undefined);
+    mockResponseStore.listByRun.mockResolvedValue([]);
+
+    const res = await request(buildApp("analyst")).get("/api/runs/5/measurement-health");
+    expect(res.status).toBe(200);
+    expect(res.body.data.platformCoverage).toBeNull();
+    expect(res.body.data.comparability).toBeNull();
+    expect(mockManifestStore.getPreviousManifest).not.toHaveBeenCalled();
+  });
+
+  it("degrades gracefully (no 404) when a manifest exists but there is no earlier baseline run", async () => {
+    mockRunStore.get.mockResolvedValue(HEALTH_RUN);
+    mockManifestStore.getByRunId.mockResolvedValue(MANIFEST);
+    mockManifestStore.getPreviousManifest.mockResolvedValue(undefined);
+    mockResponseStore.listByRun.mockResolvedValue([]);
+
+    const res = await request(buildApp("analyst")).get("/api/runs/5/measurement-health");
+    expect(res.status).toBe(200);
+    expect(res.body.data.comparability).toBeNull();
+    expect(res.body.data.platformCoverage).not.toBeNull();
+  });
+
+  it("uses an explicit baseline run when ?against= is given, same as /comparability", async () => {
+    mockRunStore.get.mockResolvedValue(HEALTH_RUN);
+    mockManifestStore.getByRunId.mockImplementation(async (runId: number) => {
+      if (runId === 5) return MANIFEST;
+      if (runId === 2) return { ...MANIFEST, id: 4, runId: 2 };
+      return undefined;
+    });
+    mockResponseStore.listByRun.mockResolvedValue([]);
+
+    const res = await request(buildApp("analyst")).get("/api/runs/5/measurement-health?against=2");
+    expect(res.status).toBe(200);
+    expect(res.body.data.comparability.status).toBe("fully_comparable");
+    expect(res.body.data.comparability.baseRunId).toBe(2);
+    expect(mockManifestStore.getPreviousManifest).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 BASELINE_MANIFEST_NOT_FOUND when an explicit ?against= run has no manifest (real user error, not graceful degradation)", async () => {
+    mockRunStore.get.mockResolvedValue(HEALTH_RUN);
+    mockManifestStore.getByRunId.mockImplementation(async (runId: number) =>
+      runId === 5 ? MANIFEST : undefined
+    );
+    const res = await request(buildApp("analyst")).get("/api/runs/5/measurement-health?against=2");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("BASELINE_MANIFEST_NOT_FOUND");
+  });
+
+  it("returns 400 for a non-numeric ?against=", async () => {
+    mockRunStore.get.mockResolvedValue(HEALTH_RUN);
+    mockManifestStore.getByRunId.mockResolvedValue(MANIFEST);
+    const res = await request(buildApp("analyst")).get("/api/runs/5/measurement-health?against=abc");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_AGAINST");
+  });
+});
+
 describe("GET /api/clients/:id/runs", () => {
   beforeEach(() => vi.clearAllMocks());
 

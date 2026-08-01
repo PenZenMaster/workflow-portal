@@ -1,7 +1,53 @@
 ## Resume From
 
 Last session: 2026-07-31
-Branch: main | Version: v1.65.0 | 1203 tests passing | DEPLOYED to cPanel, smoke-tested, TD-16 check clean
+Branch: main | Version: v1.66.0 | 1222 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
+
+Session 2026-07-31 (part 8): Epic 3 (Measurement Health) kicked off.
+Three parallel research passes against the codebase mapped all 10
+inputs issue #3 Epic 3 originally listed: run comparability already
+fully built (`server/services/comparability.ts`), completion/failure
+rate trivially computable from existing `prompt_runs` counters (zero new
+queries), several needing moderate new aggregation with reusable
+precedent (prompt-metadata completeness via `collectionDiagnostics.ts`,
+brand-alias coverage via `clientReadiness.ts`, source-classification
+completeness via `sourceDomainStore`), parser success needing a small
+schema addition (no persisted parse outcome exists on `responses_raw`
+today), and two genuine gaps bigger than a reporting signal - confirmed
+DEFERRED with the user: replicate completion (no multi-replicate
+execution exists anywhere in the codebase despite the schema field) and
+model consistency (no "requested model" concept exists to compare
+against). Also confirmed: the acceptance criterion "invalid runs are not
+selected as the default reporting period" doesn't map onto this app's
+architecture (every report aggregates live across a rolling window
+across ALL runs, no "pick one run as default" concept) - reinterpreted
+as period-level informational context, deferred to a later slice.
+Opened tracking issue #30 "Epic 3: Measurement Health" with a 5-slice
+roadmap, same one-issue-per-epic pattern as issues #4 and #29.
+Slice 1 SHIPPED as v1.66.0, TDD throughout (RED confirmed on all 19 new
+tests before implementing): new `server/services/measurementHealth.ts`
+(`computeMeasurementHealth`, pure function, mirrors `comparability.ts`'s
+style) rolls up completion rate, failure rate, platform coverage, and
+reused run comparability into `healthy`/`healthy_with_warnings`/
+`degraded`/`invalid_for_reporting`, with a locked precedence order and
+first-pass thresholds (completion <50% or comparability not_comparable
+= invalid; failure >20% = degraded; comparability warning, missing
+platform, or any failure = warnings). Replicate/model-consistency report
+as a static `{ measurable: false }` flag per the deferral decision. New
+`GET /api/runs/:id/measurement-health` route (server/routes/runs.ts),
+mirroring `/manifest` and `/comparability` but deliberately degrading
+gracefully instead of 404ing when a run has no manifest or baseline -
+confirmed by reading the existing `/comparability` handler first, since
+health is a best-effort rollup rather than solely about comparability.
+docs/system-documentation.md Section 2.1 gained a new "Measurement
+Health" subsection. Full suite (1222 tests), lint, typecheck all pass.
+NOT YET DONE: git commit/push of this slice; npm run package + cPanel
+deploy (no schema migration in this slice).
+NEXT SESSION: (1) commit + push v1.66.0, then package + deploy; (2) pick
+up issue #30 slice 2 (prompt-metadata completeness + brand-alias
+coverage folded into the health computation) or continue the roadmap in
+order; (3) user-owned: B-20 GBP API quota check, Groq API access
+(carried over, still not done).
 
 Session 2026-07-31 (part 7): v1.61.0-v1.65.0 packaged together
 (workflow-portal-v1.65.0.tar.gz, no schema migration across any of the
