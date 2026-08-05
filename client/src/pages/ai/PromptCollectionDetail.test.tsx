@@ -113,6 +113,7 @@ const EMPTY_DIAGNOSTICS = {
   duplicateGroups: [],
   nearDuplicatePairs: [],
   quotaShortfall: {},
+  quotaExcess: {},
   phrasingDistribution: {},
 };
 
@@ -270,7 +271,35 @@ describe("PromptCollectionDetail — methodology summary + activation gate (issu
 
     const activateButton = await screen.findByRole("button", { name: /Activate/i });
     await waitFor(() => expect(activateButton).toBeDisabled());
-    expect(screen.getByText(/provider_recommendation: 2 more needed/i)).toBeInTheDocument();
+    expect(screen.getByText(/provider recommendation needs 2 more/i)).toBeInTheDocument();
+  });
+
+  it("shows over-quota intents and a reclassify tip alongside the shortfall", async () => {
+    promptsResponse = { data: [{ ...EXISTING_PROMPT }] };
+    diagnosticsResponse = {
+      data: {
+        ...EMPTY_DIAGNOSTICS,
+        promptCount: 39,
+        quotaShortfall: { service_specific: 1 },
+        quotaExcess: { alternative: 1 },
+      },
+    };
+    renderPage();
+
+    expect(await screen.findByText(/service specific needs 1 more/i)).toBeInTheDocument();
+    expect(screen.getByText(/alternative has 1 extra/i)).toBeInTheDocument();
+    expect(screen.getByText(/edit that prompt's intent type instead of adding a new one/i)).toBeInTheDocument();
+  });
+
+  it("does not show the over-quota tip when there is no shortfall to pair it with", async () => {
+    promptsResponse = { data: [{ ...EXISTING_PROMPT }] };
+    diagnosticsResponse = {
+      data: { ...EMPTY_DIAGNOSTICS, promptCount: 1, quotaShortfall: {}, quotaExcess: {} },
+    };
+    renderPage();
+
+    expect(await screen.findByText(/quotas satisfied/i)).toBeInTheDocument();
+    expect(screen.queryByText(/over quota/i)).not.toBeInTheDocument();
   });
 
   it("Activate posts to the activate endpoint when quotas are satisfied", async () => {

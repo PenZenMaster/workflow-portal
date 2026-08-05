@@ -20,6 +20,11 @@
  *   gap against a resolved panel after generation) and
  *   violatesBrandConstraint (hard per-prompt brand-context rule for
  *   the three non-baseline_mix constraints)
+ * - v1.02 computeQuotaExcess: the shortfall banner's mirror image (which
+ *   intents are over-represented), so the UI can suggest reclassifying
+ *   an existing prompt instead of always telling the user to add new
+ *   content. Shortfall and excess totals always balance exactly, since
+ *   both are resolved against the same fixed-count quota table.
  */
 
 import type { PromptPanelType, PromptIntentType, BrandContext } from "@shared/schema";
@@ -175,6 +180,26 @@ export function computeQuotaShortfall(
     if (gap > 0) shortfall[intent] = gap;
   }
   return shortfall;
+}
+
+// Mirror image of computeQuotaShortfall: how far over its resolved quota
+// is each intent cell? Only ever positive - an under-represented intent
+// is not an excess, that's what computeQuotaShortfall already reports.
+export function computeQuotaExcess(
+  resolved: ResolvedPanelQuotas,
+  candidates: { intentType: PromptIntentType }[]
+): Partial<Record<PromptIntentType, number>> {
+  const actual = new Map<PromptIntentType, number>();
+  for (const c of candidates) {
+    actual.set(c.intentType, (actual.get(c.intentType) ?? 0) + 1);
+  }
+
+  const excess: Partial<Record<PromptIntentType, number>> = {};
+  for (const [intent, required] of Object.entries(resolved.intentCounts) as [PromptIntentType, number][]) {
+    const over = (actual.get(intent) ?? 0) - required;
+    if (over > 0) excess[intent] = over;
+  }
+  return excess;
 }
 
 // issue #4 Phase 3 item 9 (slice 2): baseline_mix is a soft target (no

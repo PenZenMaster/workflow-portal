@@ -551,8 +551,13 @@ export type GenerationResult = {
 // data, or manual prompts created before item I). quotaShortfall is
 // resolved against promptCount, same resolver as generation-time
 // enforcement (slice 2) - the only diagnostic that blocks activation.
-// phrasingDistribution (issue #27, added 2026-07-30) is informational
-// only, same as every other diagnostic here besides quotaShortfall.
+// quotaExcess is its mirror image (over-represented intents), added so
+// the UI can suggest reclassifying an existing prompt instead of always
+// telling the user to add new content - the two totals always balance
+// exactly, since both are resolved against the same fixed-count quota
+// table. phrasingDistribution (issue #27, added 2026-07-30) is
+// informational only, same as every other diagnostic here besides
+// quotaShortfall.
 export type CollectionDiagnostics = {
   promptCount: number;
   intentDistribution: Partial<Record<PromptIntentType | "unclassified", number>>;
@@ -563,6 +568,7 @@ export type CollectionDiagnostics = {
   duplicateGroups: string[][];
   nearDuplicatePairs: { textA: string; textB: string; similarityPct: number }[];
   quotaShortfall: Partial<Record<PromptIntentType, number>>;
+  quotaExcess: Partial<Record<PromptIntentType, number>>;
   phrasingDistribution: Partial<Record<"context_rich" | "keyword_style", number>>;
 };
 

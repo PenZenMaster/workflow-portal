@@ -20,11 +20,15 @@
  * - v1.00 issue #4 Phase 3 slice 5 initial implementation
  * - v1.01 issue #27: added phrasingDistribution (scorePhrasingRichness
  *   per prompt, informational only)
+ * - v1.02 added quotaExcess (computeQuotaExcess) alongside
+ *   quotaShortfall, so the activation-gate UI can suggest reclassifying
+ *   an over-represented prompt instead of only ever telling the user to
+ *   add new content
  */
 
 import type { CollectionDiagnostics, Prompt, PromptPanelType } from "@shared/schema";
 import { normalizePromptText, isNearDuplicate, jaccardSimilarity } from "./nearDuplicate";
-import { resolvePanelTypeQuotas, computeQuotaShortfall } from "./panelTypeQuotas";
+import { resolvePanelTypeQuotas, computeQuotaShortfall, computeQuotaExcess } from "./panelTypeQuotas";
 import { scorePhrasingRichness } from "./phrasingRichness";
 
 export function computeCollectionDiagnostics(prompts: Prompt[], panelType: PromptPanelType): CollectionDiagnostics {
@@ -88,6 +92,7 @@ export function computeCollectionDiagnostics(prompts: Prompt[], panelType: Promp
   const resolved = resolvePanelTypeQuotas(panelType, prompts.length);
   const classified = prompts.filter((p): p is Prompt & { intentType: NonNullable<Prompt["intentType"]> } => p.intentType != null);
   const quotaShortfall = computeQuotaShortfall(resolved, classified);
+  const quotaExcess = computeQuotaExcess(resolved, classified);
 
   return {
     promptCount: prompts.length,
@@ -99,6 +104,7 @@ export function computeCollectionDiagnostics(prompts: Prompt[], panelType: Promp
     duplicateGroups,
     nearDuplicatePairs,
     quotaShortfall,
+    quotaExcess,
     phrasingDistribution,
   };
 }

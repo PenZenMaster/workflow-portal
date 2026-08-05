@@ -128,6 +128,20 @@ describe("computeCollectionDiagnostics", () => {
     expect(diagnostics.quotaShortfall).toEqual({});
   });
 
+  it("resolves quotaExcess for over-represented intents alongside quotaShortfall for under-represented ones", () => {
+    // balanced_baseline at count 2 resolves to provider_recommendation: 1,
+    // service_specific: 1 (largest-remainder on the 7/30, 5/30 ratios).
+    // Two provider_recommendation prompts: 1 satisfies its own cell, the
+    // other is excess, and service_specific is left short by 1.
+    const prompts = [
+      makePrompt({ id: 1, intentType: "provider_recommendation", text: "Prompt one" }),
+      makePrompt({ id: 2, intentType: "provider_recommendation", text: "Prompt two" }),
+    ];
+    const diagnostics = computeCollectionDiagnostics(prompts, "balanced_baseline");
+    expect(diagnostics.quotaShortfall).toEqual({ service_specific: 1 });
+    expect(diagnostics.quotaExcess).toEqual({ provider_recommendation: 1 });
+  });
+
   it("handles an empty collection without throwing", () => {
     const diagnostics = computeCollectionDiagnostics([], "balanced_baseline");
     expect(diagnostics.promptCount).toBe(0);

@@ -343,6 +343,7 @@ export default function PromptCollectionDetail() {
   const diagnostics = diagnosticsData?.data;
   const quotaShortfallEntries = Object.entries(diagnostics?.quotaShortfall ?? {}) as [PromptIntentType, number][];
   const hasQuotaShortfall = quotaShortfallEntries.length > 0;
+  const quotaExcessEntries = Object.entries(diagnostics?.quotaExcess ?? {}) as [PromptIntentType, number][];
   const configuredSlugs = authStatus?.config?.configuredPlatforms ?? ["perplexity"];
   const availablePlatforms = (platformsData?.data ?? []).filter(
     (p) => configuredSlugs.includes(p.slug) && p.enabled
@@ -411,9 +412,21 @@ export default function PromptCollectionDetail() {
           <p className="text-sm font-medium">Methodology summary</p>
           <p className="text-xs text-muted-foreground">{diagnostics.promptCount} prompt{diagnostics.promptCount !== 1 ? "s" : ""}</p>
           {hasQuotaShortfall ? (
-            <p className="text-xs text-amber-700 dark:text-amber-500">
-              Missing quota cells (blocks activation) - {quotaShortfallEntries.map(([intent, n]) => `${intent}: ${n} more needed`).join(", ")}
-            </p>
+            <div className="text-xs text-amber-700 dark:text-amber-500 space-y-1">
+              <p>
+                Missing quota cells (blocks activation): {quotaShortfallEntries.map(([intent, n]) => `${INTENT_LABELS[intent]} needs ${n} more`).join(", ")}.
+              </p>
+              {quotaExcessEntries.length > 0 && (
+                <>
+                  <p>
+                    Over quota: {quotaExcessEntries.map(([intent, n]) => `${INTENT_LABELS[intent]} has ${n} extra`).join(", ")}.
+                  </p>
+                  <p>
+                    Tip: edit that prompt's Intent type instead of adding a new one - quotas recalculate against your current total every time you add a prompt.
+                  </p>
+                </>
+              )}
+            </div>
           ) : (
             <p className="text-xs text-green-700 dark:text-green-400">Quotas satisfied</p>
           )}

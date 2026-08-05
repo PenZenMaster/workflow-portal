@@ -1196,6 +1196,19 @@ pure function) now summarizes the whole stored set:
   "Methodology summary" panel on the collection detail page, but does not
   block `POST /api/prompt-collections/:id/activate` (409 `QUOTA_NOT_MET`
   when `quotaShortfall` is non-empty).
+- `quotaExcess` (added 2026-08-05) - `computeQuotaExcess`, the mirror
+  image of `quotaShortfall`: which intents are over-represented against
+  the same resolved quota table. Informational only, never blocks
+  activation. Added because the quota table is resolved against the
+  collection's *current* `promptCount` - it recalculates every time a
+  prompt is added, so an analyst adding prompts one at a time to chase
+  the shortfall banner can end up chasing a moving target as the ratio
+  table re-resolves at the new, larger count. Since both `quotaShortfall`
+  and `quotaExcess` are resolved against the same fixed-count table,
+  their totals always balance exactly - so the banner can suggest
+  reclassifying an existing over-quota prompt's Intent type instead of
+  always telling the user to add new content, which fixes the gap without
+  changing `promptCount` and reopening a different cell by rounding.
 
 **Known gap, not addressed by this slice:** "changed prompts requiring
 revalidation" (one of the diagnostics the issue's Section J proposal

@@ -23,6 +23,7 @@ import {
   resolvePanelTypeQuotas,
   PANEL_TYPE_QUOTAS,
   computeQuotaShortfall,
+  computeQuotaExcess,
   violatesBrandConstraint,
 } from "../../../server/services/panelTypeQuotas";
 import { PROMPT_PANEL_TYPES } from "../../../shared/schema";
@@ -122,6 +123,58 @@ describe("computeQuotaShortfall", () => {
     const candidates = Array(30).fill({ intentType: "comparison" });
     const shortfall = computeQuotaShortfall(resolved, candidates);
     expect(shortfall.comparison).toBeUndefined();
+  });
+});
+
+// issue #4 Phase 3 item J follow-up: the shortfall banner's mirror image
+// - which intents are over-represented, so the UI can suggest a
+// reclassify instead of always telling the user to add new content.
+describe("computeQuotaExcess", () => {
+  it("returns an empty object when every intent cell exactly matches its quota", () => {
+    const resolved = resolvePanelTypeQuotas("entity_audit", 15);
+    const candidates = [
+      ...Array(resolved.intentCounts.brand_validation ?? 0).fill({ intentType: "brand_validation" }),
+      ...Array(resolved.intentCounts.trust_validation ?? 0).fill({ intentType: "trust_validation" }),
+      ...Array(resolved.intentCounts.provider_recommendation ?? 0).fill({ intentType: "provider_recommendation" }),
+    ];
+    expect(computeQuotaExcess(resolved, candidates)).toEqual({});
+  });
+
+  it("reports a positive excess for an over-represented intent and omits satisfied/under ones", () => {
+    const resolved = resolvePanelTypeQuotas("competitive", 15);
+    const candidates = Array(30).fill({ intentType: "comparison" });
+    const excess = computeQuotaExcess(resolved, candidates);
+    expect(excess.comparison).toBe(30 - (resolved.intentCounts.comparison ?? 0));
+    expect(excess.alternative).toBeUndefined();
+    expect(excess.brand_validation).toBeUndefined();
+  });
+
+  it("never reports a negative excess when an intent is under-represented", () => {
+    const resolved = resolvePanelTypeQuotas("entity_audit", 15);
+    const excess = computeQuotaExcess(resolved, []); // nothing generated yet - all cells under, none over
+    expect(excess).toEqual({});
+  });
+
+  it("shortfall and excess totals always balance (quotas are a fixed split of the same count)", () => {
+    const resolved = resolvePanelTypeQuotas("balanced_baseline", 39);
+    const candidates = [
+      ...Array(9).fill({ intentType: "provider_recommendation" }),
+      ...Array(6).fill({ intentType: "service_specific" }),
+      ...Array(5).fill({ intentType: "problem_solution" }),
+      ...Array(5).fill({ intentType: "geographic_discovery" }),
+      ...Array(5).fill({ intentType: "educational" }),
+      ...Array(3).fill({ intentType: "trust_validation" }),
+      ...Array(3).fill({ intentType: "comparison" }),
+      ...Array(1).fill({ intentType: "brand_validation" }),
+      ...Array(2).fill({ intentType: "alternative" }),
+    ];
+    const shortfall = computeQuotaShortfall(resolved, candidates);
+    const excess = computeQuotaExcess(resolved, candidates);
+    const shortfallTotal = Object.values(shortfall).reduce((a, b) => a + (b ?? 0), 0);
+    const excessTotal = Object.values(excess).reduce((a, b) => a + (b ?? 0), 0);
+    expect(shortfallTotal).toBe(excessTotal);
+    expect(shortfall).toEqual({ service_specific: 1 });
+    expect(excess).toEqual({ alternative: 1 });
   });
 });
 
