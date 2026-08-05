@@ -1,13 +1,35 @@
 ## Resume From
 
 Last session: 2026-08-05
-Branch: main | Version: v1.68.0 | 1238 tests passing | SHIPPED to git and PUSHED, NOT yet packaged/deployed to cPanel
+Branch: main | Version: v1.69.0 | 1245 tests passing | PACKAGED, DEPLOYED to cPanel, and SMOKE-TESTED clean
 
 NEXT SESSION (3 items):
-1. Package + deploy v1.68.0 to cPanel (no schema migration - pure aggregation over existing columns).
-2. Pick up issue #30 slice 4 - parser success: add `parseStatus`/`parsedAt` columns to `responses_raw` (migration), set by the `parse-response` job handler on both success and permanent failure. First schema migration since v1.60.1/TD-26.
-3. Check the 3 Dependabot alerts now flagged on `main` (1 high, 2 moderate) - up from 2 moderate as of the v1.67.0 push; not yet triaged.
-4. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+1. Pick up issue #30 slice 4 - parser success: add `parseStatus`/`parsedAt` columns to `responses_raw` (migration), set by the `parse-response` job handler on both success and permanent failure. First schema migration since v1.60.1/TD-26.
+2. Check the 3 Dependabot alerts now flagged on `main` (1 high, 2 moderate) - up from 2 moderate as of the v1.67.0 push; still not triaged.
+3. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+
+Session 2026-08-05 (part 2): quota-shortfall banner clarity fix shipped
+as v1.69.0, TDD throughout. User feedback while reviewing prompt
+collection 7 (client 5, Higgins Q2 2026): "Missing quota cells...service_
+specific: 1 more needed" gave the gap but no clear next action, and the
+user had been chasing it one added prompt at a time from 12 up to 39
+total prompts. New `computeQuotaExcess` (server/services/panelTypeQuotas.ts)
+mirrors `computeQuotaShortfall` - which intents are over-represented
+against the same resolved quota table; the two totals always balance
+exactly since both resolve against the same fixed-count table.
+`CollectionDiagnostics` gained `quotaExcess` (shared/schema.ts),
+`computeCollectionDiagnostics` returns it alongside `quotaShortfall`.
+Banner (PromptCollectionDetail.tsx) now uses human-readable intent
+labels instead of raw snake_case, and when there's a shortfall it also
+shows any over-quota intents plus a tip to reclassify an existing
+prompt's Intent type instead of adding new content - avoids the
+whack-a-mole effect where adding a prompt bumps promptCount, causing the
+ratio table to re-resolve and often reopen a *different* 1-prompt gap by
+rounding. docs/system-documentation.md extended with the underlying
+mechanism explanation. Full suite (1245 tests), lint, typecheck,
+db:check all pass. No schema migration. Packaged, tagged v1.69.0 (pushed),
+deployed to cPanel, smoke-tested clean by the user. Post-deploy TD-16
+check: only the fresh worker present, no stale process.
 
 Session 2026-08-05: issue #30 slice 3 SHIPPED as v1.68.0, TDD throughout
 (RED confirmed on all 6 new tests before implementing). New
