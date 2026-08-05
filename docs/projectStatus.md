@@ -1,12 +1,24 @@
 ## Resume From
 
-Last session: 2026-07-31 (shutdown)
-Branch: main | Version: v1.67.0 | 1231 tests passing | SHIPPED to git and PUSHED, NOT yet packaged/deployed to cPanel
+Last session: 2026-08-04
+Branch: main | Version: v1.67.0 | 1231 tests passing | PACKAGED, DEPLOYED to cPanel, and SMOKE-TESTED clean (v1.61.0-v1.67.0 combined cycle)
 
-NEXT SESSION (3 items):
-1. Package + deploy v1.61.0-v1.67.0 together to cPanel (one combined cycle - no schema migration across any of these seven versions).
-2. Pick up issue #30 (Epic 3: Measurement Health) slice 3 - source-classification completeness, a new client/run-scoped aggregation in `sourceDomainStore.ts` (today's `listUnreviewed()` is global/unscoped). Slice 4 after that needs a schema migration (parseStatus/parsedAt on responses_raw) - first one since v1.60.1/TD-26.
-3. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+NEXT SESSION (2 items):
+1. Pick up issue #30 (Epic 3: Measurement Health) slice 3 - source-classification completeness, a new client/run-scoped aggregation in `sourceDomainStore.ts` (today's `listUnreviewed()` is global/unscoped). Slice 4 after that needs a schema migration (parseStatus/parsedAt on responses_raw) - first one since v1.60.1/TD-26.
+2. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+
+Session 2026-08-04: v1.61.0-v1.67.0 packaged (`npm run package` - preflight,
+lint, check, db:check, full 1231-test suite, build all passed), tagged
+v1.67.0 (already on origin), archived as workflow-portal-v1.67.0.tar.gz.
+User deployed to cPanel and confirmed smoke test passed. No schema
+migration across any of the seven versions in this combined cycle.
+Post-deploy TD-16 stale-worker SSH check done: found one stale lsnode
+worker (PID 2180723, 3d5h27m old, predating this deploy) alongside the
+fresh one (PID 725831); killed the stale PID. Only the fresh worker
+remains.
+NEXT SESSION: (1) issue #30 slice 3 (source-classification completeness);
+(2) user-owned: B-20 GBP API quota check, Groq API access (carried over,
+still not done).
 
 Session 2026-07-31 (part 9): issue #30 slice 2 SHIPPED as v1.67.0 -
 prompt-metadata completeness and brand-alias coverage folded into the
