@@ -1,24 +1,41 @@
 ## Resume From
 
-Last session: 2026-08-04
-Branch: main | Version: v1.67.0 | 1231 tests passing | PACKAGED, DEPLOYED to cPanel, and SMOKE-TESTED clean (v1.61.0-v1.67.0 combined cycle)
+Last session: 2026-08-05
+Branch: main | Version: v1.68.0 | 1238 tests passing | SHIPPED to git and PUSHED, NOT yet packaged/deployed to cPanel
 
-NEXT SESSION (2 items):
-1. Pick up issue #30 (Epic 3: Measurement Health) slice 3 - source-classification completeness, a new client/run-scoped aggregation in `sourceDomainStore.ts` (today's `listUnreviewed()` is global/unscoped). Slice 4 after that needs a schema migration (parseStatus/parsedAt on responses_raw) - first one since v1.60.1/TD-26.
-2. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+NEXT SESSION (3 items):
+1. Package + deploy v1.68.0 to cPanel (no schema migration - pure aggregation over existing columns).
+2. Pick up issue #30 slice 4 - parser success: add `parseStatus`/`parsedAt` columns to `responses_raw` (migration), set by the `parse-response` job handler on both success and permanent failure. First schema migration since v1.60.1/TD-26.
+3. Check the 3 Dependabot alerts now flagged on `main` (1 high, 2 moderate) - up from 2 moderate as of the v1.67.0 push; not yet triaged.
+4. User-owned, carried over: B-20 GBP API quota check, Groq API access.
 
-Session 2026-08-04: v1.61.0-v1.67.0 packaged (`npm run package` - preflight,
-lint, check, db:check, full 1231-test suite, build all passed), tagged
-v1.67.0 (already on origin), archived as workflow-portal-v1.67.0.tar.gz.
-User deployed to cPanel and confirmed smoke test passed. No schema
-migration across any of the seven versions in this combined cycle.
-Post-deploy TD-16 stale-worker SSH check done: found one stale lsnode
-worker (PID 2180723, 3d5h27m old, predating this deploy) alongside the
-fresh one (PID 725831); killed the stale PID. Only the fresh worker
-remains.
-NEXT SESSION: (1) issue #30 slice 3 (source-classification completeness);
-(2) user-owned: B-20 GBP API quota check, Groq API access (carried over,
-still not done).
+Session 2026-08-05: issue #30 slice 3 SHIPPED as v1.68.0, TDD throughout
+(RED confirmed on all 6 new tests before implementing). New
+`sourceDomainStore.countClassificationCompletenessForRun(runId)`
+(server/storage/sourceDomainStore.ts) is a client/run-scoped aggregation
+- unlike the existing `listUnreviewed()` in the same file, which is
+global/unscoped and built for the monthly review queue. Joins
+`response_citations` to `responses_raw` on `responseId`, scoped by
+`runId`, counting total citations vs. those left `unknown_or_low_trust`
+(not resolved to client_owned/competitor_owned by brand ownership, and
+not matched in the source_domains registry).
+Folded into `computeMeasurementHealth` (server/services/measurementHealth.ts)
+as a 7th data-quality input: any unclassified citation on a run produces
+`healthy_with_warnings`, same warn-don't-block precedent as prompt-
+metadata completeness and brand-alias coverage from slice 2 - can never
+degrade or invalidate a run. Wired into the existing
+`GET /api/runs/:id/measurement-health` route (server/routes/runs.ts).
+docs/system-documentation.md Measurement Health section extended.
+Full suite (1238 tests), lint, typecheck, db:check all pass. No schema
+migration (pure aggregation over existing columns).
+NOT YET DONE: git commit/push DONE this session; npm run package /
+cPanel deploy for v1.68.0 - not done yet.
+NEXT SESSION: (1) package + deploy v1.68.0; (2) issue #30 slice 4
+(parser success - needs the first schema migration since v1.60.1/TD-26:
+parseStatus/parsedAt on responses_raw, set by the parse-response job
+handler); (3) triage the 3 Dependabot alerts (1 high, 2 moderate) flagged
+on push, not yet looked at; (4) user-owned: B-20 GBP API quota check,
+Groq API access (carried over, still not done).
 
 Session 2026-07-31 (part 9): issue #30 slice 2 SHIPPED as v1.67.0 -
 prompt-metadata completeness and brand-alias coverage folded into the
