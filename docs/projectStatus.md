@@ -1,12 +1,30 @@
 ## Resume From
 
 Last session: 2026-08-05
-Branch: main | Version: v1.69.0 | 1245 tests passing | PACKAGED, DEPLOYED to cPanel, and SMOKE-TESTED clean
+Branch: main | Version: v1.69.1 | 1245 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
 
-NEXT SESSION (3 items):
-1. Pick up issue #30 slice 4 - parser success: add `parseStatus`/`parsedAt` columns to `responses_raw` (migration), set by the `parse-response` job handler on both success and permanent failure. First schema migration since v1.60.1/TD-26.
-2. Check the 3 Dependabot alerts now flagged on `main` (1 high, 2 moderate) - up from 2 moderate as of the v1.67.0 push; still not triaged.
+NEXT SESSION (2 items):
+1. Package + deploy v1.69.1 to cPanel (dependency-only patch, no schema migration).
+2. Pick up issue #30 slice 4 - parser success: add `parseStatus`/`parsedAt` columns to `responses_raw` (migration), set by the `parse-response` job handler on both success and permanent failure. First schema migration since v1.60.1/TD-26.
 3. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+
+Session 2026-08-05 (part 3): all 3 open Dependabot alerts (#22, #23, #25)
+triaged and fixed as v1.69.1 - all one root cause: `ip-address` (transitive
+via `express-rate-limit@8.5.1`, declared `^10.2.0`) resolved to 10.2.0,
+vulnerable to all three SSRF/trust-boundary-bypass CVEs. `npm audit fix`
+bumped it to 10.4.0 (within express-rate-limit's existing semver range,
+no --force, no express-rate-limit version change). Same run also
+resolved the previously-deferred TD-25 (`brace-expansion` DoS) - newer
+patched releases (5.0.7->5.0.9, 2.1.2->2.1.4) now satisfy existing
+semver ranges, so the major vitest 4.x bump originally thought necessary
+turned out not to be needed. `npm audit` now reports 0 vulnerabilities
+(package-lock.json only, no package.json dependency changes). Full suite
+(1245 tests), lint, typecheck, db:check all re-verified green after the
+bump. TD-25 marked Done in the tech debt register.
+NOT YET DONE: npm run package / cPanel deploy for v1.69.1.
+NEXT SESSION: (1) package + deploy v1.69.1; (2) issue #30 slice 4 (parser
+success - first schema migration since v1.60.1/TD-26); (3) user-owned:
+B-20 GBP API quota check, Groq API access (carried over, still not done).
 
 Session 2026-08-05 (part 2): quota-shortfall banner clarity fix shipped
 as v1.69.0, TDD throughout. User feedback while reviewing prompt
@@ -2466,7 +2484,7 @@ Confirmed decisions:
 
 | ID  | Severity | Status | Description | File |
 |-----|----------|--------|-------------|------|
-| TD-25 | Low | Open (accepted risk) | Dependabot alert #19: `brace-expansion` DoS (GHSA-mh99-v99m-4gvg, high CVSS) via transitive `minimatch` in eslint/@vitest/coverage-v8. Only fix path is a major bump (@vitest/coverage-v8 3.x -> 4.1.10, likely forcing vitest 3.x -> 4.x too) — deliberately not done 2026-07-24 (user decision) to avoid an unplanned toolchain upgrade mid-sprint. Actual exposure is ~nil: dev-only tool, glob patterns come from this repo's own trusted config, never untrusted input. Revisit alongside a deliberate vitest 4.x upgrade slice. | package.json (devDependencies) |
+| TD-25 | Low | Done | Dependabot alert #19: `brace-expansion` DoS (GHSA-mh99-v99m-4gvg, high CVSS) via transitive `minimatch` in eslint/@vitest/coverage-v8. Deferred 2026-07-24 as the only known fix path was a major bump (@vitest/coverage-v8 3.x -> 4.1.10) forcing vitest 3.x -> 4.x too. Resolved 2026-08-05 without that upgrade: `npm audit fix` picked up newer patched brace-expansion releases (5.0.7->5.0.9, 2.1.2->2.1.4) that now satisfy the existing semver ranges - no major bump needed after all. `npm audit` reports 0 vulnerabilities. | package-lock.json |
 | TD-26 | Low | Done | `PATCH /api/prompts/:id` did not recompute `brandContext`/`brandInPrompt` when `text` was edited - the v1.54.0 fix (issue #4 Phase 2 item 8) only covered the two prompt-*creation* endpoints (`POST .../prompts`, `POST .../prompts/bulk`). Found 2026-07-29 while implementing issue #4 Phase 3 item I (slice 4). Fixed 2026-07-31 (v1.60.1, issue #4 acceptance criterion "editing prompt text triggers metadata revalidation"): PATCH now loads the existing prompt via new `PromptStore.get`, resolves its `collectionId`, and applies the same `resolveBrandInputs` + `deriveBrandContext` wiring the other two endpoints already had. | server/routes/prompts.ts (PATCH /api/prompts/:id) |
 | TD-10 | Medium | Done | Session error callbacks lack request context in logs | server/routes/auth.ts |
 | TD-12 | Low | Open | Hardcoded seed data — no versioning or rollback | server/seed.ts |
