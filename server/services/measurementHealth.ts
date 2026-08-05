@@ -23,25 +23,32 @@
  *                          OR failure rate is above 0% but at/below 20%,
  *                          OR any prompt lacks intentType/brandContext
  *                          classification, OR the client has competitor
- *                          brands with zero aliases configured
+ *                          brands with zero aliases configured, OR any
+ *                          of the run's citations are unknown_or_low_trust
+ *                          (unclassified against the source-domain
+ *                          registry)
  *   healthy                none of the above
  * Precedence when multiple apply: invalid_for_reporting > degraded >
- * healthy_with_warnings > healthy. Prompt-metadata completeness and
- * brand-alias coverage are setup/data-quality signals, not measurement
- * failures - they can only ever produce a warning, never degrade or
- * invalidate a run, matching the warn-don't-block precedent used
- * throughout this codebase (issue #4's diagnostics, source
- * classification, etc.).
+ * healthy_with_warnings > healthy. Prompt-metadata completeness,
+ * brand-alias coverage, and source-classification completeness are all
+ * setup/data-quality signals, not measurement failures - they can only
+ * ever produce a warning, never degrade or invalidate a run, matching
+ * the warn-don't-block precedent used throughout this codebase (issue
+ * #4's diagnostics, source classification, etc.).
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-08-01
- * Last Modified Date: 2026-08-01
+ * Last Modified Date: 2026-08-04
  * Comments:
  * - v1.00 issue #30 slice 1 initial implementation
  * - v1.01 issue #30 slice 2: prompt-metadata completeness + brand-alias
  *   coverage folded in; refactored from positional args to a single
  *   inputs object now that there are 6 inputs, before later slices add
  *   more
+ * - v1.02 issue #30 slice 3: source-classification completeness folded
+ *   in (reuses sourceDomainStore.countClassificationCompletenessForRun,
+ *   scoped to the run) - same warn-only precedent as the other two
+ *   data-quality signals
  */
 
 import type {
@@ -67,6 +74,7 @@ export interface MeasurementHealthInputs {
   completedPlatformIds: number[];
   collectionDiagnostics: CollectionDiagnostics | null;
   clientReadiness: ClientReadiness | null;
+  sourceClassificationCompleteness: { citationCount: number; unclassifiedCount: number } | null;
 }
 
 export interface MeasurementHealthResult {
@@ -78,6 +86,7 @@ export interface MeasurementHealthResult {
   comparability: ComparabilityResult | null;
   promptMetadataCompleteness: { unclassifiedCount: number; promptCount: number } | null;
   brandAliasCoverage: { competitorBrandCount: number; competitorBrandsWithAliasCount: number } | null;
+  sourceClassificationCompleteness: { citationCount: number; unclassifiedCount: number } | null;
   replicateCompletion: { measurable: false };
   modelConsistency: { measurable: false };
   reasons: string[];
@@ -103,7 +112,7 @@ function countUnclassifiedPrompts(diagnostics: CollectionDiagnostics): number {
 }
 
 export function computeMeasurementHealth(inputs: MeasurementHealthInputs): MeasurementHealthResult {
-  const { run, manifest, comparability, completedPlatformIds, collectionDiagnostics, clientReadiness } = inputs;
+  const { run, manifest, comparability, completedPlatformIds, collectionDiagnostics, clientReadiness, sourceClassificationCompleteness } = inputs;
 
   const completionRate = run.totalPrompts > 0 ? run.completedPrompts / run.totalPrompts : 1;
   const failureRate = run.totalPrompts > 0 ? run.failedPrompts / run.totalPrompts : 0;
@@ -157,6 +166,7 @@ export function computeMeasurementHealth(inputs: MeasurementHealthInputs): Measu
     !!brandAliasCoverage &&
     brandAliasCoverage.competitorBrandCount > 0 &&
     brandAliasCoverage.competitorBrandsWithAliasCount === 0;
+  const warningBySourceClassification = (sourceClassificationCompleteness?.unclassifiedCount ?? 0) > 0;
 
   if (warningByComparability) {
     reasons.push("comparable to baseline run with non-blocking warnings");
@@ -175,6 +185,11 @@ export function computeMeasurementHealth(inputs: MeasurementHealthInputs): Measu
   if (warningByAliasCoverage) {
     reasons.push("competitor brands have no aliases configured");
   }
+  if (warningBySourceClassification) {
+    reasons.push(
+      `${sourceClassificationCompleteness!.unclassifiedCount} of ${sourceClassificationCompleteness!.citationCount} citation(s) have no source classification (unregistered domain)`
+    );
+  }
 
   const status: MeasurementHealthStatus =
     invalidByComparability || invalidByCompletion
@@ -185,7 +200,8 @@ export function computeMeasurementHealth(inputs: MeasurementHealthInputs): Measu
             warningByPlatformCoverage ||
             warningByFailure ||
             warningByMetadataCompleteness ||
-            warningByAliasCoverage
+            warningByAliasCoverage ||
+            warningBySourceClassification
           ? "healthy_with_warnings"
           : "healthy";
 
@@ -198,6 +214,7 @@ export function computeMeasurementHealth(inputs: MeasurementHealthInputs): Measu
     comparability,
     promptMetadataCompleteness,
     brandAliasCoverage,
+    sourceClassificationCompleteness,
     replicateCompletion: { measurable: false },
     modelConsistency: { measurable: false },
     reasons,

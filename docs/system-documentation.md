@@ -312,7 +312,7 @@ before explaining the numbers. Warnings should be disclosed as
 footnotes on trend charts. Runs without a manifest (pre-v1.40.0, or no
 earlier run) show no banner: comparability is unknown, not asserted.
 
-#### Measurement Health (added v1.66.0, issue #3 Epic 3 slice 1, tracked on issue #30)
+#### Measurement Health (added v1.66.0, issue #3 Epic 3 slice 1, tracked on issue #30; extended v1.68.0 slice 3)
 
 `GET /api/runs/:id/measurement-health` rolls up several data-quality
 signals for one run into a single status: `healthy`,
@@ -337,12 +337,21 @@ Inputs and status derivation (locked 2026-08-01):
 - **Brand-alias coverage** (added v1.66.0 slice 2, reuses
   `computeReadiness` from B-15, scoped to the run's client) — competitor
   brands configured with zero aliases is `healthy_with_warnings`.
+- **Source-classification completeness** (added v1.68.0 slice 3, new
+  `sourceDomainStore.countClassificationCompletenessForRun`, scoped to
+  the run's own citations) — any citation left `unknown_or_low_trust`
+  (not resolved to `client_owned`/`competitor_owned` by brand ownership,
+  and not matched in the `source_domains` registry) is
+  `healthy_with_warnings`. Unlike `sourceDomainStore.listUnreviewed`
+  (the global monthly-review queue), this aggregation is scoped to one
+  run so it can feed a per-run health signal.
 
-Prompt-metadata completeness and brand-alias coverage are setup/data-
-quality signals, not measurement failures — they can only ever produce a
-warning, never `degraded` or `invalid_for_reporting`, matching the warn-
-don't-block precedent used throughout this app (issue #4's diagnostics,
-source classification, etc.).
+Prompt-metadata completeness, brand-alias coverage, and source-
+classification completeness are all setup/data-quality signals, not
+measurement failures — they can only ever produce a warning, never
+`degraded` or `invalid_for_reporting`, matching the warn-don't-block
+precedent used throughout this app (issue #4's diagnostics, source
+classification, etc.).
 
 Precedence when multiple conditions apply: `invalid_for_reporting` >
 `degraded` > `healthy_with_warnings` > `healthy`. Unlike

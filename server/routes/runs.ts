@@ -22,6 +22,9 @@
  * - v1.03 issue #30 slice 2: measurement-health also folds in prompt-
  *   metadata completeness (reuses computeCollectionDiagnostics) and
  *   brand-alias coverage (reuses computeReadiness)
+ * - v1.04 issue #30 slice 3: measurement-health also folds in source-
+ *   classification completeness (reuses sourceDomainStore.
+ *   countClassificationCompletenessForRun, scoped to the run)
  */
 
 import type { Express } from "express";
@@ -38,6 +41,7 @@ import {
   promptCollectionStore,
   promptMethodologyStore,
   manifestStore,
+  sourceDomainStore,
 } from "../storage";
 import { JOB_STATUSES } from "@shared/schema";
 import { triggerRunSchema, insertScheduleSchema } from "@shared/schema";
@@ -295,6 +299,13 @@ export function registerRunRoutes(app: Express): void {
       : null;
     const clientReadiness = await computeReadiness(run.clientId);
 
+    // issue #30 slice 3: source-classification completeness, scoped to
+    // this run's own citations (sourceDomainStore's other read,
+    // listUnreviewed, is deliberately global/unscoped for the monthly
+    // review queue instead).
+    const sourceClassificationCompleteness =
+      await sourceDomainStore.countClassificationCompletenessForRun(id);
+
     ok(
       res,
       computeMeasurementHealth({
@@ -304,6 +315,7 @@ export function registerRunRoutes(app: Express): void {
         completedPlatformIds,
         collectionDiagnostics,
         clientReadiness,
+        sourceClassificationCompleteness,
       })
     );
   });

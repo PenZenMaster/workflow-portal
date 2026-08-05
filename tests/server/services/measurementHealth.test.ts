@@ -68,6 +68,9 @@ const CLEAN_READINESS: ClientReadiness = {
   issues: [],
 };
 
+// issue #30 slice 3
+const CLEAN_SOURCE_COMPLETENESS = { citationCount: 10, unclassifiedCount: 0 };
+
 function comparability(status: ComparabilityResult["status"]): ComparabilityResult {
   return { status, baseRunId: 3, currentRunId: 5, reasons: [] };
 }
@@ -80,6 +83,7 @@ function baseInputs(overrides: Partial<Parameters<typeof computeMeasurementHealt
     completedPlatformIds: [1, 4],
     collectionDiagnostics: CLEAN_DIAGNOSTICS,
     clientReadiness: CLEAN_READINESS,
+    sourceClassificationCompleteness: CLEAN_SOURCE_COMPLETENESS,
     ...overrides,
   };
 }
@@ -225,6 +229,31 @@ describe("computeMeasurementHealth", () => {
 
     it("skips this input entirely when clientReadiness is null", () => {
       const result = computeMeasurementHealth(baseInputs({ clientReadiness: null }));
+      expect(result.status).toBe("healthy");
+    });
+  });
+
+  // issue #30 slice 3: source-classification completeness.
+  describe("source classification completeness", () => {
+    it("is healthy_with_warnings when any citation is unknown_or_low_trust", () => {
+      const result = computeMeasurementHealth(
+        baseInputs({ sourceClassificationCompleteness: { citationCount: 10, unclassifiedCount: 3 } })
+      );
+      expect(result.status).toBe("healthy_with_warnings");
+      expect(result.sourceClassificationCompleteness).toEqual({ citationCount: 10, unclassifiedCount: 3 });
+      expect(result.reasons.some((r) => r.includes("3") && r.toLowerCase().includes("source"))).toBe(true);
+    });
+
+    it("does not warn when there are no unclassified citations", () => {
+      const result = computeMeasurementHealth(
+        baseInputs({ sourceClassificationCompleteness: { citationCount: 10, unclassifiedCount: 0 } })
+      );
+      expect(result.status).toBe("healthy");
+    });
+
+    it("skips this input entirely when sourceClassificationCompleteness is null", () => {
+      const result = computeMeasurementHealth(baseInputs({ sourceClassificationCompleteness: null }));
+      expect(result.sourceClassificationCompleteness).toBeNull();
       expect(result.status).toBe("healthy");
     });
   });

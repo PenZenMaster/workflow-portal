@@ -20,6 +20,8 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { SCHEMA_SQL } from "../../../server/storage";
 import { SourceDomainStore } from "../../../server/storage/sourceDomainStore";
 import { CitationStore } from "../../../server/storage/citationStore";
+import { RunStore } from "../../../server/storage/runStore";
+import { ResponseStore } from "../../../server/storage/responseStore";
 
 function makeDb() {
   const sqlite = new Database(":memory:");
@@ -139,5 +141,50 @@ describe("SourceDomainStore", () => {
 
     const unreviewed = await store.listUnreviewed();
     expect(unreviewed).toEqual([{ rootDomain: "sister.com", citationCount: 1 }]);
+  });
+
+  // issue #30 slice 3: source-classification completeness, client/run-scoped
+  // (listUnreviewed above is global/unscoped - this is the new aggregation).
+  describe("countClassificationCompletenessForRun", () => {
+    it("counts total citations and unknown_or_low_trust citations scoped to one run", async () => {
+      const runStore = new RunStore(db);
+      const responseStore = new ResponseStore(db);
+      const citations = new CitationStore(db);
+
+      const run = await runStore.create({
+        clientId: 1, collectionId: 10, batchId: "batch-a", totalPrompts: 1, triggeredBy: "manual",
+      });
+      const resp = await responseStore.create({ runId: run.id, promptId: 100, platformId: 1, queryText: "q" });
+
+      await citations.create({ responseId: resp.id, url: "https://randomblog.net/x", rootDomain: "randomblog.net", ownedByBrandId: null, position: 1, isTrustedThirdParty: false });
+      await citations.create({ responseId: resp.id, url: "https://yelp.com/biz", rootDomain: "yelp.com", ownedByBrandId: null, position: 2, isTrustedThirdParty: false, sourceClass: "review_platform" });
+      await citations.create({ responseId: resp.id, url: "https://client.com/", rootDomain: "client.com", ownedByBrandId: 1, position: 3, isTrustedThirdParty: false, sourceClass: "client_owned" });
+
+      const result = await store.countClassificationCompletenessForRun(run.id);
+      expect(result).toEqual({ citationCount: 3, unclassifiedCount: 1 });
+    });
+
+    it("excludes citations belonging to other runs", async () => {
+      const runStore = new RunStore(db);
+      const responseStore = new ResponseStore(db);
+      const citations = new CitationStore(db);
+
+      const runA = await runStore.create({ clientId: 1, collectionId: 10, batchId: "batch-a", totalPrompts: 1, triggeredBy: "manual" });
+      const respA = await responseStore.create({ runId: runA.id, promptId: 100, platformId: 1, queryText: "q" });
+      await citations.create({ responseId: respA.id, url: "https://a.net/", rootDomain: "a.net", ownedByBrandId: null, position: 1, isTrustedThirdParty: false });
+
+      const runB = await runStore.create({ clientId: 1, collectionId: 10, batchId: "batch-b", totalPrompts: 1, triggeredBy: "manual" });
+      const respB = await responseStore.create({ runId: runB.id, promptId: 200, platformId: 1, queryText: "q" });
+      await citations.create({ responseId: respB.id, url: "https://b.net/", rootDomain: "b.net", ownedByBrandId: null, position: 1, isTrustedThirdParty: false });
+      await citations.create({ responseId: respB.id, url: "https://c.net/", rootDomain: "c.net", ownedByBrandId: null, position: 2, isTrustedThirdParty: false });
+
+      const result = await store.countClassificationCompletenessForRun(runA.id);
+      expect(result).toEqual({ citationCount: 1, unclassifiedCount: 1 });
+    });
+
+    it("returns zero counts for a run with no citations", async () => {
+      const result = await store.countClassificationCompletenessForRun(9999);
+      expect(result).toEqual({ citationCount: 0, unclassifiedCount: 0 });
+    });
   });
 });

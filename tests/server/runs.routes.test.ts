@@ -48,6 +48,9 @@ const mockPromptCollectionStore = {
   listByClient: vi.fn().mockResolvedValue([]),
 };
 const mockAliasStore = { listByBrand: vi.fn().mockResolvedValue([]) };
+const mockSourceDomainStore = {
+  countClassificationCompletenessForRun: vi.fn().mockResolvedValue({ citationCount: 0, unclassifiedCount: 0 }),
+};
 
 vi.mock("../../server/storage", () => ({
   storage: { countUsers: vi.fn() },
@@ -62,6 +65,7 @@ vi.mock("../../server/storage", () => ({
   clientStore: mockClientStore,
   brandStore: mockBrandStore,
   aliasStore: mockAliasStore,
+  sourceDomainStore: mockSourceDomainStore,
   manifestStore: mockManifestStore,
   competitorStore: {},
   clientUserStore: {},
@@ -531,6 +535,23 @@ describe("GET /api/runs/:id/measurement-health (issue #30 slice 1)", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.status).toBe("healthy_with_warnings");
     expect(res.body.data.brandAliasCoverage).toEqual({ competitorBrandCount: 1, competitorBrandsWithAliasCount: 0 });
+  });
+
+  // issue #30 slice 3: source-classification completeness.
+  it("flags healthy_with_warnings when the run has citations with no source classification", async () => {
+    mockRunStore.get.mockResolvedValue(HEALTH_RUN);
+    mockManifestStore.getByRunId.mockResolvedValue(undefined);
+    mockResponseStore.listByRun.mockResolvedValue([]);
+    mockSourceDomainStore.countClassificationCompletenessForRun.mockResolvedValue({
+      citationCount: 5,
+      unclassifiedCount: 2,
+    });
+
+    const res = await request(buildApp("analyst")).get("/api/runs/5/measurement-health");
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("healthy_with_warnings");
+    expect(res.body.data.sourceClassificationCompleteness).toEqual({ citationCount: 5, unclassifiedCount: 2 });
+    expect(mockSourceDomainStore.countClassificationCompletenessForRun).toHaveBeenCalledWith(5);
   });
 });
 

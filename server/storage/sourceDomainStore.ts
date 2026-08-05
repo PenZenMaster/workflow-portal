@@ -16,9 +16,12 @@
  * Comments:
  * - v1.00 YLG defensibility sprint - source registry slice
  * - v1.01 listUnreviewed counts only unknown_or_low_trust citations
+ * - v1.02 issue #30 slice 3: countClassificationCompletenessForRun, a
+ *   client/run-scoped completeness aggregation (listUnreviewed above is
+ *   global/unscoped, built for the monthly review queue instead)
  */
 
-import { sourceDomains, responseCitations } from "@shared/schema";
+import { sourceDomains, responseCitations, responsesRaw } from "@shared/schema";
 import type { RegistrySourceClass, SourceDomain } from "@shared/schema";
 import { and, eq, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -72,12 +75,18 @@ export interface UnreviewedDomain {
   citationCount: number;
 }
 
+export interface RunSourceClassificationCompleteness {
+  citationCount: number;
+  unclassifiedCount: number;
+}
+
 export interface ISourceDomainStore {
   list(filter?: { sourceClass?: RegistrySourceClass }): Promise<SourceDomain[]>;
   getByDomain(rootDomain: string): Promise<SourceDomain | undefined>;
   upsert(rootDomain: string, data: SourceDomainUpsertInput): Promise<SourceDomain>;
   getMapForDomains(rootDomains: string[]): Promise<Map<string, RegistrySourceClass>>;
   listUnreviewed(limit?: number): Promise<UnreviewedDomain[]>;
+  countClassificationCompletenessForRun(runId: number): Promise<RunSourceClassificationCompleteness>;
   seedDefaults(): Promise<void>;
 }
 
@@ -167,6 +176,36 @@ export class SourceDomainStore implements ISourceDomainStore {
       .limit(limit)
       .all();
     return rows.map((r) => ({ rootDomain: r.rootDomain, citationCount: r.citationCount }));
+  }
+
+  // issue #30 slice 3: client/run-scoped completeness, unlike
+  // listUnreviewed's global monthly-review queue above. unknown_or_low_trust
+  // here means genuinely unclassified (not ownership-resolved and not in
+  // the registry) - same definition listUnreviewed already uses.
+  async countClassificationCompletenessForRun(runId: number): Promise<RunSourceClassificationCompleteness> {
+    const total = this._db
+      .select({ count: sql<number>`count(*)` })
+      .from(responseCitations)
+      .innerJoin(responsesRaw, eq(responseCitations.responseId, responsesRaw.id))
+      .where(eq(responsesRaw.runId, runId))
+      .get();
+
+    const unclassified = this._db
+      .select({ count: sql<number>`count(*)` })
+      .from(responseCitations)
+      .innerJoin(responsesRaw, eq(responseCitations.responseId, responsesRaw.id))
+      .where(
+        and(
+          eq(responsesRaw.runId, runId),
+          eq(responseCitations.sourceClass, "unknown_or_low_trust"),
+        ),
+      )
+      .get();
+
+    return {
+      citationCount: total?.count ?? 0,
+      unclassifiedCount: unclassified?.count ?? 0,
+    };
   }
 
   async seedDefaults(): Promise<void> {
