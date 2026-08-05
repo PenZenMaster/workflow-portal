@@ -1,12 +1,11 @@
 ## Resume From
 
 Last session: 2026-08-05
-Branch: main | Version: v1.69.1 | 1245 tests passing | SHIPPED to git, NOT yet packaged/deployed to cPanel
+Branch: main | Version: v1.69.1 | 1245 tests passing | PACKAGED, DEPLOYED to cPanel, and SMOKE-TESTED clean
 
 NEXT SESSION (2 items):
-1. Package + deploy v1.69.1 to cPanel (dependency-only patch, no schema migration).
-2. Pick up issue #30 slice 4 - parser success: add `parseStatus`/`parsedAt` columns to `responses_raw` (migration), set by the `parse-response` job handler on both success and permanent failure. First schema migration since v1.60.1/TD-26.
-3. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+1. Pick up issue #30 slice 4 - parser success: add `parseStatus`/`parsedAt` columns to `responses_raw` (migration), set by the `parse-response` job handler on both success and permanent failure. First schema migration since v1.60.1/TD-26.
+2. User-owned, carried over: B-20 GBP API quota check, Groq API access.
 
 Session 2026-08-05 (part 3): all 3 open Dependabot alerts (#22, #23, #25)
 triaged and fixed as v1.69.1 - all one root cause: `ip-address` (transitive
@@ -21,10 +20,12 @@ turned out not to be needed. `npm audit` now reports 0 vulnerabilities
 (package-lock.json only, no package.json dependency changes). Full suite
 (1245 tests), lint, typecheck, db:check all re-verified green after the
 bump. TD-25 marked Done in the tech debt register.
-NOT YET DONE: npm run package / cPanel deploy for v1.69.1.
-NEXT SESSION: (1) package + deploy v1.69.1; (2) issue #30 slice 4 (parser
-success - first schema migration since v1.60.1/TD-26); (3) user-owned:
-B-20 GBP API quota check, Groq API access (carried over, still not done).
+Packaged, tagged v1.69.1 (pushed), deployed to cPanel, smoke-tested clean
+by the user. Post-deploy TD-16 check: only the fresh worker present, no
+stale process.
+NEXT SESSION: (1) issue #30 slice 4 (parser success - first schema
+migration since v1.60.1/TD-26); (2) user-owned: B-20 GBP API quota check,
+Groq API access (carried over, still not done).
 
 Session 2026-08-05 (part 2): quota-shortfall banner clarity fix shipped
 as v1.69.0, TDD throughout. User feedback while reviewing prompt
