@@ -376,6 +376,42 @@ entirely — the underlying data collection had a real problem (high
 failure rate, low completion, or a config change that breaks
 comparability), not just normal measurement noise.
 
+#### Parser Success (added v1.70.0, issue #3 Epic 3 slice 4, tracked on issue #30)
+
+`responses_raw` gained two columns (migration 0025): `parseStatus`
+(`"parsed" | "failed" | null`) and `parsedAt` (timestamp, null until
+resolved). Before this slice, whether a response's `parse-response` job
+had actually succeeded was only reconstructable via an expensive join
+against the `jobs` table (payload is an unindexed JSON blob, matched by
+scanning). Now it's a direct column on the row being measured.
+
+Set by the `parse-response` job handler (`server/jobs/handlers.ts`) via
+`responseStore.updateParseStatus`:
+
+- **`parsed`** — the handler's full body (mention/citation/recommendation
+  extraction and persistence) completed without throwing.
+- **`failed`** — the handler threw, **and** this was the final attempt
+  (`job.attempts + 1 >= job.maxAttempts`, checked via `jobStore.get(jobId)`
+  before the error is rethrown). A transient failure that still has
+  retries left leaves `parseStatus` untouched (stays `null` or whatever
+  it was) — marking it `failed` prematurely would make a response that
+  successfully parses on retry a few minutes later look permanently
+  broken in the meantime.
+- **`null`** — not yet resolved: `parse-response` never ran (the
+  response never got real text, e.g. the provider call itself failed),
+  or it's still queued/retrying.
+
+The handler always rethrows on error after this check, so the `jobs`
+table's own retry/permanent-fail bookkeeping (`JobRunner.tick()`,
+`server/jobs/runner.ts`) is unaffected — `parseStatus` is a denormalized,
+cheaply-joinable mirror of the outcome, not a second source of truth.
+
+**Not yet done, future slice:** folding `parseStatus` into
+`computeMeasurementHealth` as an 8th data-quality signal (parser success
+rate, mirroring how provider failure rate already works) - issue #30's
+own slice-4 scope was schema + handler wiring only, not the health
+rollup fold-in.
+
 #### Prompt Generation Provenance (added v1.43.0)
 
 Every "Generate with AI" event writes an immutable

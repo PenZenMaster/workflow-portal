@@ -1148,7 +1148,16 @@ export const responsesRaw = sqliteTable("responses_raw", {
   // the provider omitted it or the row predates capture.
   inputTokens: integer("input_tokens"),
   outputTokens: integer("output_tokens"),
+  // issue #30 slice 4 (parser success): set by the parse-response job
+  // handler on success or PERMANENT failure only, never on a transient
+  // failure that still has retries left - null means "not yet resolved"
+  // (parse-response never ran, or is still queued/retrying), not "failed".
+  parseStatus: text("parse_status"),
+  parsedAt: integer("parsed_at"),
 });
+
+export const PARSE_STATUSES = ["parsed", "failed"] as const;
+export type ParseStatus = (typeof PARSE_STATUSES)[number];
 
 export const runSchedules = sqliteTable("run_schedules", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -1222,6 +1231,8 @@ export type ResponseRaw = {
   capturedAt: number;
   inputTokens: number | null;
   outputTokens: number | null;
+  parseStatus: ParseStatus | null;
+  parsedAt: number | null;
 };
 
 export type RunSchedule = {

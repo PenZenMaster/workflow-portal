@@ -23,6 +23,7 @@ const {
   mockPromptMethodologyStore,
   mockRecommendationStore,
   mockSourceDomainStore,
+  mockJobStore,
 } = vi.hoisted(() => ({
   mockScheduleStore: { listDue: vi.fn(), markFired: vi.fn() },
   mockPromptStore: { listByCollection: vi.fn() },
@@ -38,6 +39,7 @@ const {
     create: vi.fn(),
     get: vi.fn(),
     updateResult: vi.fn(),
+    updateParseStatus: vi.fn(),
     listByRun: vi.fn(),
     aggregateTokensByClient: vi.fn().mockResolvedValue({ totalInputTokens: 0, totalOutputTokens: 0 }),
   },
@@ -72,6 +74,7 @@ const {
   mockSourceDomainStore: { getMapForDomains: vi.fn() },
   mockManifestStore: { create: vi.fn(), getByRunId: vi.fn() },
   mockPromptCollectionStore: { get: vi.fn() },
+  mockJobStore: { get: vi.fn() },
 }));
 
 const mockGetAdapter = vi.hoisted(() => vi.fn());
@@ -99,6 +102,7 @@ vi.mock("../../../server/storage", () => ({
   sourceDomainStore: mockSourceDomainStore,
   manifestStore: mockManifestStore,
   promptCollectionStore: mockPromptCollectionStore,
+  jobStore: mockJobStore,
 }));
 
 type Handler = (payload: unknown, jobId: number) => Promise<void>;
@@ -542,6 +546,69 @@ describe("parse-response handler", () => {
     expect(mockSourceDomainStore.getMapForDomains).toHaveBeenCalledTimes(1);
     const [domains] = mockSourceDomainStore.getMapForDomains.mock.calls[0];
     expect([...domains].sort()).toEqual(["randomblog.net", "yelp.com"]);
+  });
+
+  // issue #30 slice 4: parseStatus/parsedAt on responses_raw, set by this
+  // handler on success and on PERMANENT failure only - a transient failure
+  // that still has retries left must not prematurely mark the response as
+  // permanently unparsed.
+  it("marks the response parseStatus 'parsed' with a timestamp on successful parse", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 46,
+      runId: 9,
+      responseText: "Some plumbing advice.",
+      rawPayload: { citations: [] },
+    });
+    mockRunStore.get.mockResolvedValue({ id: 9, clientId: 10 });
+    mockBrandStore.listByClient.mockResolvedValue([]);
+    mockSourceDomainStore.getMapForDomains.mockResolvedValue(new Map());
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("parse-response")!({ responseId: 46 }, 1);
+
+    expect(mockResponseStore.updateParseStatus).toHaveBeenCalledWith(46, {
+      parseStatus: "parsed",
+      parsedAt: expect.any(Number),
+    });
+  });
+
+  it("does not mark parseStatus when a failure still has retries remaining, and rethrows so the job runner retries", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 47,
+      runId: 9,
+      responseText: "Some plumbing advice.",
+      rawPayload: { citations: [] },
+    });
+    mockRunStore.get.mockRejectedValue(new Error("db down"));
+    mockJobStore.get.mockResolvedValue({ id: 5, attempts: 0, maxAttempts: 3 });
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+
+    await expect(handlers.get("parse-response")!({ responseId: 47 }, 5)).rejects.toThrow("db down");
+    expect(mockResponseStore.updateParseStatus).not.toHaveBeenCalled();
+  });
+
+  it("marks parseStatus 'failed' with a timestamp on the final attempt, and still rethrows", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 48,
+      runId: 9,
+      responseText: "Some plumbing advice.",
+      rawPayload: { citations: [] },
+    });
+    mockRunStore.get.mockRejectedValue(new Error("db down"));
+    mockJobStore.get.mockResolvedValue({ id: 6, attempts: 2, maxAttempts: 3 });
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+
+    await expect(handlers.get("parse-response")!({ responseId: 48 }, 6)).rejects.toThrow("db down");
+    expect(mockResponseStore.updateParseStatus).toHaveBeenCalledWith(48, {
+      parseStatus: "failed",
+      parsedAt: expect.any(Number),
+    });
   });
 });
 

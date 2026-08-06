@@ -14,11 +14,16 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-09
- * Last Modified Date: 2026-07-24
+ * Last Modified Date: 2026-08-06
  * Comments:
  * - v1.00 Sprint 3 initial implementation
  * - v1.01 issue #2 F6: monthly token budget guard on schedule-tick run
  *   creation
+ * - v1.02 issue #30 slice 4: parse-response now sets responses_raw
+ *   parseStatus/parsedAt on success or PERMANENT failure only - a
+ *   transient failure that still has retries left (checked via jobStore
+ *   against this invocation's jobId) leaves parseStatus untouched and
+ *   still rethrows for JobRunner's own retry/fail bookkeeping
  */
 
 import crypto from "node:crypto";
@@ -45,6 +50,7 @@ import {
   sourceDomainStore,
   manifestStore,
   promptCollectionStore,
+  jobStore,
 } from "../storage";
 import { getAdapter } from "../adapters/registry";
 import { parseResponse, PARSER_VERSION } from "../services/parser";
@@ -138,7 +144,7 @@ export function registerJobHandlers(runner: JobRunner): void {
   // ---- parse-response -----------------------------------------------------
   runner.register({
     kind: "parse-response",
-    async handle(payload) {
+    async handle(payload, jobId) {
       const { responseId } = payload as { responseId: number };
       const response = await responseStore.get(responseId);
       if (!response || !response.responseText) {
@@ -146,100 +152,126 @@ export function registerJobHandlers(runner: JobRunner): void {
         return;
       }
 
-      // Get the run to find the client.
-      const run = await runStore.get(response.runId);
-      if (!run) return;
+      try {
+        // Get the run to find the client.
+        const run = await runStore.get(response.runId);
+        if (!run) return;
 
-      // Load all brands + aliases for this client.
-      const allBrands = await brandStore.listByClient(run.clientId);
-      const brandInputs = await Promise.all(
-        allBrands.map(async (b) => ({
-          id: b.id,
-          canonicalName: b.canonicalName,
-          primaryDomain: b.primaryDomain,
-          aliases: await aliasStore.listByBrand(b.id),
-        }))
-      );
-
-      // Parse citations from rawPayload if available.
-      const rawPayload = response.rawPayload as { citations?: string[] } | null;
-      const citationUrls: Array<{ url: string; position: number }> =
-        (rawPayload?.citations ?? []).map((url, idx) => ({ url, position: idx + 1 }));
-
-      // Clear old parse results (for re-runs).
-      await mentionStore.deleteByResponse(responseId);
-      await citationStore.deleteByResponse(responseId);
-      await recommendationStore.deleteByResponse(responseId);
-
-      const { mentions, citations } = parseResponse(
-        response.responseText,
-        citationUrls,
-        brandInputs
-      );
-
-      if (mentions.length > 0) {
-        await mentionStore.bulkCreate(
-          mentions.map((m) => ({ ...m, responseId }))
+        // Load all brands + aliases for this client.
+        const allBrands = await brandStore.listByClient(run.clientId);
+        const brandInputs = await Promise.all(
+          allBrands.map(async (b) => ({
+            id: b.id,
+            canonicalName: b.canonicalName,
+            primaryDomain: b.primaryDomain,
+            aliases: await aliasStore.listByBrand(b.id),
+          }))
         );
-      }
 
-      if (citations.length > 0) {
-        // Classify each citation's source (spec 6.3): brand ownership wins,
-        // then the source-domain registry, then unknown_or_low_trust.
-        // isTrustedThirdParty is derived from the class (T score component).
-        const registry = await sourceDomainStore.getMapForDomains(
-          Array.from(new Set(citations.map((c) => c.rootDomain)))
-        );
-        const brandKindById = new Map(allBrands.map((b) => [b.id, b.kind]));
-        await citationStore.bulkCreate(
-          citations.map((c) => {
-            let ownerKind: CitationOwnerKind = null;
-            if (c.ownedByBrandId !== null) {
-              ownerKind = brandKindById.get(c.ownedByBrandId) === "client" ? "client" : "competitor";
-            }
-            const sourceClass = classifyCitationSource(ownerKind, c.rootDomain, registry);
-            return {
-              ...c,
-              responseId,
-              sourceClass,
-              isTrustedThirdParty: isTrustedSourceClass(sourceClass),
-            };
-          })
-        );
-      }
+        // Parse citations from rawPayload if available.
+        const rawPayload = response.rawPayload as { citations?: string[] } | null;
+        const citationUrls: Array<{ url: string; position: number }> =
+          (rawPayload?.citations ?? []).map((url, idx) => ({ url, position: idx + 1 }));
 
-      // Classify one recommendation row per mentioned brand. Absence of
-      // a row means not_mentioned - no rows are stored for unmentioned
-      // brands.
-      const mentionedBrandIds = Array.from(new Set(mentions.map((m) => m.brandId)));
-      const recommendationRows = mentionedBrandIds.map((brandId) => {
-        const classification = classifyRecommendation(
-          mentions.filter((m) => m.brandId === brandId)
+        // Clear old parse results (for re-runs).
+        await mentionStore.deleteByResponse(responseId);
+        await citationStore.deleteByResponse(responseId);
+        await recommendationStore.deleteByResponse(responseId);
+
+        const { mentions, citations } = parseResponse(
+          response.responseText,
+          citationUrls,
+          brandInputs
         );
-        return {
+
+        if (mentions.length > 0) {
+          await mentionStore.bulkCreate(
+            mentions.map((m) => ({ ...m, responseId }))
+          );
+        }
+
+        if (citations.length > 0) {
+          // Classify each citation's source (spec 6.3): brand ownership wins,
+          // then the source-domain registry, then unknown_or_low_trust.
+          // isTrustedThirdParty is derived from the class (T score component).
+          const registry = await sourceDomainStore.getMapForDomains(
+            Array.from(new Set(citations.map((c) => c.rootDomain)))
+          );
+          const brandKindById = new Map(allBrands.map((b) => [b.id, b.kind]));
+          await citationStore.bulkCreate(
+            citations.map((c) => {
+              let ownerKind: CitationOwnerKind = null;
+              if (c.ownedByBrandId !== null) {
+                ownerKind = brandKindById.get(c.ownedByBrandId) === "client" ? "client" : "competitor";
+              }
+              const sourceClass = classifyCitationSource(ownerKind, c.rootDomain, registry);
+              return {
+                ...c,
+                responseId,
+                sourceClass,
+                isTrustedThirdParty: isTrustedSourceClass(sourceClass),
+              };
+            })
+          );
+        }
+
+        // Classify one recommendation row per mentioned brand. Absence of
+        // a row means not_mentioned - no rows are stored for unmentioned
+        // brands.
+        const mentionedBrandIds = Array.from(new Set(mentions.map((m) => m.brandId)));
+        const recommendationRows = mentionedBrandIds.map((brandId) => {
+          const classification = classifyRecommendation(
+            mentions.filter((m) => m.brandId === brandId)
+          );
+          return {
+            responseId,
+            brandId,
+            status: classification.status,
+            rank: classification.rank,
+            confidence: classification.confidence,
+            evidenceExcerpt: classification.evidenceExcerpt,
+            classifierVersion: RECOMMENDATION_CLASSIFIER_VERSION,
+          };
+        });
+        if (recommendationRows.length > 0) {
+          await recommendationStore.bulkCreate(recommendationRows);
+        }
+
+        // Chain downstream jobs.
+        runner.enqueue("sentiment-classify", { responseId });
+        runner.enqueue("aggregate-snapshot-daily", { clientId: run.clientId });
+
+        logger.info("parse-response: complete", {
           responseId,
-          brandId,
-          status: classification.status,
-          rank: classification.rank,
-          confidence: classification.confidence,
-          evidenceExcerpt: classification.evidenceExcerpt,
-          classifierVersion: RECOMMENDATION_CLASSIFIER_VERSION,
-        };
-      });
-      if (recommendationRows.length > 0) {
-        await recommendationStore.bulkCreate(recommendationRows);
+          mentions: mentions.length,
+          citations: citations.length,
+          recommendations: recommendationRows.length,
+        });
+
+        // issue #30 slice 4: persist the parse outcome directly on the
+        // response row so it's cheaply joinable, instead of only being
+        // reconstructable via an expensive lookup against the jobs table.
+        await responseStore.updateParseStatus(responseId, {
+          parseStatus: "parsed",
+          parsedAt: Date.now(),
+        });
+      } catch (err) {
+        // Only stamp a terminal parseStatus once retries are exhausted -
+        // a transient failure about to retry must not look permanently
+        // unparsed. job.attempts still reflects prior attempts (the
+        // runner increments it only after this throw propagates), so
+        // +1 here predicts whether THIS failure is the one that exhausts
+        // the budget.
+        const job = await jobStore.get(jobId);
+        const isPermanent = !job || job.attempts + 1 >= job.maxAttempts;
+        if (isPermanent) {
+          await responseStore.updateParseStatus(responseId, {
+            parseStatus: "failed",
+            parsedAt: Date.now(),
+          });
+        }
+        throw err;
       }
-
-      // Chain downstream jobs.
-      runner.enqueue("sentiment-classify", { responseId });
-      runner.enqueue("aggregate-snapshot-daily", { clientId: run.clientId });
-
-      logger.info("parse-response: complete", {
-        responseId,
-        mentions: mentions.length,
-        citations: citations.length,
-        recommendations: recommendationRows.length,
-      });
     },
   });
 

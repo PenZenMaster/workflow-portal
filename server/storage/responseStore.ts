@@ -13,10 +13,13 @@
  * - v1.00 Sprint 3 initial implementation
  * - v1.01 token usage columns carried (issue #2 F1)
  * - v1.02 aggregateTokensByClient per-platform aggregation
+ * - v1.03 issue #30 slice 4: updateParseStatus (parseStatus/parsedAt),
+ *   set by the parse-response job handler on success or permanent
+ *   failure only
  */
 
 import { responsesRaw, promptRuns, platforms } from "@shared/schema";
-import type { ResponseRaw } from "@shared/schema";
+import type { ResponseRaw, ParseStatus } from "@shared/schema";
 import { eq, and, gte, lt, isNotNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
@@ -42,6 +45,8 @@ function hydrate(row: Row): ResponseRaw {
     capturedAt: row.capturedAt,
     inputTokens: row.inputTokens,
     outputTokens: row.outputTokens,
+    parseStatus: row.parseStatus as ParseStatus | null,
+    parsedAt: row.parsedAt,
   };
 }
 
@@ -89,6 +94,10 @@ export interface IResponseStore {
       inputTokens?: number | null;
       outputTokens?: number | null;
     }
+  ): Promise<void>;
+  updateParseStatus(
+    id: number,
+    result: { parseStatus: ParseStatus; parsedAt: number }
   ): Promise<void>;
 }
 
@@ -175,6 +184,17 @@ export class ResponseStore implements IResponseStore {
         inputTokens: result.inputTokens ?? null,
         outputTokens: result.outputTokens ?? null,
       })
+      .where(eq(responsesRaw.id, id))
+      .run();
+  }
+
+  async updateParseStatus(
+    id: number,
+    result: { parseStatus: ParseStatus; parsedAt: number }
+  ): Promise<void> {
+    this._db
+      .update(responsesRaw)
+      .set({ parseStatus: result.parseStatus, parsedAt: result.parsedAt })
       .where(eq(responsesRaw.id, id))
       .run();
   }

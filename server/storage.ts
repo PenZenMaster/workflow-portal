@@ -274,7 +274,9 @@ export const SCHEMA_SQL = `
     error_message TEXT,
     captured_at INTEGER NOT NULL,
     input_tokens INTEGER,
-    output_tokens INTEGER
+    output_tokens INTEGER,
+    parse_status TEXT,
+    parsed_at INTEGER
   );
   CREATE TABLE IF NOT EXISTS measurement_run_manifests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
