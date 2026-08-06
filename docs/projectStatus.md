@@ -1,11 +1,43 @@
 ## Resume From
 
-Last session: 2026-08-05
-Branch: main | Version: v1.69.1 | 1245 tests passing | PACKAGED, DEPLOYED to cPanel, and SMOKE-TESTED clean
+Last session: 2026-08-06
+Branch: main | Version: v1.70.0 | 1248 tests passing | PACKAGED, DEPLOYED to cPanel (migration 0025 verified applied), and SMOKE-TESTED clean
 
 NEXT SESSION (2 items):
-1. Pick up issue #30 slice 4 - parser success: add `parseStatus`/`parsedAt` columns to `responses_raw` (migration), set by the `parse-response` job handler on both success and permanent failure. First schema migration since v1.60.1/TD-26.
+1. Decide next issue #30 slice - slice 5 (period-level rollup + UI, admin override) is the last item on the originally-scoped roadmap; folding `parseStatus` into `computeMeasurementHealth` as an 8th data-quality signal was explicitly deferred out of slice 4's scope and could go either before or as part of slice 5.
 2. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+
+Session 2026-08-06: issue #30 slice 4 (parser success) SHIPPED as
+v1.70.0, TDD throughout. New `parseStatus`/`parsedAt` columns on
+`responses_raw` (migration 0025, both nullable, no backfill) - previously
+whether a response's `parse-response` job had succeeded was only
+reconstructable via an expensive join against the unindexed `jobs.payload`
+JSON blob. `parse-response` handler (server/jobs/handlers.ts) now wraps
+its body in try/catch: sets `parsed` on success; sets `failed` only when
+`jobStore.get(jobId)` shows this is the FINAL retry attempt
+(`attempts + 1 >= maxAttempts`), otherwise leaves parseStatus untouched
+so a transient failure about to retry doesn't look permanently broken;
+always rethrows afterward so the `jobs` table's own retry/fail state
+stays the single source of truth. New `responseStore.updateParseStatus`.
+Real gap found mid-verification: server/storage.ts's hand-maintained
+`SCHEMA_SQL` (bootstraps in-memory test DBs) doesn't derive from the
+Drizzle schema/migrations automatically - 49 tests failed against a
+stale in-memory table until the two columns were added there too.
+docs/system-documentation.md gained a new "Parser Success" section,
+explicitly noting the health-rollup fold-in is deferred, not part of
+this slice's locked scope. Full suite (1248 tests), lint, typecheck,
+db:check all pass.
+Packaged, tagged v1.70.0 (pushed), deployed to cPanel. Migration 0025
+verified applied via direct SQL against production data.db
+(parse_status/parsed_at present, both nullable) before calling it done,
+given this was the first schema migration since v1.60.1/TD-26. TD-16
+check clean (only the fresh worker present). Smoke-tested clean by the
+user.
+NEXT SESSION: (1) decide next issue #30 slice - slice 5 (period-level
+rollup + UI, admin override) is the last on the original roadmap; the
+parseStatus/computeMeasurementHealth fold-in was deferred out of slice 4
+and could land before or alongside it; (2) user-owned: B-20 GBP API
+quota check, Groq API access (carried over, still not done).
 
 Session 2026-08-05 (part 3): all 3 open Dependabot alerts (#22, #23, #25)
 triaged and fixed as v1.69.1 - all one root cause: `ip-address` (transitive
