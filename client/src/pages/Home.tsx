@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Plus, Moon, Sun, Lock, LogOut, User, Settings, BarChart2, Users, Activity, Cpu, Building2 } from "lucide-react";
+import { Search, Plus, Moon, Sun, Lock, LogOut, User, Settings, BarChart2, Users, Activity, Cpu, Building2, BookOpen } from "lucide-react";
 import { Link } from "wouter";
 import { Logo } from "@/components/Logo";
 import { WorkflowCard } from "@/components/WorkflowCard";
@@ -151,6 +151,15 @@ export default function Home() {
             <BarChart2 className="h-4 w-4" />
             AI Visibility
           </Link>
+
+          <a
+            href="/guides/index.html"
+            className="hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mr-2"
+            title="What We Do"
+          >
+            <BookOpen className="h-4 w-4" />
+            What We Do
+          </a>
 
           {status?.user?.role === "super_admin" && (
             <Link
