@@ -1,13 +1,41 @@
 ## Resume From
 
 Last session: 2026-08-10
-Branch: main | Version: v1.73.0 | 1271 tests passing | PACKAGED, DEPLOYED to cPanel (no schema migration), and SMOKE-TESTED clean
+Branch: main | Version: v1.74.0 | 1279 tests passing | PACKAGED, awaiting deploy confirmation
 
-NEXT SESSION (4 items):
-1. New feature requests from the user (not yet scoped), both on `/admin/jobs`: (FR-001) make the status pills (queued/running/done/failed/cancelled) clickable filters; (FR-002) groom the jobs table down to the last 5,000 jobs - page is unresponsive today with >55k rows. FR-002 likely needs both a retention/cleanup mechanism (cron or on-tick) and probably server-side pagination on the admin jobs list endpoint, not just a UI fix - scope with the user before starting, per usual.
+NEXT SESSION (3 items):
+1. Confirm v1.74.0 deployed + smoke-tested (FR-001/FR-002 on /admin/jobs), then run the usual TD-16 SSH check and update this doc.
 2. Issue #30 slice 5b (admin override: record a reason, override a computed health status) - the one deliberately-deferred piece of Epic 3, needs its own schema migration. Epic 3's originally-scoped roadmap is otherwise fully shipped as of v1.73.0.
 3. User-owned, carried over: B-20 GBP API quota check, Groq API access.
-4. If the two `/guides/*.html` pages ever need updating, remember they're static output baked from Claude Artifacts content (embedded fonts as base64, no build step reads them) - edit and republish the source artifacts, then re-copy into `client/public/guides/`, not a live-editable template in this repo.
+
+Session 2026-08-10 (part 2): v1.74.0 shipped two user-filed feature
+requests on the super-admin `/admin/jobs` page.
+- FR-001: the status pills (queued/running/done/failed/cancelled) are
+  now clickable toggle filters, wired to the `?status=` param
+  `GET /api/jobs` already supported server-side (no backend change
+  needed for this half).
+- FR-002: fixed the actual root cause of "the page becomes unresponsive
+  with >55k jobs" - `jobStore.list()` was never called with a `limit`
+  from the client at all, so it fetched every row unconditionally. The
+  page now requests a bounded 200-row page by default. Also found and
+  fixed `countByStatus` (polled every 5s by the health banner) doing 5
+  full-row-fetch-then-`.length` scans instead of a grouped aggregate
+  query - same root cause class, fixed while in the file. New
+  self-perpetuating `groom-jobs` job (mirrors `schedule-tick`'s pattern
+  exactly: seeded once via `jobRunner.seedRecurring` in
+  `server/index.ts`, hourly, re-enqueues itself) prunes terminal jobs
+  (done/failed/cancelled) down to the most recent 5,000 via
+  `jobStore.groomTerminal`. Queued/running jobs are never deleted
+  regardless of age - confirmed by reading every other caller of the
+  jobs table first (`reparse-status` only ever queries jobs from the
+  last few minutes, so pruning old rows is safe elsewhere too).
+TDD throughout, RED confirmed before implementing on every new test
+(caught myself mid-session writing implementation before the test twice
+- corrected both by reverting and redoing properly, per this repo's
+STRICT MODE). Full suite (1279 tests), lint, typecheck all pass. No
+schema migration. Packaged, tagged v1.74.0 (pushed) - NOT YET deployed
+or smoke-tested this session.
+NEXT SESSION FIRST: confirm deploy + smoke test, TD-16 check.
 
 Session 2026-08-10: two versions shipped together, closing out issue
 #30's originally-scoped 5-slice roadmap (Epic 3: Measurement Health)
