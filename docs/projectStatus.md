@@ -1,12 +1,48 @@
 ## Resume From
 
-Last session: 2026-08-09
-Branch: main | Version: v1.71.1 | 1249 tests passing | PACKAGED, DEPLOYED to cPanel (no schema migration), and SMOKE-TESTED clean
+Last session: 2026-08-10
+Branch: main | Version: v1.73.0 | 1271 tests passing | PACKAGED, DEPLOYED to cPanel (no schema migration), and SMOKE-TESTED clean
 
-NEXT SESSION (3 items):
-1. Decide next issue #30 slice - slice 5 (period-level rollup + UI, admin override) is the last item on the originally-scoped roadmap; folding `parseStatus` into `computeMeasurementHealth` as an 8th data-quality signal was explicitly deferred out of slice 4's scope and could go either before or as part of slice 5. Untouched this session - v1.71.0/v1.71.1 were both out-of-roadmap.
-2. User-owned, carried over: B-20 GBP API quota check, Groq API access.
-3. If the two `/guides/*.html` pages ever need updating, remember they're static output baked from Claude Artifacts content (embedded fonts as base64, no build step reads them) - edit and republish the source artifacts, then re-copy into `client/public/guides/`, not a live-editable template in this repo.
+NEXT SESSION (4 items):
+1. New feature requests from the user (not yet scoped), both on `/admin/jobs`: (FR-001) make the status pills (queued/running/done/failed/cancelled) clickable filters; (FR-002) groom the jobs table down to the last 5,000 jobs - page is unresponsive today with >55k rows. FR-002 likely needs both a retention/cleanup mechanism (cron or on-tick) and probably server-side pagination on the admin jobs list endpoint, not just a UI fix - scope with the user before starting, per usual.
+2. Issue #30 slice 5b (admin override: record a reason, override a computed health status) - the one deliberately-deferred piece of Epic 3, needs its own schema migration. Epic 3's originally-scoped roadmap is otherwise fully shipped as of v1.73.0.
+3. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+4. If the two `/guides/*.html` pages ever need updating, remember they're static output baked from Claude Artifacts content (embedded fonts as base64, no build step reads them) - edit and republish the source artifacts, then re-copy into `client/public/guides/`, not a live-editable template in this repo.
+
+Session 2026-08-10: two versions shipped together, closing out issue
+#30's originally-scoped 5-slice roadmap (Epic 3: Measurement Health)
+short of the deliberately-deferred admin-override piece.
+- v1.72.0: `parseStatus` (added v1.70.0, deferred from slice 4) folded
+  into `computeMeasurementHealth` as an 8th warn-only signal - any
+  completed response that permanently failed parsing now surfaces a
+  warning, same precedent as the other three data-quality signals (a
+  still-null `parseStatus` is not evidence of a problem, it may just not
+  have run yet or be mid-retry). New `responseStore.
+  countParseFailuresForRun`, run-scoped, mirrors the existing
+  `sourceDomainStore.countClassificationCompletenessForRun` pattern.
+- v1.73.0 (slice 5, final): new `GET /api/clients/:id/measurement-health
+  ?period=30d|90d|365d` rolls up "N of M runs healthy/degraded/invalid"
+  across a client's runs in a date window. The per-run assembly
+  previously inline in the single-run endpoint was extracted into
+  `assembleRunHealth` (server/routes/runs.ts) and reused by both routes -
+  refactor verified behavior-preserving via the existing single-run
+  endpoint's full test suite staying green throughout. New `runStore.
+  listByClientInRange` (bounded by `promptRuns.createdAt` epoch ms) and
+  the pure `computeHealthRollup` summarizer. New `MeasurementHealthSection`
+  on `ClientDetail.tsx`, mounted first (above Overview) since it answers
+  whether the rest of the page's numbers can be trusted; renders nothing
+  when the client has zero runs in the period.
+Admin override (5b) deliberately out of scope for both versions - needs
+its own schema migration, tracked as its own follow-up on issue #30.
+TDD throughout both versions, RED confirmed before implementing on every
+new test. docs/system-documentation.md updated after each version. Full
+suite (1271 tests), lint, typecheck all pass. Packaged together as one
+combined v1.73.0 tarball (git tag v1.72.0 was never separately packaged -
+bumped straight through to 1.73.0 before running `npm run package`, same
+combined-cycle precedent as prior sessions), deployed to cPanel,
+smoke-tested clean by the user. Post-deploy TD-16 check via SSH found one
+stale worker (PID 908009, ~50min old, predating this deploy) alongside
+the fresh one (PID 1011408) - killed the stale PID, confirmed clean.
 
 Session 2026-08-09 (part 2): v1.71.1 - Dependabot alert #27 (high,
 GHSA-2v37-7h3g-55p8) triaged and fixed same day as v1.71.0 shipped.
