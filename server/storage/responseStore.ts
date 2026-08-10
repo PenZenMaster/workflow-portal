@@ -20,7 +20,7 @@
 
 import { responsesRaw, promptRuns, platforms } from "@shared/schema";
 import type { ResponseRaw, ParseStatus } from "@shared/schema";
-import { eq, and, gte, lt, isNotNull, sql } from "drizzle-orm";
+import { eq, and, or, gte, lt, isNotNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -121,11 +121,21 @@ export class ResponseStore implements IResponseStore {
     return rows.map(hydrate);
   }
 
+  // issue #35 slice 3: "timeout" is a distinct status from "failed", but a
+  // timed-out response is just as eligible for a retry - retry-failed
+  // must keep picking it up, or a response could get permanently stuck
+  // once its status changed away from the exact-match "failed" this query
+  // used to require.
   async listFailedByRun(runId: number): Promise<ResponseRaw[]> {
     const rows = this._db
       .select()
       .from(responsesRaw)
-      .where(and(eq(responsesRaw.runId, runId), eq(responsesRaw.status, "failed")))
+      .where(
+        and(
+          eq(responsesRaw.runId, runId),
+          or(eq(responsesRaw.status, "failed"), eq(responsesRaw.status, "timeout")),
+        ),
+      )
       .all();
     return rows.map(hydrate);
   }

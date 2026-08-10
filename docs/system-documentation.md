@@ -214,6 +214,24 @@ slow-but-successful generation. 429/5xx responses and pre-response
 connection errors still retry with backoff as before; only the timeout
 path changed.
 
+**Distinct timeout status (v1.79.0, issue #35 Epic 1 slice 3):** every
+adapter now throws `AdapterTimeoutError` (server/adapters/types.ts) on
+this same timeout path, instead of a generic `Error`. The `prompt-run`
+job handler tells it apart by type — `responses_raw.status` records
+`"timeout"` rather than `"failed"`, so "the provider took too long" is
+no longer indistinguishable from an invalid API key, a malformed
+response, or any other failure reason. Run-level bookkeeping
+(`completedPrompts`/`failedPrompts`, the `partial`/`failed` run-status
+rollup) is unchanged — a timeout still counts as a non-completion there;
+this only adds the distinct per-response value. `POST
+/api/runs/:id/retry-failed` (`responseStore.listFailedByRun`) was
+extended to match `status IN ('failed', 'timeout')` so a timed-out
+response stays retryable — leaving it as an exact match on `'failed'`
+would have silently stopped picking up timeouts once their status
+changed. No schema migration: `responses_raw.status` is a free-text
+column with no DB-level constraint, so this was a pure TS-type
+widening.
+
 **Monthly token budget guard (v1.50.0, issue #2 F6):** a per-client
 month-to-date token guard (input+output, via the same aggregation as
 the Token Usage section above) runs before a run is created — manual

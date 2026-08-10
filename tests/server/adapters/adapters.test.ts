@@ -10,6 +10,7 @@ import { GroqAdapter } from "../../../server/adapters/groq";
 import { MistralAdapter } from "../../../server/adapters/mistral";
 import { DeepSeekAdapter } from "../../../server/adapters/deepseek";
 import { resolveTimeoutMs } from "../../../server/adapters/openaiCompatible";
+import { AdapterTimeoutError } from "../../../server/adapters/types";
 
 const OPENAI_BODY = {
   id: "chatcmpl-test",
@@ -103,6 +104,43 @@ describe("Timeout handling (F3)", () => {
     await assertion;
 
     expect(f).toHaveBeenCalledOnce();
+  });
+
+  // issue #35 slice 3: a timeout must throw a distinguishable
+  // AdapterTimeoutError, not a generic Error - the prompt-run handler
+  // needs to tell "the provider took too long" apart from every other
+  // failure reason without string-matching the error message.
+  it("openai-compatible throws AdapterTimeoutError (not a generic Error) on timeout", async () => {
+    vi.useFakeTimers();
+    const f = mockFetchAbortable();
+    vi.stubGlobal("fetch", f);
+    const adapter = new OpenAIAdapter("sk-test", { timeoutMs: 100, retryDelayMs: 0 });
+    const runPromise = adapter.run("p");
+    const assertion = expect(runPromise).rejects.toBeInstanceOf(AdapterTimeoutError);
+    await vi.runAllTimersAsync();
+    await assertion;
+  });
+
+  it("anthropic throws AdapterTimeoutError (not a generic Error) on timeout", async () => {
+    vi.useFakeTimers();
+    const f = mockFetchAbortable();
+    vi.stubGlobal("fetch", f);
+    const adapter = new AnthropicAdapter("sk-ant-test", { timeoutMs: 100, retryDelayMs: 0 });
+    const runPromise = adapter.run("p");
+    const assertion = expect(runPromise).rejects.toBeInstanceOf(AdapterTimeoutError);
+    await vi.runAllTimersAsync();
+    await assertion;
+  });
+
+  it("gemini throws AdapterTimeoutError (not a generic Error) on timeout", async () => {
+    vi.useFakeTimers();
+    const f = mockFetchAbortable();
+    vi.stubGlobal("fetch", f);
+    const adapter = new GeminiAdapter("AIza-test", { timeoutMs: 100, retryDelayMs: 0 });
+    const runPromise = adapter.run("p");
+    const assertion = expect(runPromise).rejects.toBeInstanceOf(AdapterTimeoutError);
+    await vi.runAllTimersAsync();
+    await assertion;
   });
 });
 

@@ -1181,7 +1181,7 @@ export const responsesRaw = sqliteTable("responses_raw", {
   queryText: text("query_text").notNull(),
   locale: text("locale"),
   geo: text("geo"),
-  status: text("status").notNull().default("queued"), // queued|running|complete|failed
+  status: text("status").notNull().default("queued"), // queued|running|complete|failed|timeout
   responseText: text("response_text"),
   responseSummaryBlock: text("response_summary_block"),
   modelVariant: text("model_variant"),
@@ -1271,7 +1271,11 @@ export type ResponseRaw = {
   queryText: string;
   locale: string | null;
   geo: string | null;
-  status: "queued" | "running" | "complete" | "failed";
+  // "timeout" (issue #35 slice 3) is distinct from "failed" - the
+  // provider took too long, rather than erroring outright. Free-text
+  // column, no DB-level constraint, so widening this union needs no
+  // migration.
+  status: "queued" | "running" | "complete" | "failed" | "timeout";
   responseText: string | null;
   responseSummaryBlock: string | null;
   modelVariant: string | null;

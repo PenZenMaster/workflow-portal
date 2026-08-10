@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { registerJobHandlers, JOBS_KEEP_COUNT, GROOM_JOBS_INTERVAL_MS } from "../../../server/jobs/handlers";
 import { SCHEDULE_TICK_INTERVAL_MS } from "../../../server/services/scheduling";
 import type { JobRunner } from "../../../server/jobs/runner";
+import { AdapterTimeoutError } from "../../../server/adapters/types";
 
 const {
   mockManifestStore,
@@ -184,6 +185,55 @@ describe("prompt-run handler", () => {
     expect(mockResponseStore.updateResult).toHaveBeenCalledWith(
       201,
       expect.objectContaining({ modelVariant: "gpt-4o-2026-01-01", requestedModel: "gpt-4o-mini" })
+    );
+  });
+
+  // issue #35 slice 3: a timeout must record status "timeout", distinct
+  // from every other failure reason - the handler tells them apart by
+  // error type (AdapterTimeoutError), not by string-matching the message.
+  it("records status: timeout (not failed) when the adapter throws AdapterTimeoutError", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 202, runId: 99, platformId: 1, queryText: "Best SEO agency", geo: null, locale: null,
+    });
+    mockPlatformStore.get.mockResolvedValue({ id: 1, slug: "openai" });
+    mockGetAdapter.mockReturnValue({
+      id: "openai",
+      run: vi.fn().mockRejectedValue(new AdapterTimeoutError("openai request timed out after 30000ms")),
+    });
+    mockRunStore.get.mockResolvedValue({ id: 99, completedPrompts: 0, failedPrompts: 1, totalPrompts: 1 });
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+    await handlers.get("prompt-run")!({ responseId: 202 }, 1);
+
+    expect(mockResponseStore.updateResult).toHaveBeenCalledWith(
+      202,
+      expect.objectContaining({ status: "timeout", errorMessage: "openai request timed out after 30000ms" })
+    );
+    // run-level bookkeeping is unchanged - a timeout still counts as a
+    // non-completion for the run's completedPrompts/failedPrompts rollup
+    // (explicit non-goal: this slice adds the distinct status value only).
+    expect(mockRunStore.incrementFailed).toHaveBeenCalledWith(99);
+  });
+
+  it("still records status: failed for a non-timeout error", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 203, runId: 99, platformId: 1, queryText: "Best SEO agency", geo: null, locale: null,
+    });
+    mockPlatformStore.get.mockResolvedValue({ id: 1, slug: "openai" });
+    mockGetAdapter.mockReturnValue({
+      id: "openai",
+      run: vi.fn().mockRejectedValue(new Error("openai API error 401: invalid API key")),
+    });
+    mockRunStore.get.mockResolvedValue({ id: 99, completedPrompts: 0, failedPrompts: 1, totalPrompts: 1 });
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+    await handlers.get("prompt-run")!({ responseId: 203 }, 1);
+
+    expect(mockResponseStore.updateResult).toHaveBeenCalledWith(
+      203,
+      expect.objectContaining({ status: "failed", errorMessage: "openai API error 401: invalid API key" })
     );
   });
 });

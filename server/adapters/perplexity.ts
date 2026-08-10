@@ -17,6 +17,7 @@
  */
 
 import type { PlatformAdapter, RawResponse, RunOptions, CitationRef, AdapterCapabilities } from "./types";
+import { AdapterTimeoutError } from "./types";
 import { extractOpenAiUsage, resolveMaxOutputTokens, resolveTimeoutMs } from "./openaiCompatible";
 import { logger } from "../logger";
 
@@ -144,7 +145,7 @@ export class PerplexityAdapter implements PlatformAdapter {
         if (err instanceof Error && err.name === "AbortError") {
           // F3: don't retry a timeout - the provider may already have
           // billed the aborted request. Fail fast instead, same as 4xx.
-          throw new Error(`Perplexity request timed out after ${this.timeoutMs}ms`);
+          throw new AdapterTimeoutError(`Perplexity request timed out after ${this.timeoutMs}ms`);
         } else if (err instanceof Error && err.message.includes("Perplexity API error")) {
           throw err; // 4xx — propagate immediately
         } else {

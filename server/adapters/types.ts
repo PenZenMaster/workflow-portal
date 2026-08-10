@@ -35,6 +35,17 @@ export interface AdapterCapabilities {
   citationExtractionMethod: "native_structured" | "text_url_regex";
 }
 
+// issue #35 slice 3: a distinguishable error type for a timed-out
+// provider call, so callers (the prompt-run job handler) can tell "the
+// provider took too long" apart from every other failure reason without
+// string-matching the error message.
+export class AdapterTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AdapterTimeoutError";
+  }
+}
+
 export interface CitationRef {
   url: string;
   position: number;

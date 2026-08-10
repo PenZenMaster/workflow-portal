@@ -53,6 +53,7 @@ import {
   jobStore,
 } from "../storage";
 import { getAdapter } from "../adapters/registry";
+import { AdapterTimeoutError } from "../adapters/types";
 import { parseResponse, PARSER_VERSION } from "../services/parser";
 import { classifyRecommendation, RECOMMENDATION_CLASSIFIER_VERSION } from "../services/recommendation";
 import { classifyCitationSource, isTrustedSourceClass, type CitationOwnerKind } from "../services/sourceClassifier";
@@ -128,8 +129,15 @@ export function registerJobHandlers(runner: JobRunner): void {
           // Chain: parse the response for mentions, citations, and metrics.
           runner.enqueue("parse-response", { responseId });
         } catch (err) {
+          // issue #35 slice 3: a timeout is distinct from every other
+          // failure reason, told apart by error type rather than
+          // string-matching the message. Run-level bookkeeping
+          // (completedPrompts/failedPrompts, the partial/failed run-status
+          // rollup) is unchanged - a timeout still counts as a
+          // non-completion there; this only adds the distinct per-response
+          // status value.
           await responseStore.updateResult(responseId, {
-            status: "failed",
+            status: err instanceof AdapterTimeoutError ? "timeout" : "failed",
             errorMessage: err instanceof Error ? err.message : String(err),
           });
           await runStore.incrementFailed(response.runId);

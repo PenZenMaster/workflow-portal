@@ -133,4 +133,26 @@ describe("ResponseStore", () => {
       expect(fetched?.requestedModel).toBeNull();
     });
   });
+
+  // issue #35 slice 3: a timeout is a distinct status from "failed", but
+  // retry-failed must still pick up timed-out responses - they are just as
+  // eligible for a retry as any other non-completion.
+  describe("listFailedByRun (issue #35 slice 3: includes timeout rows)", () => {
+    it("returns both failed and timeout responses for the run", async () => {
+      const run = await runStore.create({
+        clientId: 1, collectionId: 10, batchId: "batch-h", totalPrompts: 3, triggeredBy: "manual",
+      });
+      const failed = await store.create({ runId: run.id, promptId: 600, platformId: 1, queryText: "q1" });
+      const timedOut = await store.create({ runId: run.id, promptId: 601, platformId: 1, queryText: "q2" });
+      const complete = await store.create({ runId: run.id, promptId: 602, platformId: 1, queryText: "q3" });
+
+      await store.updateResult(failed.id, { status: "failed", errorMessage: "invalid API key" });
+      await store.updateResult(timedOut.id, { status: "timeout", errorMessage: "request timed out after 30000ms" });
+      await store.updateResult(complete.id, { status: "complete" });
+
+      const result = await store.listFailedByRun(run.id);
+      const ids = result.map((r) => r.id).sort();
+      expect(ids).toEqual([failed.id, timedOut.id].sort());
+    });
+  });
 });

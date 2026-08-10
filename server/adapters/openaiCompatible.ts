@@ -17,6 +17,7 @@
  */
 
 import type { PlatformAdapter, RawResponse, RunOptions, CitationRef, TokenUsage, AdapterCapabilities } from "./types";
+import { AdapterTimeoutError } from "./types";
 import { logger } from "../logger";
 
 // issue #3 Epic 1 slice 1: shared by every adapter whose "citations" are
@@ -182,7 +183,7 @@ export class OpenAICompatibleAdapter implements PlatformAdapter {
           // just stopped waiting for it. Retrying would resend the same
           // prompt and risk paying for it again. Fail fast instead, same
           // as a 4xx.
-          throw new Error(`${this.id} request timed out after ${this.timeoutMs}ms`);
+          throw new AdapterTimeoutError(`${this.id} request timed out after ${this.timeoutMs}ms`);
         } else if (err instanceof Error && err.message.includes(`${this.id} API error`)) {
           throw err;
         } else {

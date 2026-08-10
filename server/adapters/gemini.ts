@@ -1,4 +1,5 @@
 import type { PlatformAdapter, RawResponse, RunOptions } from "./types";
+import { AdapterTimeoutError } from "./types";
 import { extractUrlCitations, resolveMaxOutputTokens, resolveTimeoutMs, REGEX_CITATION_CAPABILITIES } from "./openaiCompatible";
 import { logger } from "../logger";
 
@@ -86,7 +87,7 @@ export class GeminiAdapter implements PlatformAdapter {
         if (err instanceof Error && err.name === "AbortError") {
           // F3: don't retry a timeout - the provider may already have
           // billed the aborted request. Fail fast instead.
-          throw new Error(`Gemini request timed out after ${this.timeoutMs}ms`);
+          throw new AdapterTimeoutError(`Gemini request timed out after ${this.timeoutMs}ms`);
         } else if (err instanceof Error && err.message.includes("Gemini API error")) {
           throw err;
         } else {

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { PerplexityAdapter } from "../../../server/adapters/perplexity";
+import { AdapterTimeoutError } from "../../../server/adapters/types";
 
 const MOCK_SUCCESS_RESPONSE = {
   id: "test-id",
@@ -152,6 +153,28 @@ describe("PerplexityAdapter", () => {
     await assertion;
 
     expect(f).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
+
+  // issue #35 slice 3: distinguishable timeout error, not a generic Error.
+  it("throws AdapterTimeoutError (not a generic Error) on timeout", async () => {
+    vi.useFakeTimers();
+    const f = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => {
+          const err = new Error("The operation was aborted");
+          err.name = "AbortError";
+          reject(err);
+        });
+      });
+    });
+    vi.stubGlobal("fetch", f);
+
+    const adapter = new PerplexityAdapter("test-key", { timeoutMs: 100, retryDelayMs: 0 });
+    const runPromise = adapter.run("test prompt");
+    const assertion = expect(runPromise).rejects.toBeInstanceOf(AdapterTimeoutError);
+    await vi.runAllTimersAsync();
+    await assertion;
     vi.useRealTimers();
   });
 });
