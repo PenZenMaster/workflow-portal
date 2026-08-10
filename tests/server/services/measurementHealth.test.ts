@@ -71,6 +71,9 @@ const CLEAN_READINESS: ClientReadiness = {
 // issue #30 slice 3
 const CLEAN_SOURCE_COMPLETENESS = { citationCount: 10, unclassifiedCount: 0 };
 
+// issue #30 slice 5 (parseStatus fold-in, deferred from slice 4)
+const CLEAN_PARSE_SUCCESS = { completedResponseCount: 10, parseFailedCount: 0 };
+
 function comparability(status: ComparabilityResult["status"]): ComparabilityResult {
   return { status, baseRunId: 3, currentRunId: 5, reasons: [] };
 }
@@ -84,6 +87,7 @@ function baseInputs(overrides: Partial<Parameters<typeof computeMeasurementHealt
     collectionDiagnostics: CLEAN_DIAGNOSTICS,
     clientReadiness: CLEAN_READINESS,
     sourceClassificationCompleteness: CLEAN_SOURCE_COMPLETENESS,
+    parseSuccessCompleteness: CLEAN_PARSE_SUCCESS,
     ...overrides,
   };
 }
@@ -254,6 +258,35 @@ describe("computeMeasurementHealth", () => {
     it("skips this input entirely when sourceClassificationCompleteness is null", () => {
       const result = computeMeasurementHealth(baseInputs({ sourceClassificationCompleteness: null }));
       expect(result.sourceClassificationCompleteness).toBeNull();
+      expect(result.status).toBe("healthy");
+    });
+  });
+
+  // issue #30 slice 5: parseStatus fold-in (deferred from slice 4). Only a
+  // permanent parse failure warns - a null parseStatus (not yet parsed, or a
+  // transient retry in flight) is not evidence of a problem, same
+  // warn-only-on-explicit-bad-value precedent as the other three
+  // data-quality signals.
+  describe("parser success", () => {
+    it("is healthy_with_warnings when any complete response has a permanent parse failure", () => {
+      const result = computeMeasurementHealth(
+        baseInputs({ parseSuccessCompleteness: { completedResponseCount: 10, parseFailedCount: 2 } })
+      );
+      expect(result.status).toBe("healthy_with_warnings");
+      expect(result.parseSuccessCompleteness).toEqual({ completedResponseCount: 10, parseFailedCount: 2 });
+      expect(result.reasons.some((r) => r.includes("2") && r.toLowerCase().includes("pars"))).toBe(true);
+    });
+
+    it("does not warn when there are no parse failures", () => {
+      const result = computeMeasurementHealth(
+        baseInputs({ parseSuccessCompleteness: { completedResponseCount: 10, parseFailedCount: 0 } })
+      );
+      expect(result.status).toBe("healthy");
+    });
+
+    it("skips this input entirely when parseSuccessCompleteness is null", () => {
+      const result = computeMeasurementHealth(baseInputs({ parseSuccessCompleteness: null }));
+      expect(result.parseSuccessCompleteness).toBeNull();
       expect(result.status).toBe("healthy");
     });
   });

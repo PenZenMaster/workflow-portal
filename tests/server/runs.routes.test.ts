@@ -24,6 +24,7 @@ const mockResponseStore = {
   updateResult: vi.fn(),
   listFailedByRun: vi.fn(),
   aggregateTokensByClient: vi.fn().mockResolvedValue({ totalInputTokens: 0, totalOutputTokens: 0 }),
+  countParseFailuresForRun: vi.fn().mockResolvedValue({ completedResponseCount: 0, parseFailedCount: 0 }),
 };
 const mockScheduleStore = {
   listByClient: vi.fn(),
@@ -552,6 +553,23 @@ describe("GET /api/runs/:id/measurement-health (issue #30 slice 1)", () => {
     expect(res.body.data.status).toBe("healthy_with_warnings");
     expect(res.body.data.sourceClassificationCompleteness).toEqual({ citationCount: 5, unclassifiedCount: 2 });
     expect(mockSourceDomainStore.countClassificationCompletenessForRun).toHaveBeenCalledWith(5);
+  });
+
+  // issue #30 slice 5: parseStatus fold-in (deferred from slice 4).
+  it("flags healthy_with_warnings when the run has completed responses that permanently failed parsing", async () => {
+    mockRunStore.get.mockResolvedValue(HEALTH_RUN);
+    mockManifestStore.getByRunId.mockResolvedValue(undefined);
+    mockResponseStore.listByRun.mockResolvedValue([]);
+    mockResponseStore.countParseFailuresForRun.mockResolvedValue({
+      completedResponseCount: 10,
+      parseFailedCount: 2,
+    });
+
+    const res = await request(buildApp("analyst")).get("/api/runs/5/measurement-health");
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("healthy_with_warnings");
+    expect(res.body.data.parseSuccessCompleteness).toEqual({ completedResponseCount: 10, parseFailedCount: 2 });
+    expect(mockResponseStore.countParseFailuresForRun).toHaveBeenCalledWith(5);
   });
 });
 

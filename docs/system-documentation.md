@@ -312,7 +312,7 @@ before explaining the numbers. Warnings should be disclosed as
 footnotes on trend charts. Runs without a manifest (pre-v1.40.0, or no
 earlier run) show no banner: comparability is unknown, not asserted.
 
-#### Measurement Health (added v1.66.0, issue #3 Epic 3 slice 1, tracked on issue #30; extended v1.68.0 slice 3)
+#### Measurement Health (added v1.66.0, issue #3 Epic 3 slice 1, tracked on issue #30; extended v1.68.0 slice 3, v1.72.0 slice 5 parseStatus fold-in)
 
 `GET /api/runs/:id/measurement-health` rolls up several data-quality
 signals for one run into a single status: `healthy`,
@@ -345,13 +345,21 @@ Inputs and status derivation (locked 2026-08-01):
   `healthy_with_warnings`. Unlike `sourceDomainStore.listUnreviewed`
   (the global monthly-review queue), this aggregation is scoped to one
   run so it can feed a per-run health signal.
+- **Parser success** (added v1.72.0 slice 5, new
+  `responseStore.countParseFailuresForRun`, scoped to the run's own
+  `status='complete'` responses) — any response with `parseStatus =
+  'failed'` (a permanent parse failure, not a still-null/in-flight-retry
+  state — see the Parser Success section above) is
+  `healthy_with_warnings`. Deferred out of slice 4's scope on purpose;
+  folded in now alongside the slice 5 rollup work since both touch the
+  same per-run assembly code.
 
-Prompt-metadata completeness, brand-alias coverage, and source-
-classification completeness are all setup/data-quality signals, not
-measurement failures — they can only ever produce a warning, never
-`degraded` or `invalid_for_reporting`, matching the warn-don't-block
-precedent used throughout this app (issue #4's diagnostics, source
-classification, etc.).
+Prompt-metadata completeness, brand-alias coverage, source-
+classification completeness, and parser success are all setup/data-
+quality signals, not measurement failures — they can only ever produce a
+warning, never `degraded` or `invalid_for_reporting`, matching the
+warn-don't-block precedent used throughout this app (issue #4's
+diagnostics, source classification, etc.).
 
 Precedence when multiple conditions apply: `invalid_for_reporting` >
 `degraded` > `healthy_with_warnings` > `healthy`. Unlike
@@ -406,11 +414,11 @@ table's own retry/permanent-fail bookkeeping (`JobRunner.tick()`,
 `server/jobs/runner.ts`) is unaffected — `parseStatus` is a denormalized,
 cheaply-joinable mirror of the outcome, not a second source of truth.
 
-**Not yet done, future slice:** folding `parseStatus` into
-`computeMeasurementHealth` as an 8th data-quality signal (parser success
-rate, mirroring how provider failure rate already works) - issue #30's
-own slice-4 scope was schema + handler wiring only, not the health
-rollup fold-in.
+**Folded into measurement health as of v1.72.0** (slice 5): see the
+Measurement Health section above for the derivation rule. Slice 4's own
+scope was schema + handler wiring only; the health rollup fold-in was
+deliberately deferred to slice 5, which was already touching the same
+per-run assembly code for the period-level rollup work.
 
 #### Prompt Generation Provenance (added v1.43.0)
 

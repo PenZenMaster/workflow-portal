@@ -14,7 +14,8 @@
  * their own DB calls upstream, same as manifest/comparability).
  *
  * Status derivation locked 2026-08-01 (plan approval), extended
- * 2026-08-01 slice 2:
+ * 2026-08-01 slice 2, extended again slice 5 (parser success, deferred
+ * from slice 4):
  *   invalid_for_reporting  comparability not_comparable, OR completion
  *                          rate below 50%
  *   degraded               failure rate above 20%
@@ -26,7 +27,11 @@
  *                          brands with zero aliases configured, OR any
  *                          of the run's citations are unknown_or_low_trust
  *                          (unclassified against the source-domain
- *                          registry)
+ *                          registry), OR any of the run's completed
+ *                          responses permanently failed parsing
+ *                          (parseStatus='failed' - a still-null
+ *                          parseStatus is not evidence of a problem, it
+ *                          may just not have run yet or be mid-retry)
  *   healthy                none of the above
  * Precedence when multiple apply: invalid_for_reporting > degraded >
  * healthy_with_warnings > healthy. Prompt-metadata completeness,
@@ -75,6 +80,7 @@ export interface MeasurementHealthInputs {
   collectionDiagnostics: CollectionDiagnostics | null;
   clientReadiness: ClientReadiness | null;
   sourceClassificationCompleteness: { citationCount: number; unclassifiedCount: number } | null;
+  parseSuccessCompleteness: { completedResponseCount: number; parseFailedCount: number } | null;
 }
 
 export interface MeasurementHealthResult {
@@ -87,6 +93,7 @@ export interface MeasurementHealthResult {
   promptMetadataCompleteness: { unclassifiedCount: number; promptCount: number } | null;
   brandAliasCoverage: { competitorBrandCount: number; competitorBrandsWithAliasCount: number } | null;
   sourceClassificationCompleteness: { citationCount: number; unclassifiedCount: number } | null;
+  parseSuccessCompleteness: { completedResponseCount: number; parseFailedCount: number } | null;
   replicateCompletion: { measurable: false };
   modelConsistency: { measurable: false };
   reasons: string[];
@@ -112,7 +119,7 @@ function countUnclassifiedPrompts(diagnostics: CollectionDiagnostics): number {
 }
 
 export function computeMeasurementHealth(inputs: MeasurementHealthInputs): MeasurementHealthResult {
-  const { run, manifest, comparability, completedPlatformIds, collectionDiagnostics, clientReadiness, sourceClassificationCompleteness } = inputs;
+  const { run, manifest, comparability, completedPlatformIds, collectionDiagnostics, clientReadiness, sourceClassificationCompleteness, parseSuccessCompleteness } = inputs;
 
   const completionRate = run.totalPrompts > 0 ? run.completedPrompts / run.totalPrompts : 1;
   const failureRate = run.totalPrompts > 0 ? run.failedPrompts / run.totalPrompts : 0;
@@ -167,6 +174,7 @@ export function computeMeasurementHealth(inputs: MeasurementHealthInputs): Measu
     brandAliasCoverage.competitorBrandCount > 0 &&
     brandAliasCoverage.competitorBrandsWithAliasCount === 0;
   const warningBySourceClassification = (sourceClassificationCompleteness?.unclassifiedCount ?? 0) > 0;
+  const warningByParseFailure = (parseSuccessCompleteness?.parseFailedCount ?? 0) > 0;
 
   if (warningByComparability) {
     reasons.push("comparable to baseline run with non-blocking warnings");
@@ -190,6 +198,11 @@ export function computeMeasurementHealth(inputs: MeasurementHealthInputs): Measu
       `${sourceClassificationCompleteness!.unclassifiedCount} of ${sourceClassificationCompleteness!.citationCount} citation(s) have no source classification (unregistered domain)`
     );
   }
+  if (warningByParseFailure) {
+    reasons.push(
+      `${parseSuccessCompleteness!.parseFailedCount} of ${parseSuccessCompleteness!.completedResponseCount} completed response(s) permanently failed parsing`
+    );
+  }
 
   const status: MeasurementHealthStatus =
     invalidByComparability || invalidByCompletion
@@ -201,7 +214,8 @@ export function computeMeasurementHealth(inputs: MeasurementHealthInputs): Measu
             warningByFailure ||
             warningByMetadataCompleteness ||
             warningByAliasCoverage ||
-            warningBySourceClassification
+            warningBySourceClassification ||
+            warningByParseFailure
           ? "healthy_with_warnings"
           : "healthy";
 
@@ -215,6 +229,7 @@ export function computeMeasurementHealth(inputs: MeasurementHealthInputs): Measu
     promptMetadataCompleteness,
     brandAliasCoverage,
     sourceClassificationCompleteness,
+    parseSuccessCompleteness,
     replicateCompletion: { measurable: false },
     modelConsistency: { measurable: false },
     reasons,

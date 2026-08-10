@@ -306,6 +306,10 @@ export function registerRunRoutes(app: Express): void {
     const sourceClassificationCompleteness =
       await sourceDomainStore.countClassificationCompletenessForRun(id);
 
+    // issue #30 slice 5: parser success (parseStatus fold-in, deferred
+    // from slice 4) - same run-scoped shape as source classification.
+    const parseSuccessCompleteness = await responseStore.countParseFailuresForRun(id);
+
     ok(
       res,
       computeMeasurementHealth({
@@ -316,6 +320,7 @@ export function registerRunRoutes(app: Express): void {
         collectionDiagnostics,
         clientReadiness,
         sourceClassificationCompleteness,
+        parseSuccessCompleteness,
       })
     );
   });

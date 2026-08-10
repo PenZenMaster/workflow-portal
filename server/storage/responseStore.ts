@@ -64,6 +64,11 @@ export interface ClientTokenAggregate {
   byPlatform: TokenUsageByPlatform[];
 }
 
+export interface RunParseFailureCompleteness {
+  completedResponseCount: number;
+  parseFailedCount: number;
+}
+
 export interface IResponseStore {
   listByRun(runId: number): Promise<ResponseRaw[]>;
   listFailedByRun(runId: number): Promise<ResponseRaw[]>;
@@ -99,6 +104,7 @@ export interface IResponseStore {
     id: number,
     result: { parseStatus: ParseStatus; parsedAt: number }
   ): Promise<void>;
+  countParseFailuresForRun(runId: number): Promise<RunParseFailureCompleteness>;
 }
 
 export class ResponseStore implements IResponseStore {
@@ -197,6 +203,38 @@ export class ResponseStore implements IResponseStore {
       .set({ parseStatus: result.parseStatus, parsedAt: result.parsedAt })
       .where(eq(responsesRaw.id, id))
       .run();
+  }
+
+  // issue #30 slice 5: run-scoped parser success aggregation, feeding
+  // computeMeasurementHealth's parseSuccessCompleteness input. Only
+  // status='complete' responses are eligible - parse-response is only
+  // ever enqueued after a successful platform call (see
+  // server/jobs/handlers.ts) - and only an explicit 'failed' parseStatus
+  // counts as a problem; null means not yet parsed or a transient retry
+  // still in flight, not evidence of a permanent failure.
+  async countParseFailuresForRun(runId: number): Promise<RunParseFailureCompleteness> {
+    const completed = this._db
+      .select({ count: sql<number>`count(*)` })
+      .from(responsesRaw)
+      .where(and(eq(responsesRaw.runId, runId), eq(responsesRaw.status, "complete")))
+      .get();
+
+    const failed = this._db
+      .select({ count: sql<number>`count(*)` })
+      .from(responsesRaw)
+      .where(
+        and(
+          eq(responsesRaw.runId, runId),
+          eq(responsesRaw.status, "complete"),
+          eq(responsesRaw.parseStatus, "failed"),
+        ),
+      )
+      .get();
+
+    return {
+      completedResponseCount: completed?.count ?? 0,
+      parseFailedCount: failed?.count ?? 0,
+    };
   }
 
   // Live per-platform token aggregation for one client (issue #2 F1).
