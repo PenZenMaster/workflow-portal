@@ -1,17 +1,21 @@
 ## Resume From
 
 Last session: 2026-08-10
-Branch: main | Version: v1.77.0 | 1335 tests passing | PACKAGED, DEPLOYED to cPanel, and smoke test PASSED
+Branch: main | Version: v1.78.0 | 1342 tests passing | PACKAGED, DEPLOYED to cPanel, and smoke test PASSED
 
-TD-16 CONFIRMED WORKING AGAIN: production stderr.log shows the outgoing
-v1.76.1 worker self-detected and self-evicted cleanly at 22:16:08Z on
-this deploy - zero manual kill needed, second consecutive clean
-transition since the fix shipped in v1.76.0. Production package.json
-confirmed on 1.77.0, no errors since the eviction.
+TD-16 CONFIRMED WORKING AGAIN (3rd consecutive clean transition): v1.77.0
+worker self-evicted cleanly at 22:54:36Z on this deploy. Migration 0027
+(responses_raw.requested_model, nullable text) verified applied cleanly
+against production data.db via direct SQL (`PRAGMA table_info`). Smoke
+test initially reported FAIL by the user (page showed raw unrendered
+index.html source) - investigated: node process was up (PID 2334389,
+booted 22:55, right after the self-eviction), curl confirmed HTTP 200 /
+text/html from the live site. User confirmed moments later it was just a
+slow cold-start load, not a real failure - false alarm, no code issue.
 
 NEXT SESSION (2 items):
-1. Continue Epic 1 (issue #35, Platform Integration Assurance) - slice 1 (capability declarations, citationCapable flag on /metrics/by-platform, N/A rendering in PlatformBreakdownSection) is DONE and deployed as v1.77.0. Next up per the confirmed 5-slice roadmap: slice 2 (requested-vs-actual model tracking).
-2. TD-22's bulk re-parse is still draining in production (2,969 of 3,572 parse-response jobs still queued as of this checkpoint - a persistent background Monitor is tracking it and will fire when fully drained). Once drained: spot-check that no citations remain at root_domain IN ('co.uk','com.au') and close out the TD-22 data note fully.
+1. Continue Epic 1 (issue #35, Platform Integration Assurance) - slices 1 and 2 are DONE and deployed (v1.77.0, v1.78.0). Next up per the confirmed 5-slice roadmap: slice 3 (distinct `timeout` status, replacing the current fold-into-`failed` behavior).
+2. TD-22's bulk re-parse is still draining in production (2,569 of 3,572 parse-response jobs still queued as of this checkpoint - a persistent background Monitor is tracking it and will fire when fully drained). Once drained: spot-check that no citations remain at root_domain IN ('co.uk','com.au') and close out the TD-22 data note fully.
 
 DROPPED FROM ACTIVE TRACKING 2026-08-10 (user decision, revisit later):
 Groq API access. Not a formal backlog item - just a long-carried note
@@ -22,6 +26,45 @@ up later: the adapter code needs no rework, just a working GROQ_API_KEY.
 (Also carried B-20 GBP API quota check, already downgraded to Low
 Priority in the Backlog 2026-08-10 - see Backlog section, no longer a
 per-session carry-over item either.)
+
+Session 2026-08-10 (part 11): v1.78.0 - Epic 1 slice 2 (requested-vs-
+actual model tracking) SHIPPED. Every adapter already knew the model it
+was configured to call (`this.model`), but only the actual model
+reported by the provider was ever persisted
+(`responses_raw.model_variant`) - and that field silently falls back to
+the requested value whenever a provider omits its own model field from
+the response, so a genuine confirmed match was indistinguishable from an
+unconfirmed assumption. New `RawResponse.requestedModel`
+(server/adapters/types.ts), set by all 4 adapter families
+(openaiCompatible/anthropic/gemini/perplexity) alongside the existing
+`modelVariant`, whose fallback behavior is deliberately left unchanged -
+this slice adds a second signal, it does not redefine the first. New
+nullable `responses_raw.requested_model` column (migration 0027), null
+for responses that never reached an adapter call, same precedent as
+`model_variant`. Plumbed through `responseStore` (hydrate/updateResult)
+and the `prompt-run` job handler. `GET /api/runs/:id` already returns
+the full hydrated response objects, so the new field is exposed
+automatically - no route change needed. Explicit non-goal (confirmed on
+issue #35): comparing the two fields for a mismatch and wiring that into
+`computeMeasurementHealth`'s deferred model-consistency check is separate
+future work, not this slice. Also fixed a doc-sync gap found while in
+system-documentation.md: slice 1's citationCapable fix (v1.77.0) had
+left a stale "known gap" note in the Platform-Level Reporting section
+describing the exact thing it had just fixed - closed that out in the
+same change set as documenting slice 2's new Requested vs. Actual Model
+section. TDD throughout, RED confirmed on all 14 new/extended assertions
+before implementing (4 new "captures separately when they differ" tests
+across the OpenAI-compatible/Anthropic/Gemini/Perplexity adapter
+families, 1 new handlers test, 2 new responseStore tests, plus
+requestedModel assertions added to existing adapter tests). Full suite
+(1342 tests), lint, typecheck, db:check all pass. Packaged, tagged
+v1.78.0 (pushed), deployed to cPanel. Migration 0027 verified applied
+cleanly against production data.db. Smoke test: user's first report was
+FAIL (raw unrendered HTML shown) - investigated via SSH (node process
+up, curl confirmed HTTP 200/text/html) before the user confirmed it was
+just a slow cold-start load, not a real issue. Post-deploy TD-16 check:
+outgoing v1.77.0 worker self-evicted cleanly - third consecutive clean
+transition.
 
 Session 2026-08-10 (part 10): v1.77.0 - Epic 1 (issue #35: Platform
 Integration Assurance) opened with a 5-slice roadmap (capability
