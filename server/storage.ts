@@ -19,6 +19,7 @@ import { ScheduleStore } from "./storage/scheduleStore";
 import { MentionStore } from "./storage/mentionStore";
 import { CitationStore } from "./storage/citationStore";
 import { SourceDomainStore } from "./storage/sourceDomainStore";
+import { MeasurementHealthOverrideStore } from "./storage/measurementHealthOverrideStore";
 import { RecommendationStore } from "./storage/recommendationStore";
 import { MetricStore } from "./storage/metricStore";
 import { SentimentStore } from "./storage/sentimentStore";
@@ -297,6 +298,15 @@ export const SCHEMA_SQL = `
     config_hash TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS measurement_health_overrides (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL UNIQUE,
+    status TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    overridden_by_user_id INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS integrations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL,
@@ -539,6 +549,7 @@ export const scheduleStore = new ScheduleStore(db);
 export const mentionStore = new MentionStore(db);
 export const citationStore = new CitationStore(db);
 export const sourceDomainStore = new SourceDomainStore(db);
+export const measurementHealthOverrideStore = new MeasurementHealthOverrideStore(db);
 export const recommendationStore = new RecommendationStore(db);
 export const metricStore = new MetricStore(db);
 export const sentimentStore = new SentimentStore(db);

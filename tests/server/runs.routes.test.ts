@@ -53,6 +53,11 @@ const mockAliasStore = { listByBrand: vi.fn().mockResolvedValue([]) };
 const mockSourceDomainStore = {
   countClassificationCompletenessForRun: vi.fn().mockResolvedValue({ citationCount: 0, unclassifiedCount: 0 }),
 };
+const mockMeasurementHealthOverrideStore = {
+  getByRunId: vi.fn().mockResolvedValue(undefined),
+  set: vi.fn(),
+  clear: vi.fn(),
+};
 
 vi.mock("../../server/storage", () => ({
   storage: { countUsers: vi.fn() },
@@ -68,6 +73,7 @@ vi.mock("../../server/storage", () => ({
   brandStore: mockBrandStore,
   aliasStore: mockAliasStore,
   sourceDomainStore: mockSourceDomainStore,
+  measurementHealthOverrideStore: mockMeasurementHealthOverrideStore,
   manifestStore: mockManifestStore,
   competitorStore: {},
   clientUserStore: {},
@@ -588,6 +594,7 @@ describe("GET /api/clients/:id/measurement-health (issue #30 slice 5)", () => {
     mockBrandStore.listByClient.mockResolvedValue([]);
     mockAliasStore.listByBrand.mockResolvedValue([]);
     mockSourceDomainStore.countClassificationCompletenessForRun.mockResolvedValue({ citationCount: 0, unclassifiedCount: 0 });
+    mockMeasurementHealthOverrideStore.getByRunId.mockResolvedValue(undefined);
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -620,8 +627,8 @@ describe("GET /api/clients/:id/measurement-health (issue #30 slice 5)", () => {
     const res = await request(buildApp("analyst")).get("/api/clients/10/measurement-health");
     expect(res.status).toBe(200);
     expect(res.body.data.runs).toEqual([
-      { runId: 1, status: "healthy", reasons: [] },
-      { runId: 2, status: "invalid_for_reporting", reasons: expect.any(Array) },
+      { runId: 1, status: "healthy", reasons: [], override: null },
+      { runId: 2, status: "invalid_for_reporting", reasons: expect.any(Array), override: null },
     ]);
     expect(res.body.data.rollup).toEqual({
       totalRuns: 2, healthy: 1, healthyWithWarnings: 0, degraded: 0, invalidForReporting: 1,
@@ -649,6 +656,169 @@ describe("GET /api/clients/:id/measurement-health (issue #30 slice 5)", () => {
     expect(res.body.data.period).toBe("90d");
     const [, fromMs, toMs] = mockRunStore.listByClientInRange.mock.calls[0];
     expect(toMs - fromMs).toBe(90 * 86_400_000);
+  });
+
+  // issue #30 slice 5b: the rollup must reflect an active override - both
+  // the effective status counted for that run, and the override details
+  // themselves so the UI can display/manage it.
+  it("reflects an active override's effective status and details in the runs list and rollup counts", async () => {
+    const degradedRun = { ...SAMPLE_RUN, id: 1, totalPrompts: 10, completedPrompts: 10, failedPrompts: 3 };
+    const healthyRun = { ...SAMPLE_RUN, id: 2, totalPrompts: 10, completedPrompts: 10, failedPrompts: 0 };
+    mockRunStore.listByClientInRange.mockResolvedValue([degradedRun, healthyRun]);
+
+    const override = {
+      id: 1,
+      runId: 1,
+      status: "healthy" as const,
+      reason: "confirmed transient provider outage",
+      overriddenByUserId: 1,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    mockMeasurementHealthOverrideStore.getByRunId.mockImplementation(async (runId: number) =>
+      runId === 1 ? override : undefined
+    );
+
+    const res = await request(buildApp("analyst")).get("/api/clients/10/measurement-health");
+    expect(res.status).toBe(200);
+    expect(res.body.data.runs).toEqual([
+      { runId: 1, status: "healthy", reasons: expect.any(Array), override },
+      { runId: 2, status: "healthy", reasons: [], override: null },
+    ]);
+    expect(res.body.data.rollup).toEqual({
+      totalRuns: 2, healthy: 2, healthyWithWarnings: 0, degraded: 0, invalidForReporting: 0,
+    });
+  });
+});
+
+describe("PATCH /api/runs/:id/measurement-health/override (issue #30 slice 5b)", () => {
+  const HEALTH_RUN = { ...SAMPLE_RUN, id: 5, clientId: 10, collectionId: 5, totalPrompts: 10, completedPrompts: 10, failedPrompts: 0 };
+  const OVERRIDE = {
+    id: 1,
+    runId: 5,
+    status: "healthy" as const,
+    reason: "confirmed transient provider outage, not a real data-quality issue",
+    overriddenByUserId: 1,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRunStore.get.mockResolvedValue(HEALTH_RUN);
+    mockManifestStore.getByRunId.mockResolvedValue(undefined);
+    mockResponseStore.listByRun.mockResolvedValue([]);
+    mockResponseStore.countParseFailuresForRun.mockResolvedValue({ completedResponseCount: 0, parseFailedCount: 0 });
+    mockPromptStore.listByCollection.mockResolvedValue([]);
+    mockBrandStore.listByClient.mockResolvedValue([]);
+    mockAliasStore.listByBrand.mockResolvedValue([]);
+    mockSourceDomainStore.countClassificationCompletenessForRun.mockResolvedValue({ citationCount: 0, unclassifiedCount: 0 });
+    mockMeasurementHealthOverrideStore.getByRunId.mockResolvedValue(undefined);
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp())
+      .patch("/api/runs/5/measurement-health/override")
+      .send({ status: "healthy", reason: "reason" });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for a non-admin role (analyst)", async () => {
+    const res = await request(buildApp("analyst"))
+      .patch("/api/runs/5/measurement-health/override")
+      .send({ status: "healthy", reason: "reason" });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 400 VALIDATION_ERROR when reason is missing", async () => {
+    const res = await request(buildApp("agency_admin"))
+      .patch("/api/runs/5/measurement-health/override")
+      .send({ status: "healthy" });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 400 VALIDATION_ERROR when reason is empty/whitespace", async () => {
+    const res = await request(buildApp("agency_admin"))
+      .patch("/api/runs/5/measurement-health/override")
+      .send({ status: "healthy", reason: "   " });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 400 VALIDATION_ERROR for an invalid status value", async () => {
+    const res = await request(buildApp("agency_admin"))
+      .patch("/api/runs/5/measurement-health/override")
+      .send({ status: "not_a_real_status", reason: "reason" });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 404 RUN_NOT_FOUND when the run does not exist", async () => {
+    mockRunStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("agency_admin"))
+      .patch("/api/runs/5/measurement-health/override")
+      .send({ status: "healthy", reason: "reason" });
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("RUN_NOT_FOUND");
+  });
+
+  it("sets the override and returns the recomputed health result reflecting it", async () => {
+    mockMeasurementHealthOverrideStore.set.mockResolvedValue(OVERRIDE);
+    mockMeasurementHealthOverrideStore.getByRunId.mockResolvedValue(OVERRIDE);
+
+    const res = await request(buildApp("agency_admin"))
+      .patch("/api/runs/5/measurement-health/override")
+      .send({ status: "healthy", reason: OVERRIDE.reason });
+
+    expect(res.status).toBe(200);
+    expect(mockMeasurementHealthOverrideStore.set).toHaveBeenCalledWith(5, "healthy", OVERRIDE.reason, 1);
+    expect(res.body.data.override).toEqual(OVERRIDE);
+    expect(res.body.data.status).toBe("healthy"); // clean run, computed status is already healthy here
+  });
+});
+
+describe("DELETE /api/runs/:id/measurement-health/override (issue #30 slice 5b)", () => {
+  const HEALTH_RUN = { ...SAMPLE_RUN, id: 5, clientId: 10, collectionId: 5, totalPrompts: 10, completedPrompts: 10, failedPrompts: 0 };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRunStore.get.mockResolvedValue(HEALTH_RUN);
+    mockManifestStore.getByRunId.mockResolvedValue(undefined);
+    mockResponseStore.listByRun.mockResolvedValue([]);
+    mockResponseStore.countParseFailuresForRun.mockResolvedValue({ completedResponseCount: 0, parseFailedCount: 0 });
+    mockPromptStore.listByCollection.mockResolvedValue([]);
+    mockBrandStore.listByClient.mockResolvedValue([]);
+    mockAliasStore.listByBrand.mockResolvedValue([]);
+    mockSourceDomainStore.countClassificationCompletenessForRun.mockResolvedValue({ citationCount: 0, unclassifiedCount: 0 });
+    mockMeasurementHealthOverrideStore.getByRunId.mockResolvedValue(undefined);
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).delete("/api/runs/5/measurement-health/override");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for a non-admin role (analyst)", async () => {
+    const res = await request(buildApp("analyst")).delete("/api/runs/5/measurement-health/override");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 RUN_NOT_FOUND when the run does not exist", async () => {
+    mockRunStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("agency_admin")).delete("/api/runs/5/measurement-health/override");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("RUN_NOT_FOUND");
+  });
+
+  it("clears the override and returns the recomputed health result with override null", async () => {
+    mockMeasurementHealthOverrideStore.clear.mockResolvedValue(true);
+
+    const res = await request(buildApp("agency_admin")).delete("/api/runs/5/measurement-health/override");
+
+    expect(res.status).toBe(200);
+    expect(mockMeasurementHealthOverrideStore.clear).toHaveBeenCalledWith(5);
+    expect(res.body.data.override).toBeNull();
   });
 });
 

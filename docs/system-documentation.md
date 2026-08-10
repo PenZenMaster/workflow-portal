@@ -312,7 +312,7 @@ before explaining the numbers. Warnings should be disclosed as
 footnotes on trend charts. Runs without a manifest (pre-v1.40.0, or no
 earlier run) show no banner: comparability is unknown, not asserted.
 
-#### Measurement Health (added v1.66.0, issue #3 Epic 3 slice 1, tracked on issue #30; extended v1.68.0 slice 3, v1.72.0 slice 5 parseStatus fold-in, v1.73.0 slice 5 period rollup + UI)
+#### Measurement Health (added v1.66.0, issue #3 Epic 3 slice 1, tracked on issue #30; extended v1.68.0 slice 3, v1.72.0 slice 5 parseStatus fold-in, v1.73.0 slice 5 period rollup + UI, v1.75.0 slice 5b admin override — Epic 3 now fully complete)
 
 `GET /api/runs/:id/measurement-health` rolls up several data-quality
 signals for one run into a single status: `healthy`,
@@ -416,9 +416,33 @@ above Overview, since it answers whether the rest of the page's numbers
 can be trusted) renders "N of M runs healthy" plus a per-run status list;
 it renders nothing when the client has zero runs in the period.
 
-**Not yet done:** admin override (record a reason, override a computed
-status) — deliberately scoped out of this slice as its own follow-up
-(needs a schema migration for the override record), tracked on issue #30.
+**Admin override (added v1.75.0, issue #30 slice 5b — closes out Epic 3's
+originally-scoped roadmap in full)**
+
+`PATCH /api/runs/:id/measurement-health/override` (admin/agency_admin
+only) records an admin correction to a run's computed health status —
+`{ status, reason }`, reason required and non-empty (an explicit
+acceptance criterion of this epic, unlike the sibling
+`response_recommendations.human_status` override which has no reason
+field). One override per run, stored in the new `measurement_health_overrides`
+table (migration 0026) and upserted by
+`measurementHealthOverrideStore.set`. `DELETE` on the same route clears
+it, reverting to the computed status.
+
+The machine-computed `status`/`reasons` from `computeMeasurementHealth`
+are never mutated in place — `applyMeasurementHealthOverride` attaches
+the override as a separate `override` field, and `effectiveHealthStatus`
+resolves `override?.status ?? status` wherever a single "does this count
+as healthy" answer is needed. Both the single-run response and the
+period-rollup's `runs[]`/`rollup` counts use the effective status, so an
+override actually changes what shows up in the "N of M healthy" summary
+— that's the entire point of the feature.
+
+UI: an inline override control on `MeasurementHealthSection`'s per-run
+rows, visible only to super_admin/agency_admin sessions (client-side
+role gate mirrors the server-side one) — a status dropdown + required
+reason field for a new override, or a "Clear override" action for an
+already-overridden run.
 
 #### Parser Success (added v1.70.0, issue #3 Epic 3 slice 4, tracked on issue #30)
 

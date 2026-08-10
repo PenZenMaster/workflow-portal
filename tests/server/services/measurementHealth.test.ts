@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { computeMeasurementHealth, computeHealthRollup } from "../../../server/services/measurementHealth";
+import {
+  computeMeasurementHealth,
+  computeHealthRollup,
+  applyMeasurementHealthOverride,
+  effectiveHealthStatus,
+} from "../../../server/services/measurementHealth";
 import type { MeasurementHealthResult } from "../../../server/services/measurementHealth";
 import type {
   PromptRun,
@@ -7,6 +12,7 @@ import type {
   ComparabilityResult,
   CollectionDiagnostics,
   ClientReadiness,
+  MeasurementHealthOverride,
 } from "@shared/schema";
 
 const RUN: PromptRun = {
@@ -171,6 +177,15 @@ describe("computeMeasurementHealth", () => {
     expect(result.modelConsistency).toEqual({ measurable: false });
   });
 
+  // issue #30 slice 5b: computeMeasurementHealth has no knowledge of
+  // overrides (a DB-backed concept) - it's a pure computation, so this
+  // field is always null here. Callers attach an override afterward via
+  // applyMeasurementHealthOverride.
+  it("always reports override as null - a pure computation has no knowledge of admin overrides", () => {
+    const result = computeMeasurementHealth(baseInputs());
+    expect(result.override).toBeNull();
+  });
+
   // issue #30 slice 2: prompt-metadata completeness + brand-alias coverage.
   describe("prompt metadata completeness", () => {
     it("is healthy_with_warnings when any prompt is missing intentType or brandContext classification", () => {
@@ -293,28 +308,80 @@ describe("computeMeasurementHealth", () => {
   });
 });
 
+function resultWithStatus(
+  status: MeasurementHealthResult["status"],
+  runId: number,
+  override: MeasurementHealthOverride | null = null
+): MeasurementHealthResult {
+  return {
+    status,
+    runId,
+    completionRate: 1,
+    failureRate: 0,
+    platformCoverage: null,
+    comparability: null,
+    promptMetadataCompleteness: null,
+    brandAliasCoverage: null,
+    sourceClassificationCompleteness: null,
+    parseSuccessCompleteness: null,
+    override,
+    replicateCompletion: { measurable: false },
+    modelConsistency: { measurable: false },
+    reasons: [],
+  };
+}
+
+function makeOverride(status: MeasurementHealthOverride["status"]): MeasurementHealthOverride {
+  return {
+    id: 1,
+    runId: 1,
+    status,
+    reason: "confirmed with the client - transient provider outage",
+    overriddenByUserId: 7,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+}
+
+// issue #30 slice 5b: admin override (record a reason, override a
+// computed status). The machine-computed status/reasons are never
+// mutated in place - same COALESCE precedent as the recommendation
+// human-status override.
+describe("applyMeasurementHealthOverride", () => {
+  it("attaches the override without changing the computed status or reasons", () => {
+    const computed = computeMeasurementHealth(baseInputs());
+    const override = makeOverride("degraded");
+
+    const result = applyMeasurementHealthOverride(computed, override);
+
+    expect(result.status).toBe(computed.status);
+    expect(result.reasons).toEqual(computed.reasons);
+    expect(result.override).toEqual(override);
+  });
+
+  it("passes through a null override unchanged", () => {
+    const computed = computeMeasurementHealth(baseInputs());
+    const result = applyMeasurementHealthOverride(computed, null);
+    expect(result.override).toBeNull();
+  });
+});
+
+describe("effectiveHealthStatus", () => {
+  it("returns the override status when one is present", () => {
+    const result = resultWithStatus("degraded", 1, makeOverride("healthy_with_warnings"));
+    expect(effectiveHealthStatus(result)).toBe("healthy_with_warnings");
+  });
+
+  it("returns the computed status when there is no override", () => {
+    const result = resultWithStatus("healthy", 1, null);
+    expect(effectiveHealthStatus(result)).toBe("healthy");
+  });
+});
+
 // issue #30 slice 5: period-level rollup - summarizes N runs' already-
 // computed health results into "N of M runs healthy/degraded/invalid",
 // same status precedence order as the per-run derivation itself.
 describe("computeHealthRollup", () => {
-  function resultWithStatus(status: MeasurementHealthResult["status"], runId: number): MeasurementHealthResult {
-    return {
-      status,
-      runId,
-      completionRate: 1,
-      failureRate: 0,
-      platformCoverage: null,
-      comparability: null,
-      promptMetadataCompleteness: null,
-      brandAliasCoverage: null,
-      sourceClassificationCompleteness: null,
-      parseSuccessCompleteness: null,
-      replicateCompletion: { measurable: false },
-      modelConsistency: { measurable: false },
-      reasons: [],
-    };
-  }
-
   it("counts each status bucket across the given results", () => {
     const rollup = computeHealthRollup([
       resultWithStatus("healthy", 1),
@@ -337,6 +404,23 @@ describe("computeHealthRollup", () => {
     expect(rollup).toEqual({
       totalRuns: 0,
       healthy: 0,
+      healthyWithWarnings: 0,
+      degraded: 0,
+      invalidForReporting: 0,
+    });
+  });
+
+  // issue #30 slice 5b: the whole point of an override is to change what
+  // counts toward "N of M healthy" - the rollup must bucket by effective
+  // status (override, when present), not the raw computed status.
+  it("buckets by effective status - an override moves a run out of its computed bucket", () => {
+    const rollup = computeHealthRollup([
+      resultWithStatus("degraded", 1, makeOverride("healthy")),
+      resultWithStatus("healthy", 2),
+    ]);
+    expect(rollup).toEqual({
+      totalRuns: 2,
+      healthy: 2,
       healthyWithWarnings: 0,
       degraded: 0,
       invalidForReporting: 0,

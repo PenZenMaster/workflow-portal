@@ -60,21 +60,22 @@
  *   client-scoped period rollup endpoint
  */
 
-import type {
-  PromptRun,
-  MeasurementRunManifest,
-  ComparabilityResult,
-  CollectionDiagnostics,
-  ClientReadiness,
+import {
+  MEASUREMENT_HEALTH_STATUSES,
+  type PromptRun,
+  type MeasurementRunManifest,
+  type ComparabilityResult,
+  type CollectionDiagnostics,
+  type ClientReadiness,
+  type MeasurementHealthStatus,
+  type MeasurementHealthOverride,
 } from "@shared/schema";
 
-export const MEASUREMENT_HEALTH_STATUSES = [
-  "healthy",
-  "healthy_with_warnings",
-  "degraded",
-  "invalid_for_reporting",
-] as const;
-export type MeasurementHealthStatus = (typeof MEASUREMENT_HEALTH_STATUSES)[number];
+// Re-exported for existing consumers (server/routes/runs.ts, this file's
+// own tests) - source of truth now lives in shared/schema.ts so it can
+// also back the override table/validation schema (issue #30 slice 5b).
+export { MEASUREMENT_HEALTH_STATUSES };
+export type { MeasurementHealthStatus };
 
 export interface MeasurementHealthInputs {
   run: PromptRun;
@@ -98,6 +99,10 @@ export interface MeasurementHealthResult {
   brandAliasCoverage: { competitorBrandCount: number; competitorBrandsWithAliasCount: number } | null;
   sourceClassificationCompleteness: { citationCount: number; unclassifiedCount: number } | null;
   parseSuccessCompleteness: { completedResponseCount: number; parseFailedCount: number } | null;
+  // issue #30 slice 5b: always null from computeMeasurementHealth itself
+  // (a pure computation has no knowledge of admin overrides) - attached
+  // afterward by applyMeasurementHealthOverride.
+  override: MeasurementHealthOverride | null;
   replicateCompletion: { measurable: false };
   modelConsistency: { measurable: false };
   reasons: string[];
@@ -234,10 +239,31 @@ export function computeMeasurementHealth(inputs: MeasurementHealthInputs): Measu
     brandAliasCoverage,
     sourceClassificationCompleteness,
     parseSuccessCompleteness,
+    override: null,
     replicateCompletion: { measurable: false },
     modelConsistency: { measurable: false },
     reasons,
   };
+}
+
+// issue #30 slice 5b: admin override (record a reason, override a
+// computed status). Attaches the override without touching the
+// machine-computed status/reasons - same COALESCE precedent as the
+// response_recommendations human-status override. Pure function; the DB
+// lookup for the override itself happens in the assembly layer
+// (server/routes/runs.ts), same division of responsibility as every
+// other input to computeMeasurementHealth.
+export function applyMeasurementHealthOverride(
+  result: MeasurementHealthResult,
+  override: MeasurementHealthOverride | null
+): MeasurementHealthResult {
+  return { ...result, override };
+}
+
+// The status that should actually count for reporting/rollup purposes:
+// the override when present, otherwise the computed status.
+export function effectiveHealthStatus(result: MeasurementHealthResult): MeasurementHealthStatus {
+  return result.override?.status ?? result.status;
 }
 
 // issue #30 slice 5: period-level rollup - summarizes N already-computed
@@ -261,9 +287,12 @@ export function computeHealthRollup(results: MeasurementHealthResult[]): Measure
     invalidForReporting: 0,
   };
   for (const result of results) {
-    if (result.status === "healthy") rollup.healthy++;
-    else if (result.status === "healthy_with_warnings") rollup.healthyWithWarnings++;
-    else if (result.status === "degraded") rollup.degraded++;
+    // issue #30 slice 5b: bucket by effective status - an admin override
+    // exists specifically to change what counts toward this rollup.
+    const status = effectiveHealthStatus(result);
+    if (status === "healthy") rollup.healthy++;
+    else if (status === "healthy_with_warnings") rollup.healthyWithWarnings++;
+    else if (status === "degraded") rollup.degraded++;
     else rollup.invalidForReporting++;
   }
   return rollup;

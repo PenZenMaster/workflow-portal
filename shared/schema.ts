@@ -1111,6 +1111,51 @@ export type ComparabilityResult = {
   reasons: ComparabilityReason[];
 };
 
+// Measurement health status (issue #3 Epic 3, tracked on issue #30).
+// Computed live per run, not persisted, by computeMeasurementHealth
+// (server/services/measurementHealth.ts) - source of truth for the enum
+// lives here so it can also back the override table/schema below.
+export const MEASUREMENT_HEALTH_STATUSES = [
+  "healthy",
+  "healthy_with_warnings",
+  "degraded",
+  "invalid_for_reporting",
+] as const;
+export type MeasurementHealthStatus = (typeof MEASUREMENT_HEALTH_STATUSES)[number];
+
+// Admin override (issue #30 slice 5b). Unlike the response_recommendations
+// human-status override, a reason is required here - an explicit
+// acceptance criterion of this epic ("Admin override requires a recorded
+// reason"), not just a nice-to-have. One override per run: PATCH upserts,
+// DELETE clears back to the computed status. The machine-computed status
+// from computeMeasurementHealth is never overwritten in place - callers
+// resolve "effective status" as override?.status ?? computed status, same
+// COALESCE precedent as the recommendation override.
+export const measurementHealthOverrideSchema = z.object({
+  status: z.enum(MEASUREMENT_HEALTH_STATUSES),
+  reason: z.string().trim().min(1, "A reason is required"),
+});
+
+export const measurementHealthOverrides = sqliteTable("measurement_health_overrides", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runId: integer("run_id").notNull().unique(),
+  status: text("status").notNull(),
+  reason: text("reason").notNull(),
+  overriddenByUserId: integer("overridden_by_user_id").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export type MeasurementHealthOverride = {
+  id: number;
+  runId: number;
+  status: MeasurementHealthStatus;
+  reason: string;
+  overriddenByUserId: number;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export const promptRuns = sqliteTable("prompt_runs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   clientId: integer("client_id").notNull(),

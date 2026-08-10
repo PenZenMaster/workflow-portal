@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
+import { AuthProvider } from "@/lib/auth";
 import ClientDetail from "./ClientDetail";
 
 vi.mock("wouter", async () => {
@@ -11,6 +12,12 @@ vi.mock("wouter", async () => {
 });
 
 const API_RESPONSES: Record<string, unknown> = {
+  "/api/auth/status": {
+    needsSetup: false,
+    authenticated: true,
+    user: { id: 1, username: "admin", email: null, role: "analyst" },
+    config: { perplexityConfigured: true, googleOAuthConfigured: false, configuredPlatforms: ["perplexity"] },
+  },
   "/api/clients/4": { data: { id: 4, name: "Acme", primaryDomain: "acme.com", geographies: [] } },
   "/api/clients/4/brands": { data: [] },
   "/api/clients/4/readiness": {
@@ -69,7 +76,9 @@ function renderClientDetail() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ClientDetail />
+      <AuthProvider>
+        <ClientDetail />
+      </AuthProvider>
     </QueryClientProvider>,
   );
 }

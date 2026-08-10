@@ -45,9 +45,10 @@ import {
   promptMethodologyStore,
   manifestStore,
   sourceDomainStore,
+  measurementHealthOverrideStore,
 } from "../storage";
 import { JOB_STATUSES } from "@shared/schema";
-import { triggerRunSchema, insertScheduleSchema } from "@shared/schema";
+import { triggerRunSchema, insertScheduleSchema, measurementHealthOverrideSchema } from "@shared/schema";
 import { requireAuth, requireRole } from "../auth";
 import { ok, created, noContent } from "../response";
 import { AppError } from "../errors";
@@ -56,7 +57,12 @@ import { computeNextFireAt } from "../services/scheduling";
 import { buildPromptTokenContext, expandPromptText, type ClientBrandContext } from "../services/promptTokens";
 import { assembleManifest } from "../services/manifest";
 import { compareManifests } from "../services/comparability";
-import { computeMeasurementHealth, computeHealthRollup } from "../services/measurementHealth";
+import {
+  computeMeasurementHealth,
+  computeHealthRollup,
+  applyMeasurementHealthOverride,
+  effectiveHealthStatus,
+} from "../services/measurementHealth";
 import type { MeasurementHealthResult } from "../services/measurementHealth";
 import type { PromptRun, MeasurementRunManifest } from "@shared/schema";
 import { computeCollectionDiagnostics } from "../services/collectionDiagnostics";
@@ -106,7 +112,7 @@ async function assembleRunHealth(
     await sourceDomainStore.countClassificationCompletenessForRun(run.id);
   const parseSuccessCompleteness = await responseStore.countParseFailuresForRun(run.id);
 
-  return computeMeasurementHealth({
+  const computed = computeMeasurementHealth({
     run,
     manifest: manifest ?? null,
     comparability,
@@ -116,6 +122,11 @@ async function assembleRunHealth(
     sourceClassificationCompleteness,
     parseSuccessCompleteness,
   });
+
+  // issue #30 slice 5b: attach any admin override - never mutates the
+  // computed status/reasons, see applyMeasurementHealthOverride.
+  const override = await measurementHealthOverrideStore.getByRunId(run.id);
+  return applyMeasurementHealthOverride(computed, override ?? null);
 }
 
 function healthPeriodToRangeMs(period: string): { fromMs: number; toMs: number } {
@@ -334,6 +345,49 @@ export function registerRunRoutes(app: Express): void {
     ok(res, await assembleRunHealth(run, explicitBaseline));
   });
 
+  // issue #30 slice 5b: admin override - record a reason, override a
+  // computed health status. Admin-only (ADMIN_ROLES), unlike the
+  // analyst-level recommendation human-override, since this corrects
+  // trust-signal reporting rather than a single classification.
+  app.patch(
+    "/api/runs/:id/measurement-health/override",
+    requireRole(...ADMIN_ROLES),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+
+      const parsed = measurementHealthOverrideSchema.safeParse(req.body);
+      if (!parsed.success)
+        throw new AppError(400, "Validation failed", "VALIDATION_ERROR");
+
+      const run = await runStore.get(id);
+      if (!run) throw new AppError(404, "Run not found", "RUN_NOT_FOUND");
+
+      await measurementHealthOverrideStore.set(
+        id,
+        parsed.data.status,
+        parsed.data.reason,
+        req.session.user!.id
+      );
+      ok(res, await assembleRunHealth(run));
+    }
+  );
+
+  app.delete(
+    "/api/runs/:id/measurement-health/override",
+    requireRole(...ADMIN_ROLES),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+
+      const run = await runStore.get(id);
+      if (!run) throw new AppError(404, "Run not found", "RUN_NOT_FOUND");
+
+      await measurementHealthOverrideStore.clear(id);
+      ok(res, await assembleRunHealth(run));
+    }
+  );
+
   // issue #30 slice 5: period-level rollup - "N of M runs healthy/
   // degraded/invalid" across a client's runs in a date window, using the
   // same per-run assembly as the single-run endpoint above (always with
@@ -354,7 +408,15 @@ export function registerRunRoutes(app: Express): void {
       period,
       fromMs,
       toMs,
-      runs: results.map((r) => ({ runId: r.runId, status: r.status, reasons: r.reasons })),
+      // issue #30 slice 5b: report effective status (override, when
+      // present) - this is what should count as "healthy" to a reader -
+      // plus the override record itself so the UI can show/manage it.
+      runs: results.map((r) => ({
+        runId: r.runId,
+        status: effectiveHealthStatus(r),
+        reasons: r.reasons,
+        override: r.override,
+      })),
       rollup: computeHealthRollup(results),
     });
   });
