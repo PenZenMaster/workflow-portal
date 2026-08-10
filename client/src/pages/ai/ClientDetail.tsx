@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Trash2, ChevronDown, ChevronRight, X, AlertCircle } from "lucide-react";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { MeasurementHealthSection } from "./sections/MeasurementHealthSection";
 import { OverviewSection } from "./sections/OverviewSection";
 import { PlatformBreakdownSection } from "./sections/PlatformBreakdownSection";
 import { MentionsSection } from "./sections/MentionsSection";
@@ -377,6 +378,7 @@ export default function ClientDetail() {
 
       {/* AI Visibility reports — all on one page */}
       <div className="mt-12 space-y-12">
+        <MeasurementHealthSection clientId={id!} />
         <OverviewSection clientId={id!} />
         <PlatformBreakdownSection clientId={id!} />
         <MentionsSection clientId={id!} />

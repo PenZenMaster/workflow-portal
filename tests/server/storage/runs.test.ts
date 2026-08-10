@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { eq } from "drizzle-orm";
-import { platforms, responsesRaw } from "@shared/schema";
+import { platforms, responsesRaw, promptRuns } from "@shared/schema";
 import { SCHEMA_SQL } from "../../../server/storage";
 import { RunStore } from "../../../server/storage/runStore";
 import { ResponseStore } from "../../../server/storage/responseStore";
@@ -32,9 +32,13 @@ const SAMPLE_RESPONSE_DATA = {
 
 // ---------------------------------------------------------------------------
 describe("RunStore", () => {
+  let db: ReturnType<typeof makeDb>;
   let store: RunStore;
 
-  beforeEach(() => { store = new RunStore(makeDb()); });
+  beforeEach(() => {
+    db = makeDb();
+    store = new RunStore(db);
+  });
 
   it("creates a run and returns it", async () => {
     const run = await store.create(SAMPLE_RUN_DATA);
@@ -50,6 +54,33 @@ describe("RunStore", () => {
     await store.create({ ...SAMPLE_RUN_DATA, clientId: 99 }); // different client
     const list = await store.listByClient(1);
     expect(list).toHaveLength(1);
+  });
+
+  // issue #30 slice 5: period-level rollup needs runs bounded by a date
+  // range rather than just the most-recent-N of listByClient.
+  describe("listByClientInRange", () => {
+    it("lists runs for a client created within the given range", async () => {
+      const inRange = await store.create(SAMPLE_RUN_DATA);
+      const list = await store.listByClientInRange(1, Date.now() - 1000, Date.now() + 1000);
+      expect(list.map((r) => r.id)).toEqual([inRange.id]);
+    });
+
+    it("excludes runs created outside the range", async () => {
+      const run = await store.create(SAMPLE_RUN_DATA);
+      db.update(promptRuns)
+        .set({ createdAt: Date.parse("2020-01-01T00:00:00Z") })
+        .where(eq(promptRuns.id, run.id))
+        .run();
+
+      const list = await store.listByClientInRange(1, Date.now() - 1000, Date.now() + 1000);
+      expect(list).toHaveLength(0);
+    });
+
+    it("excludes runs belonging to other clients", async () => {
+      await store.create({ ...SAMPLE_RUN_DATA, clientId: 99 });
+      const list = await store.listByClientInRange(1, Date.now() - 1000, Date.now() + 1000);
+      expect(list).toHaveLength(0);
+    });
   });
 
   it("gets a run by id", async () => {

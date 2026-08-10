@@ -15,7 +15,7 @@
 
 import { promptRuns } from "@shared/schema";
 import type { PromptRun } from "@shared/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -42,6 +42,7 @@ function hydrate(row: Row): PromptRun {
 
 export interface IRunStore {
   listByClient(clientId: number, limit?: number): Promise<PromptRun[]>;
+  listByClientInRange(clientId: number, fromMs: number, toMs: number): Promise<PromptRun[]>;
   get(id: number): Promise<PromptRun | undefined>;
   create(data: {
     clientId: number;
@@ -67,6 +68,24 @@ export class RunStore implements IRunStore {
       .where(eq(promptRuns.clientId, clientId))
       .orderBy(desc(promptRuns.createdAt))
       .limit(limit)
+      .all();
+    return rows.map(hydrate);
+  }
+
+  // issue #30 slice 5: period-level health rollup needs runs bounded by
+  // a date range, not just the most-recent-N of listByClient.
+  async listByClientInRange(clientId: number, fromMs: number, toMs: number): Promise<PromptRun[]> {
+    const rows = this._db
+      .select()
+      .from(promptRuns)
+      .where(
+        and(
+          eq(promptRuns.clientId, clientId),
+          gte(promptRuns.createdAt, fromMs),
+          lte(promptRuns.createdAt, toMs),
+        ),
+      )
+      .orderBy(desc(promptRuns.createdAt))
       .all();
     return rows.map(hydrate);
   }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { computeMeasurementHealth } from "../../../server/services/measurementHealth";
+import { computeMeasurementHealth, computeHealthRollup } from "../../../server/services/measurementHealth";
+import type { MeasurementHealthResult } from "../../../server/services/measurementHealth";
 import type {
   PromptRun,
   MeasurementRunManifest,
@@ -288,6 +289,57 @@ describe("computeMeasurementHealth", () => {
       const result = computeMeasurementHealth(baseInputs({ parseSuccessCompleteness: null }));
       expect(result.parseSuccessCompleteness).toBeNull();
       expect(result.status).toBe("healthy");
+    });
+  });
+});
+
+// issue #30 slice 5: period-level rollup - summarizes N runs' already-
+// computed health results into "N of M runs healthy/degraded/invalid",
+// same status precedence order as the per-run derivation itself.
+describe("computeHealthRollup", () => {
+  function resultWithStatus(status: MeasurementHealthResult["status"], runId: number): MeasurementHealthResult {
+    return {
+      status,
+      runId,
+      completionRate: 1,
+      failureRate: 0,
+      platformCoverage: null,
+      comparability: null,
+      promptMetadataCompleteness: null,
+      brandAliasCoverage: null,
+      sourceClassificationCompleteness: null,
+      parseSuccessCompleteness: null,
+      replicateCompletion: { measurable: false },
+      modelConsistency: { measurable: false },
+      reasons: [],
+    };
+  }
+
+  it("counts each status bucket across the given results", () => {
+    const rollup = computeHealthRollup([
+      resultWithStatus("healthy", 1),
+      resultWithStatus("healthy", 2),
+      resultWithStatus("healthy_with_warnings", 3),
+      resultWithStatus("degraded", 4),
+      resultWithStatus("invalid_for_reporting", 5),
+    ]);
+    expect(rollup).toEqual({
+      totalRuns: 5,
+      healthy: 2,
+      healthyWithWarnings: 1,
+      degraded: 1,
+      invalidForReporting: 1,
+    });
+  });
+
+  it("returns all-zero counts for an empty run list", () => {
+    const rollup = computeHealthRollup([]);
+    expect(rollup).toEqual({
+      totalRuns: 0,
+      healthy: 0,
+      healthyWithWarnings: 0,
+      degraded: 0,
+      invalidForReporting: 0,
     });
   });
 });

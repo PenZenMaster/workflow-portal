@@ -54,6 +54,10 @@
  *   in (reuses sourceDomainStore.countClassificationCompletenessForRun,
  *   scoped to the run) - same warn-only precedent as the other two
  *   data-quality signals
+ * - v1.03 issue #30 slice 5: parseStatus folded in as an 8th signal
+ *   (deferred from slice 4); new computeHealthRollup pure function
+ *   summarizes N per-run results into "N of M runs healthy" for the
+ *   client-scoped period rollup endpoint
  */
 
 import type {
@@ -234,4 +238,33 @@ export function computeMeasurementHealth(inputs: MeasurementHealthInputs): Measu
     modelConsistency: { measurable: false },
     reasons,
   };
+}
+
+// issue #30 slice 5: period-level rollup - summarizes N already-computed
+// per-run health results into "N of M runs healthy/degraded/invalid",
+// for the client-scoped GET /api/clients/:id/measurement-health route.
+// Pure function, same character as computeMeasurementHealth itself.
+export interface MeasurementHealthRollup {
+  totalRuns: number;
+  healthy: number;
+  healthyWithWarnings: number;
+  degraded: number;
+  invalidForReporting: number;
+}
+
+export function computeHealthRollup(results: MeasurementHealthResult[]): MeasurementHealthRollup {
+  const rollup: MeasurementHealthRollup = {
+    totalRuns: results.length,
+    healthy: 0,
+    healthyWithWarnings: 0,
+    degraded: 0,
+    invalidForReporting: 0,
+  };
+  for (const result of results) {
+    if (result.status === "healthy") rollup.healthy++;
+    else if (result.status === "healthy_with_warnings") rollup.healthyWithWarnings++;
+    else if (result.status === "degraded") rollup.degraded++;
+    else rollup.invalidForReporting++;
+  }
+  return rollup;
 }

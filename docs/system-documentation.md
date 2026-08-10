@@ -312,7 +312,7 @@ before explaining the numbers. Warnings should be disclosed as
 footnotes on trend charts. Runs without a manifest (pre-v1.40.0, or no
 earlier run) show no banner: comparability is unknown, not asserted.
 
-#### Measurement Health (added v1.66.0, issue #3 Epic 3 slice 1, tracked on issue #30; extended v1.68.0 slice 3, v1.72.0 slice 5 parseStatus fold-in)
+#### Measurement Health (added v1.66.0, issue #3 Epic 3 slice 1, tracked on issue #30; extended v1.68.0 slice 3, v1.72.0 slice 5 parseStatus fold-in, v1.73.0 slice 5 period rollup + UI)
 
 `GET /api/runs/:id/measurement-health` rolls up several data-quality
 signals for one run into a single status: `healthy`,
@@ -383,6 +383,42 @@ numbers should be treated with caution or excluded from trend reading
 entirely — the underlying data collection had a real problem (high
 failure rate, low completion, or a config change that breaks
 comparability), not just normal measurement noise.
+
+**Period-level rollup (added v1.73.0, issue #30 slice 5)**
+
+`GET /api/clients/:id/measurement-health?period=30d|90d|365d` answers
+"how many of this client's runs in the period can I trust?" without
+opening every run individually. It lists the client's runs in the
+window (`runStore.listByClientInRange`, bounded by `promptRuns.createdAt`
+in epoch ms) and computes each one's health via the same
+`assembleRunHealth` helper the single-run endpoint uses — always with
+default nearest-previous-run baseline resolution, since the single-run
+endpoint's `?against=` override doesn't make sense across many runs at
+once. Response shape:
+
+```json
+{
+  "period": "30d",
+  "fromMs": 1234567890000,
+  "toMs": 1234567890000,
+  "runs": [{ "runId": 5, "status": "healthy", "reasons": [] }],
+  "rollup": { "totalRuns": 1, "healthy": 1, "healthyWithWarnings": 0, "degraded": 0, "invalidForReporting": 0 }
+}
+```
+
+`computeHealthRollup` (pure function, `server/services/measurementHealth.ts`)
+just counts each status bucket across the already-computed per-run
+results — no new derivation logic, same status categories as the
+per-run endpoint.
+
+The client detail page's new `MeasurementHealthSection` (mounted first,
+above Overview, since it answers whether the rest of the page's numbers
+can be trusted) renders "N of M runs healthy" plus a per-run status list;
+it renders nothing when the client has zero runs in the period.
+
+**Not yet done:** admin override (record a reason, override a computed
+status) — deliberately scoped out of this slice as its own follow-up
+(needs a schema migration for the override record), tracked on issue #30.
 
 #### Parser Success (added v1.70.0, issue #3 Epic 3 slice 4, tracked on issue #30)
 

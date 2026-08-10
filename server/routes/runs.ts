@@ -25,6 +25,9 @@
  * - v1.04 issue #30 slice 3: measurement-health also folds in source-
  *   classification completeness (reuses sourceDomainStore.
  *   countClassificationCompletenessForRun, scoped to the run)
+ * - v1.05 issue #30 slice 5: per-run health assembly extracted into
+ *   assembleRunHealth, reused by the new client-scoped
+ *   GET .../measurement-health period rollup ("N of M runs healthy")
  */
 
 import type { Express } from "express";
@@ -53,7 +56,9 @@ import { computeNextFireAt } from "../services/scheduling";
 import { buildPromptTokenContext, expandPromptText, type ClientBrandContext } from "../services/promptTokens";
 import { assembleManifest } from "../services/manifest";
 import { compareManifests } from "../services/comparability";
-import { computeMeasurementHealth } from "../services/measurementHealth";
+import { computeMeasurementHealth, computeHealthRollup } from "../services/measurementHealth";
+import type { MeasurementHealthResult } from "../services/measurementHealth";
+import type { PromptRun, MeasurementRunManifest } from "@shared/schema";
 import { computeCollectionDiagnostics } from "../services/collectionDiagnostics";
 import { computeReadiness } from "../services/clientReadiness";
 import { SCORING_VERSION } from "../services/scoring";
@@ -64,6 +69,60 @@ import { logger } from "../logger";
 
 const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
 const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
+
+// issue #30 slice 5: shared per-run health assembly, reused by both the
+// single-run endpoint and the client-scoped period rollup below.
+// explicitBaseline lets the single-run endpoint's ?against= override
+// pass its own resolved manifest in; when omitted, the default
+// nearest-previous-run baseline is resolved here - the only mode the
+// period rollup ever uses, since ?against= doesn't make sense across
+// many runs at once.
+async function assembleRunHealth(
+  run: PromptRun,
+  explicitBaseline?: MeasurementRunManifest | null
+): Promise<MeasurementHealthResult> {
+  const manifest = await manifestStore.getByRunId(run.id);
+
+  const baseline = manifest
+    ? explicitBaseline !== undefined
+      ? explicitBaseline
+      : await manifestStore.getPreviousManifest(manifest.clientId, manifest.collectionId, manifest.runId)
+    : null;
+
+  const comparability = manifest && baseline ? compareManifests(baseline, manifest) : null;
+
+  const responses = await responseStore.listByRun(run.id);
+  const completedPlatformIds = Array.from(
+    new Set(responses.filter((r) => r.status === "complete").map((r) => r.platformId))
+  );
+
+  const collection = await promptCollectionStore.get(run.collectionId);
+  const collectionDiagnostics = collection
+    ? computeCollectionDiagnostics(await promptStore.listByCollection(run.collectionId), collection.panelType)
+    : null;
+  const clientReadiness = await computeReadiness(run.clientId);
+
+  const sourceClassificationCompleteness =
+    await sourceDomainStore.countClassificationCompletenessForRun(run.id);
+  const parseSuccessCompleteness = await responseStore.countParseFailuresForRun(run.id);
+
+  return computeMeasurementHealth({
+    run,
+    manifest: manifest ?? null,
+    comparability,
+    completedPlatformIds,
+    collectionDiagnostics,
+    clientReadiness,
+    sourceClassificationCompleteness,
+    parseSuccessCompleteness,
+  });
+}
+
+function healthPeriodToRangeMs(period: string): { fromMs: number; toMs: number } {
+  const days = period === "90d" ? 90 : period === "365d" ? 365 : 30;
+  const toMs = Date.now();
+  return { fromMs: toMs - days * 86_400_000, toMs };
+}
 
 export function registerRunRoutes(app: Express): void {
   // --- Run trigger ---------------------------------------------------------
@@ -262,67 +321,42 @@ export function registerRunRoutes(app: Express): void {
     const run = await runStore.get(id);
     if (!run) throw new AppError(404, "Run not found", "RUN_NOT_FOUND");
 
-    const manifest = await manifestStore.getByRunId(id);
-
-    let baseline = null;
-    if (manifest) {
-      if (req.query.against !== undefined) {
-        const againstId = Number(req.query.against);
-        if (Number.isNaN(againstId))
-          throw new AppError(400, "Invalid against run id", "INVALID_AGAINST");
-        baseline = await manifestStore.getByRunId(againstId);
-        if (!baseline)
-          throw new AppError(404, "Baseline manifest not found", "BASELINE_MANIFEST_NOT_FOUND");
-      } else {
-        baseline = await manifestStore.getPreviousManifest(
-          manifest.clientId,
-          manifest.collectionId,
-          manifest.runId
-        );
-      }
+    let explicitBaseline: MeasurementRunManifest | null | undefined;
+    if (req.query.against !== undefined) {
+      const againstId = Number(req.query.against);
+      if (Number.isNaN(againstId))
+        throw new AppError(400, "Invalid against run id", "INVALID_AGAINST");
+      explicitBaseline = await manifestStore.getByRunId(againstId);
+      if (!explicitBaseline)
+        throw new AppError(404, "Baseline manifest not found", "BASELINE_MANIFEST_NOT_FOUND");
     }
 
-    const comparability = manifest && baseline ? compareManifests(baseline, manifest) : null;
+    ok(res, await assembleRunHealth(run, explicitBaseline));
+  });
 
-    const responses = await responseStore.listByRun(id);
-    const completedPlatformIds = Array.from(
-      new Set(responses.filter((r) => r.status === "complete").map((r) => r.platformId))
-    );
+  // issue #30 slice 5: period-level rollup - "N of M runs healthy/
+  // degraded/invalid" across a client's runs in a date window, using the
+  // same per-run assembly as the single-run endpoint above (always with
+  // default baseline resolution - ?against= doesn't make sense across
+  // many runs at once).
+  app.get("/api/clients/:id/measurement-health", requireAuth, async (req, res) => {
+    const clientId = Number(req.params.id);
+    if (Number.isNaN(clientId))
+      throw new AppError(400, "Invalid client id", "INVALID_ID");
 
-    // issue #30 slice 2: prompt-metadata completeness reuses
-    // computeCollectionDiagnostics (issue #4 Phase 3 item J); brand-alias
-    // coverage reuses computeReadiness (B-15) - both already compute
-    // exactly what this needs, scoped to this run's collection/client.
-    const collection = await promptCollectionStore.get(run.collectionId);
-    const collectionDiagnostics = collection
-      ? computeCollectionDiagnostics(await promptStore.listByCollection(run.collectionId), collection.panelType)
-      : null;
-    const clientReadiness = await computeReadiness(run.clientId);
+    const period = typeof req.query.period === "string" ? req.query.period : "30d";
+    const { fromMs, toMs } = healthPeriodToRangeMs(period);
 
-    // issue #30 slice 3: source-classification completeness, scoped to
-    // this run's own citations (sourceDomainStore's other read,
-    // listUnreviewed, is deliberately global/unscoped for the monthly
-    // review queue instead).
-    const sourceClassificationCompleteness =
-      await sourceDomainStore.countClassificationCompletenessForRun(id);
+    const runs = await runStore.listByClientInRange(clientId, fromMs, toMs);
+    const results = await Promise.all(runs.map((run) => assembleRunHealth(run)));
 
-    // issue #30 slice 5: parser success (parseStatus fold-in, deferred
-    // from slice 4) - same run-scoped shape as source classification.
-    const parseSuccessCompleteness = await responseStore.countParseFailuresForRun(id);
-
-    ok(
-      res,
-      computeMeasurementHealth({
-        run,
-        manifest: manifest ?? null,
-        comparability,
-        completedPlatformIds,
-        collectionDiagnostics,
-        clientReadiness,
-        sourceClassificationCompleteness,
-        parseSuccessCompleteness,
-      })
-    );
+    ok(res, {
+      period,
+      fromMs,
+      toMs,
+      runs: results.map((r) => ({ runId: r.runId, status: r.status, reasons: r.reasons })),
+      rollup: computeHealthRollup(results),
+    });
   });
 
   app.get(

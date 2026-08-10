@@ -10,6 +10,7 @@ afterEach(() => {
 
 const mockRunStore = {
   listByClient: vi.fn(),
+  listByClientInRange: vi.fn().mockResolvedValue([]),
   get: vi.fn(),
   create: vi.fn(),
   updateStatus: vi.fn(),
@@ -570,6 +571,84 @@ describe("GET /api/runs/:id/measurement-health (issue #30 slice 1)", () => {
     expect(res.body.data.status).toBe("healthy_with_warnings");
     expect(res.body.data.parseSuccessCompleteness).toEqual({ completedResponseCount: 10, parseFailedCount: 2 });
     expect(mockResponseStore.countParseFailuresForRun).toHaveBeenCalledWith(5);
+  });
+});
+
+describe("GET /api/clients/:id/measurement-health (issue #30 slice 5)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Full reset to clean defaults - earlier describe blocks in this file
+    // set custom resolved values on these same shared mocks, and
+    // vi.clearAllMocks() only clears call history, not implementations.
+    mockManifestStore.getByRunId.mockResolvedValue(undefined);
+    mockManifestStore.getPreviousManifest.mockResolvedValue(undefined);
+    mockResponseStore.listByRun.mockResolvedValue([]);
+    mockResponseStore.countParseFailuresForRun.mockResolvedValue({ completedResponseCount: 0, parseFailedCount: 0 });
+    mockPromptStore.listByCollection.mockResolvedValue([]);
+    mockBrandStore.listByClient.mockResolvedValue([]);
+    mockAliasStore.listByBrand.mockResolvedValue([]);
+    mockSourceDomainStore.countClassificationCompletenessForRun.mockResolvedValue({ citationCount: 0, unclassifiedCount: 0 });
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/clients/10/measurement-health");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 for a non-numeric client id", async () => {
+    const res = await request(buildApp("analyst")).get("/api/clients/abc/measurement-health");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_ID");
+  });
+
+  it("returns an empty rollup when the client has no runs in the period", async () => {
+    mockRunStore.listByClientInRange.mockResolvedValue([]);
+
+    const res = await request(buildApp("analyst")).get("/api/clients/10/measurement-health");
+    expect(res.status).toBe(200);
+    expect(res.body.data.runs).toEqual([]);
+    expect(res.body.data.rollup).toEqual({
+      totalRuns: 0, healthy: 0, healthyWithWarnings: 0, degraded: 0, invalidForReporting: 0,
+    });
+  });
+
+  it("rolls up multiple runs into per-status counts", async () => {
+    const healthyRun = { ...SAMPLE_RUN, id: 1, totalPrompts: 10, completedPrompts: 10, failedPrompts: 0 };
+    const invalidRun = { ...SAMPLE_RUN, id: 2, totalPrompts: 10, completedPrompts: 3, failedPrompts: 0 };
+    mockRunStore.listByClientInRange.mockResolvedValue([healthyRun, invalidRun]);
+
+    const res = await request(buildApp("analyst")).get("/api/clients/10/measurement-health");
+    expect(res.status).toBe(200);
+    expect(res.body.data.runs).toEqual([
+      { runId: 1, status: "healthy", reasons: [] },
+      { runId: 2, status: "invalid_for_reporting", reasons: expect.any(Array) },
+    ]);
+    expect(res.body.data.rollup).toEqual({
+      totalRuns: 2, healthy: 1, healthyWithWarnings: 0, degraded: 0, invalidForReporting: 1,
+    });
+  });
+
+  it("defaults to a 30-day period and passes the range to listByClientInRange", async () => {
+    mockRunStore.listByClientInRange.mockResolvedValue([]);
+    const before = Date.now();
+
+    const res = await request(buildApp("analyst")).get("/api/clients/10/measurement-health");
+    expect(res.status).toBe(200);
+    expect(res.body.data.period).toBe("30d");
+    expect(mockRunStore.listByClientInRange).toHaveBeenCalledWith(10, expect.any(Number), expect.any(Number));
+    const [, fromMs, toMs] = mockRunStore.listByClientInRange.mock.calls[0];
+    expect(toMs).toBeGreaterThanOrEqual(before);
+    expect(toMs - fromMs).toBe(30 * 86_400_000);
+  });
+
+  it("respects an explicit ?period=90d", async () => {
+    mockRunStore.listByClientInRange.mockResolvedValue([]);
+
+    const res = await request(buildApp("analyst")).get("/api/clients/10/measurement-health?period=90d");
+    expect(res.status).toBe(200);
+    expect(res.body.data.period).toBe("90d");
+    const [, fromMs, toMs] = mockRunStore.listByClientInRange.mock.calls[0];
+    expect(toMs - fromMs).toBe(90 * 86_400_000);
   });
 });
 
