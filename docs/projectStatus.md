@@ -1,12 +1,23 @@
 ## Resume From
 
 Last session: 2026-08-09
-Branch: main | Version: v1.71.0 | 1249 tests passing | PACKAGED, DEPLOYED to cPanel (no schema migration), and SMOKE-TESTED clean
+Branch: main | Version: v1.71.1 | 1249 tests passing | PACKAGED, DEPLOYED to cPanel (no schema migration), and SMOKE-TESTED clean
 
 NEXT SESSION (3 items):
-1. Decide next issue #30 slice - slice 5 (period-level rollup + UI, admin override) is the last item on the originally-scoped roadmap; folding `parseStatus` into `computeMeasurementHealth` as an 8th data-quality signal was explicitly deferred out of slice 4's scope and could go either before or as part of slice 5. Untouched this session - v1.71.0 was an out-of-roadmap feature.
+1. Decide next issue #30 slice - slice 5 (period-level rollup + UI, admin override) is the last item on the originally-scoped roadmap; folding `parseStatus` into `computeMeasurementHealth` as an 8th data-quality signal was explicitly deferred out of slice 4's scope and could go either before or as part of slice 5. Untouched this session - v1.71.0/v1.71.1 were both out-of-roadmap.
 2. User-owned, carried over: B-20 GBP API quota check, Groq API access.
 3. If the two `/guides/*.html` pages ever need updating, remember they're static output baked from Claude Artifacts content (embedded fonts as base64, no build step reads them) - edit and republish the source artifacts, then re-copy into `client/public/guides/`, not a live-editable template in this repo.
+
+Session 2026-08-09 (part 2): v1.71.1 - Dependabot alert #27 (high,
+GHSA-2v37-7h3g-55p8) triaged and fixed same day as v1.71.0 shipped.
+`nanoid` (transitive via `postcss`) had a DoS bug - `customAlphabet`/
+`customRandom` loop indefinitely when passed a generator size of 0.
+`npm audit fix` bumped it 3.3.16 -> 3.3.18, within postcss's own existing
+semver range, so only `package-lock.json` changed (no `package.json`
+edits). `npm audit` now reports 0 vulnerabilities. Full suite (1249
+tests), lint, typecheck all re-verified green. Packaged, tagged v1.71.1
+(pushed), deployed to cPanel, smoke-tested clean by the user. Post-deploy
+TD-16 check via SSH: single worker present, no stale duplicate.
 
 Session 2026-08-09: shipped v1.71.0 - a new public, no-login "What We Do"
 section, outside the roadmap (issue #30/#29/#3 untouched this session).
