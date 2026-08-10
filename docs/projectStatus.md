@@ -1,19 +1,44 @@
 ## Resume From
 
 Last session: 2026-08-10
-Branch: main | Version: v1.76.0 | 1315 tests passing | PACKAGED, DEPLOYED to cPanel, and smoke test PASSED
+Branch: main | Version: v1.76.1 | 1318 tests passing | PACKAGED and pushed - NOT YET deployed. No schema migration.
 
-IMPORTANT CONTEXT FOR NEXT SESSION'S DEPLOY: v1.76.0's TD-16 self-eviction
-fix cannot be verified by this deploy's TD-16 check (came back clean, but
-that's not proof - the worker it replaced was v1.75.0, which doesn't have
-the self-eviction code either way). The real test is the NEXT deploy after
-this one: that deploy's TD-16 check should find a v1.76.0 worker has
-already self-evicted on its own, with zero manual kill needed. Watch for
-that specifically and update the TD-16 register entry with the result.
+IMPORTANT CONTEXT CARRIED FROM v1.76.0: that version's TD-16 self-eviction
+fix still isn't proven yet. Whatever deploy comes after v1.76.1 lands is
+the one to watch - its TD-16 check should find the outgoing worker (any
+v1.76.x) already self-evicted on its own, zero manual kill needed. Update
+the TD-16 register entry with the result once observed.
 
-NEXT SESSION (2 items):
-1. Issue #30 / Epic 3 (Measurement Health) is FULLY COMPLETE as of v1.75.0 (closed on GitHub 2026-08-10) - no further work scoped under it. Next backlog item needs a fresh decision with the user (candidates from the 2026-08-10 issue #3 gap-analysis: Epic 1 Platform Integration Assurance - the flagged-but-skipped prerequisite - or Epic 7 Client Executive Report, next in the original Phase 2 sequencing). Remaining open tech debt if nothing else grabs priority: TD-22 (root-domain extraction not public-suffix-aware) or TD-23 (recommendation overrides don't survive a re-parse).
+NEXT SESSION FIRST: deploy v1.76.1, smoke test (spot-check a citation
+under a multi-part-suffix domain if one exists, e.g. a .co.uk source, gets
+a sane rootDomain instead of collapsing to "co.uk"), TD-16 SSH check per
+the note above.
+
+NEXT SESSION (2 items after deploy):
+1. Issue #30 / Epic 3 (Measurement Health) is FULLY COMPLETE as of v1.75.0 (closed on GitHub 2026-08-10) - no further work scoped under it. Next candidates: pick an epic (Epic 1 Platform Integration Assurance, or Epic 7 Client Executive Report) or continue tech debt - only TD-23 (recommendation overrides don't survive a re-parse) remains open at Medium severity; TD-12/TD-13 are Low. Also still open, not yet actioned: TD-22's data note - 35 already-affected production citations need a re-parse to pick up corrected root domains, a per-run action from the portal UI, user's call on timing.
 2. User-owned, still open: Groq API access. (B-20 GBP API quota check downgraded to Low Priority in the Backlog 2026-08-10 - see Backlog section, no longer a per-session carry-over item.)
+
+Session 2026-08-10 (part 8): v1.76.1 - TD-22 fixed (root-domain
+extraction wasn't public-suffix-aware: anything.co.uk collapsed to
+"co.uk", grouping 35 production citations under one meaningless,
+unclassifiable root). User chose the `psl` package (actual Mozilla
+Public Suffix List) over a hand-curated suffix table, which would keep
+missing suffixes on future citations from unpredictable domains.
+`extractRootDomain` (server/services/parser.ts) now calls `psl.get()`,
+covering both citation root-domain extraction and brand-ownership
+matching (both flow through this one function). Real packaging snag
+found and fixed: psl ships its own types but its package.json "exports"
+map has no "types" condition, so this project's `moduleResolution:
+"bundler"` couldn't resolve them - fixed with a minimal local ambient
+declaration (server/types.d.ts) rather than the deprecated `@types/psl`
+stub, which didn't actually resolve it either (confirmed by testing
+it - it errored the same way before being removed in favor of the
+shim). TDD throughout, RED confirmed before implementing. Full suite
+(1318 tests), lint, typecheck all pass. No schema migration. Packaged,
+tagged v1.76.1 (pushed) - NOT YET deployed or smoke-tested this
+session. Data note (not yet done, user's call on timing): the 35
+already-affected production citations need a re-parse to get corrected
+root domains.
 
 Session 2026-08-10 (part 7): v1.76.0 deployed to cPanel and smoke test
 passed by the user. Post-deploy TD-16 check: single fresh worker
