@@ -1,20 +1,24 @@
 ## Resume From
 
 Last session: 2026-08-10
-Branch: main | Version: v1.76.0 | 1315 tests passing | PACKAGED and pushed - NOT YET deployed. No schema migration, but a production process-lifecycle change (see below).
+Branch: main | Version: v1.76.0 | 1315 tests passing | PACKAGED, DEPLOYED to cPanel, and smoke test PASSED
 
-NEXT SESSION FIRST: deploy v1.76.0, smoke test, then TD-16 SSH check as
-usual. This version's actual proof is deferred one cycle further: the
-job runner now self-evicts a stale worker instead of needing a manual
-kill, but that only matters for whatever worker is running WHEN THE
-NEXT deploy after this one lands. So this deploy's TD-16 check should
-look normal (verify no crash/regression); the real signal is the deploy
-AFTER this one - if that TD-16 check comes back clean with zero manual
-kills needed, TD-16 is genuinely fixed.
+IMPORTANT CONTEXT FOR NEXT SESSION'S DEPLOY: v1.76.0's TD-16 self-eviction
+fix cannot be verified by this deploy's TD-16 check (came back clean, but
+that's not proof - the worker it replaced was v1.75.0, which doesn't have
+the self-eviction code either way). The real test is the NEXT deploy after
+this one: that deploy's TD-16 check should find a v1.76.0 worker has
+already self-evicted on its own, with zero manual kill needed. Watch for
+that specifically and update the TD-16 register entry with the result.
 
-NEXT SESSION (2 items after deploy):
+NEXT SESSION (2 items):
 1. Issue #30 / Epic 3 (Measurement Health) is FULLY COMPLETE as of v1.75.0 (closed on GitHub 2026-08-10) - no further work scoped under it. Next backlog item needs a fresh decision with the user (candidates from the 2026-08-10 issue #3 gap-analysis: Epic 1 Platform Integration Assurance - the flagged-but-skipped prerequisite - or Epic 7 Client Executive Report, next in the original Phase 2 sequencing). Remaining open tech debt if nothing else grabs priority: TD-22 (root-domain extraction not public-suffix-aware) or TD-23 (recommendation overrides don't survive a re-parse).
 2. User-owned, still open: Groq API access. (B-20 GBP API quota check downgraded to Low Priority in the Backlog 2026-08-10 - see Backlog section, no longer a per-session carry-over item.)
+
+Session 2026-08-10 (part 7): v1.76.0 deployed to cPanel and smoke test
+passed by the user. Post-deploy TD-16 check: single fresh worker
+(~6min old), no stale process - but see the note above, this deploy
+does not yet prove the self-eviction fix itself.
 
 Session 2026-08-10 (part 6): v1.76.0 - TD-16 (stale lsnode workers
 surviving a cPanel restart) actually fixed, not just worked around.
