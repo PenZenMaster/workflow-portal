@@ -1,17 +1,19 @@
 ## Resume From
 
 Last session: 2026-08-10
-Branch: main | Version: v1.75.0 | 1307 tests passing | PACKAGED and pushed - NOT YET deployed. Includes a SCHEMA MIGRATION (0026).
+Branch: main | Version: v1.75.0 | 1307 tests passing | PACKAGED, DEPLOYED to cPanel, migration 0026 verified applied, and QA PASSED
 
-NEXT SESSION FIRST: deploy v1.75.0, then verify migration 0026 applied
-cleanly against prod data.db (measurement_health_overrides table exists,
-correct columns) via direct SQL before calling it done - same discipline
-as every prior schema-migration deploy this project. Then TD-16 SSH
-check and update this doc.
-
-NEXT SESSION (2 items after deploy):
+NEXT SESSION (2 items):
 1. Issue #30 / Epic 3 (Measurement Health) is now FULLY COMPLETE as of v1.75.0 (all 5 slices + the admin override) - no further work scoped under it. Next backlog item needs a fresh decision with the user (candidates surfaced in the 2026-08-10 issue #3 gap-analysis: Epic 1 Platform Integration Assurance - the flagged-but-skipped prerequisite - or Epic 7 Client Executive Report, next in the original Phase 2 sequencing).
 2. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+
+Session 2026-08-10 (part 5): v1.75.0 deployed to cPanel and QA passed by
+the user. Migration 0026 verified applied cleanly against prod data.db
+via direct SQL over SSH - measurement_health_overrides table and its
+run_id unique index both match the locally-generated migration exactly.
+Post-deploy TD-16 check: one stale worker found (PID 1309018, ~28min
+old, predating this deploy) alongside the fresh one - killed, confirmed
+clean.
 
 Session 2026-08-10 (part 4): v1.75.0 shipped issue #30 slice 5b (admin
 override: record a reason, override a computed measurement-health
