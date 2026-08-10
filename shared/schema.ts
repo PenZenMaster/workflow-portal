@@ -1185,6 +1185,11 @@ export const responsesRaw = sqliteTable("responses_raw", {
   responseText: text("response_text"),
   responseSummaryBlock: text("response_summary_block"),
   modelVariant: text("model_variant"),
+  // issue #35 slice 2: the model the adapter was configured to call, null
+  // for rows that failed before reaching the adapter (e.g. no adapter
+  // configured for the platform) - same nullability precedent as
+  // modelVariant.
+  requestedModel: text("requested_model"),
   latencyMs: integer("latency_ms"),
   rawPayload: text("raw_payload"), // JSON
   errorMessage: text("error_message"),
@@ -1270,6 +1275,7 @@ export type ResponseRaw = {
   responseText: string | null;
   responseSummaryBlock: string | null;
   modelVariant: string | null;
+  requestedModel: string | null;
   latencyMs: number | null;
   rawPayload: unknown;
   errorMessage: string | null;

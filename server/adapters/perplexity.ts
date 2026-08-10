@@ -120,6 +120,7 @@ export class PerplexityAdapter implements PlatformAdapter {
             text,
             summaryBlock: null,
             citations,
+            requestedModel: this.model,
             modelVariant: data.model ?? this.model,
             latencyMs: Date.now() - startMs,
             rawPayload: data,

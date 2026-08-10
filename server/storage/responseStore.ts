@@ -39,6 +39,7 @@ function hydrate(row: Row): ResponseRaw {
     responseText: row.responseText,
     responseSummaryBlock: row.responseSummaryBlock,
     modelVariant: row.modelVariant,
+    requestedModel: row.requestedModel,
     latencyMs: row.latencyMs,
     rawPayload: row.rawPayload ? JSON.parse(row.rawPayload) : null,
     errorMessage: row.errorMessage,
@@ -93,6 +94,7 @@ export interface IResponseStore {
       responseText?: string | null;
       responseSummaryBlock?: string | null;
       modelVariant?: string | null;
+      requestedModel?: string | null;
       latencyMs?: number | null;
       rawPayload?: unknown;
       errorMessage?: string | null;
@@ -169,6 +171,7 @@ export class ResponseStore implements IResponseStore {
       responseText?: string | null;
       responseSummaryBlock?: string | null;
       modelVariant?: string | null;
+      requestedModel?: string | null;
       latencyMs?: number | null;
       rawPayload?: unknown;
       errorMessage?: string | null;
@@ -183,6 +186,7 @@ export class ResponseStore implements IResponseStore {
         responseText: result.responseText ?? null,
         responseSummaryBlock: result.responseSummaryBlock ?? null,
         modelVariant: result.modelVariant ?? null,
+        requestedModel: result.requestedModel ?? null,
         latencyMs: result.latencyMs ?? null,
         rawPayload:
           result.rawPayload != null ? JSON.stringify(result.rawPayload) : null,

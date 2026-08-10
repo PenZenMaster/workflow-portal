@@ -1,0 +1,1 @@
+ALTER TABLE `responses_raw` ADD `requested_model` text;

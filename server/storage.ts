@@ -270,6 +270,7 @@ export const SCHEMA_SQL = `
     response_text TEXT,
     response_summary_block TEXT,
     model_variant TEXT,
+    requested_model TEXT,
     latency_ms INTEGER,
     raw_payload TEXT,
     error_message TEXT,

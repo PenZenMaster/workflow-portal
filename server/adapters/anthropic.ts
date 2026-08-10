@@ -76,6 +76,7 @@ export class AnthropicAdapter implements PlatformAdapter {
             text,
             summaryBlock: null,
             citations: extractUrlCitations(text),
+            requestedModel: this.model,
             modelVariant: data.model ?? this.model,
             latencyMs: Date.now() - startMs,
             rawPayload: data,

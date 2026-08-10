@@ -137,6 +137,7 @@ describe("prompt-run handler", () => {
         summaryBlock: null,
         citations: [],
         modelVariant: "gpt-4o",
+        requestedModel: "gpt-4o",
         latencyMs: 1000,
         rawPayload: {},
         usage: { inputTokens: 42, outputTokens: 117 },
@@ -151,6 +152,38 @@ describe("prompt-run handler", () => {
     expect(mockResponseStore.updateResult).toHaveBeenCalledWith(
       200,
       expect.objectContaining({ status: "complete", inputTokens: 42, outputTokens: 117 })
+    );
+  });
+
+  // issue #35 slice 2: requestedModel from the adapter's RawResponse must
+  // reach responseStore.updateResult alongside the existing modelVariant.
+  it("persists requestedModel from the adapter result", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 201, runId: 99, platformId: 1, queryText: "Best SEO agency", geo: null, locale: null,
+    });
+    mockPlatformStore.get.mockResolvedValue({ id: 1, slug: "openai" });
+    mockGetAdapter.mockReturnValue({
+      id: "openai",
+      run: vi.fn().mockResolvedValue({
+        text: "Acme SEO is the top agency.",
+        summaryBlock: null,
+        citations: [],
+        modelVariant: "gpt-4o-2026-01-01",
+        requestedModel: "gpt-4o-mini",
+        latencyMs: 1000,
+        rawPayload: {},
+        usage: { inputTokens: 42, outputTokens: 117 },
+      }),
+    });
+    mockRunStore.get.mockResolvedValue({ id: 99, completedPrompts: 1, failedPrompts: 0, totalPrompts: 2 });
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+    await handlers.get("prompt-run")!({ responseId: 201 }, 1);
+
+    expect(mockResponseStore.updateResult).toHaveBeenCalledWith(
+      201,
+      expect.objectContaining({ modelVariant: "gpt-4o-2026-01-01", requestedModel: "gpt-4o-mini" })
     );
   });
 });

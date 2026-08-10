@@ -49,6 +49,11 @@ export interface RawResponse {
   text: string;
   summaryBlock: string | null;
   citations: CitationRef[];
+  // the model this adapter instance was actually configured to call
+  // (issue #35 slice 2) - captured independent of modelVariant, which is
+  // whatever the provider reports back and silently falls back to this
+  // same requested value when a provider omits it from its response.
+  requestedModel: string;
   modelVariant: string | null;
   latencyMs: number;
   rawPayload: unknown;

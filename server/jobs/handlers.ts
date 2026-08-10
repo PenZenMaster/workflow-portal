@@ -118,6 +118,7 @@ export function registerJobHandlers(runner: JobRunner): void {
             responseText: result.text,
             responseSummaryBlock: result.summaryBlock,
             modelVariant: result.modelVariant,
+            requestedModel: result.requestedModel,
             latencyMs: result.latencyMs,
             rawPayload: result.rawPayload,
             inputTokens: result.usage?.inputTokens ?? null,

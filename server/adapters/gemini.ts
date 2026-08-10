@@ -67,6 +67,7 @@ export class GeminiAdapter implements PlatformAdapter {
             text,
             summaryBlock: null,
             citations: extractUrlCitations(text),
+            requestedModel: this.model,
             modelVariant: data.modelVersion ?? this.model,
             latencyMs: Date.now() - startMs,
             rawPayload: data,

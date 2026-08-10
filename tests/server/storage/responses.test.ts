@@ -101,4 +101,36 @@ describe("ResponseStore", () => {
       expect(result).toEqual({ completedResponseCount: 1, parseFailedCount: 0 });
     });
   });
+
+  // issue #35 slice 2: requestedModel (the model the adapter was configured
+  // to call) is stored alongside the existing modelVariant (the actual
+  // model the provider reported) - the two are captured independently.
+  describe("requestedModel", () => {
+    it("stores and retrieves requestedModel alongside modelVariant", async () => {
+      const run = await runStore.create({
+        clientId: 1, collectionId: 10, batchId: "batch-f", totalPrompts: 1, triggeredBy: "manual",
+      });
+      const resp = await store.create({ runId: run.id, promptId: 500, platformId: 1, queryText: "q" });
+      await store.updateResult(resp.id, {
+        status: "complete",
+        requestedModel: "gpt-4o-mini",
+        modelVariant: "gpt-4o-2026-01-01",
+      });
+
+      const fetched = await store.get(resp.id);
+      expect(fetched?.requestedModel).toBe("gpt-4o-mini");
+      expect(fetched?.modelVariant).toBe("gpt-4o-2026-01-01");
+    });
+
+    it("defaults requestedModel to null when not provided (e.g. a response that failed before an adapter call)", async () => {
+      const run = await runStore.create({
+        clientId: 1, collectionId: 10, batchId: "batch-g", totalPrompts: 1, triggeredBy: "manual",
+      });
+      const resp = await store.create({ runId: run.id, promptId: 501, platformId: 1, queryText: "q" });
+      await store.updateResult(resp.id, { status: "failed", errorMessage: "no adapter configured" });
+
+      const fetched = await store.get(resp.id);
+      expect(fetched?.requestedModel).toBeNull();
+    });
+  });
 });

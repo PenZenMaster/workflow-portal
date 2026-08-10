@@ -245,6 +245,33 @@ economy) with a 4096-token cap for long JSON output, overridable per
 provider with `UTILITY_MODEL_<SLUG>` env vars. Measurement runs are
 unaffected — surface fidelity is methodology, not waste.
 
+#### Requested vs. Actual Model (added v1.78.0, issue #35 Epic 1 slice 2)
+
+Every adapter is configured with a model to call (`this.model`, resolved
+from a constructor `opts.model` override or the adapter's own default),
+but until this slice only the *actual* model was persisted
+(`responses_raw.model_variant`, populated from whatever the provider's
+response echoes back — `data.model` for OpenAI-style/Anthropic/
+Perplexity, `data.modelVersion` for Gemini). If a provider omitted that
+field, `modelVariant` silently fell back to the requested model, which
+reads identically to a genuine match — there was no way to tell "the
+provider confirmed it used the requested model" from "the provider
+didn't say and we assumed."
+
+`responses_raw.requested_model` now captures the requested value
+independently, set by every adapter's `run()` alongside `modelVariant`
+(`RawResponse.requestedModel`, `server/adapters/types.ts`). `modelVariant`'s
+existing fallback-to-requested behavior is unchanged — this slice adds a
+second signal, it does not change what `modelVariant` means. Both fields
+are `null` for responses that failed before reaching an adapter call
+(e.g. no adapter configured for the platform).
+
+**Not in this slice (explicit non-goal, issue #35):** comparing the two
+fields to flag a genuine mismatch, and wiring that comparison into
+`computeMeasurementHealth`'s deferred model-consistency check
+(issue #30) — this slice only adds the data; using it for a health
+signal is separate future work if picked back up.
+
 #### Canonical-Name Mention Matching (added v1.41.0, PARSER_VERSION 1.1)
 
 Mention detection previously matched only `brand_aliases` rows, so a
@@ -841,12 +868,24 @@ performance and sample size visible side by side, and makes explicit
 which of the two legitimate ways of combining them was used for any
 given number shown in a report.
 
-**Known gap (deferred to a later Epic 5 slice, tracked on issue #29):**
-this endpoint does not yet distinguish "platform doesn't support
-citations at all" from "platform supports citations but wasn't cited" —
-that requires the per-provider capability declarations proposed in issue
-#3 Epic 1, which don't exist yet. Until then, a platform lacking citation
-support will show a low Citation Frequency rather than "not applicable."
+**Gap closed (v1.77.0, issue #35 Epic 1 slice 1):** this endpoint now
+distinguishes "platform doesn't support citations at all" from "platform
+supports citations but wasn't cited," using the per-provider capability
+declarations added in `server/adapters/*` (`AdapterCapabilities.
+citationSupport` — true only for Perplexity's native structured
+citations field; every other adapter's "citations" are
+`extractUrlCitations()` regexing URLs out of free response text, not
+real provider support). Each platform row in the `platforms` array
+carries a `citationCapable` boolean; when false, the four
+citation-specific fields (`citationFrequency`, `clientOwnedCitationRate`,
+`competitorOwnedCitationRate`, `trustedThirdPartySupportRate`) are `null`
+instead of a misleading percentage, both per-platform and in the
+`platformBalanced` rollup (which averages those fields only over
+citation-capable platforms, `null` when zero are capable).
+`responseWeighted` is deliberately left pooling every platform's raw
+counts unchanged, preserving its documented equality with
+`/metrics/overview`. Client UI (`PlatformBreakdownSection.tsx`) renders
+`-` for the null fields rather than "0.0%" or "NaN%".
 
 **Slice 2:** `GET /api/clients/:id/metrics/non-branded/by-platform`
 applies the identical per-platform + dual-rollup pattern to the

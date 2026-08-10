@@ -184,7 +184,20 @@ describe("OpenAIAdapter", () => {
     const r = await a.run("Best SEO agency");
     expect(r.text).toContain("Acme SEO");
     expect(r.modelVariant).toBe("gpt-4o");
+    expect(r.requestedModel).toBe("gpt-4o");
     expect(r.citations.some((c) => c.url.includes("acme.com"))).toBe(true);
+  });
+
+  // issue #35 slice 2: requestedModel is the model this adapter instance was
+  // configured to call, captured independent of whatever the provider
+  // echoes back - proves the two fields are genuinely separate signals, not
+  // just aliases of each other.
+  it("captures the requested model separately from a different actual model returned by the provider", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: { ...OPENAI_BODY, model: "gpt-4o-2026-01-01" } }]));
+    const a = new OpenAIAdapter("sk-test", { model: "gpt-4o-mini", retryDelayMs: 0 });
+    const r = await a.run("Best SEO agency");
+    expect(r.requestedModel).toBe("gpt-4o-mini");
+    expect(r.modelVariant).toBe("gpt-4o-2026-01-01");
   });
 
   it("retries on 429 and succeeds", async () => {
@@ -229,7 +242,16 @@ describe("AnthropicAdapter", () => {
     const a = new AnthropicAdapter("sk-ant-test", { retryDelayMs: 0 });
     const r = await a.run("Best SEO agency");
     expect(r.text).toContain("Acme SEO");
+    expect(r.requestedModel).toBe("claude-opus-4-5");
     expect(r.citations.some((c) => c.url.includes("acme.com"))).toBe(true);
+  });
+
+  it("captures the requested model separately from a different actual model returned by the provider", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: { ...ANTHROPIC_BODY, model: "claude-opus-4-5-20260201" } }]));
+    const a = new AnthropicAdapter("sk-ant-test", { model: "claude-haiku-4-5", retryDelayMs: 0 });
+    const r = await a.run("Best SEO agency");
+    expect(r.requestedModel).toBe("claude-haiku-4-5");
+    expect(r.modelVariant).toBe("claude-opus-4-5-20260201");
   });
 
   it("retries on 429 and succeeds", async () => {
@@ -259,7 +281,16 @@ describe("GeminiAdapter", () => {
     const a = new GeminiAdapter("AIza-test", { retryDelayMs: 0 });
     const r = await a.run("Best SEO agency");
     expect(r.text).toContain("Acme SEO");
+    expect(r.requestedModel).toBe("gemini-2.0-flash");
     expect(r.citations.some((c) => c.url.includes("acme.com"))).toBe(true);
+  });
+
+  it("captures the requested model separately from a different actual model returned by the provider", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: { ...GEMINI_BODY, modelVersion: "gemini-2.5-flash" } }]));
+    const a = new GeminiAdapter("AIza-test", { model: "gemini-2.0-flash", retryDelayMs: 0 });
+    const r = await a.run("Best SEO agency");
+    expect(r.requestedModel).toBe("gemini-2.0-flash");
+    expect(r.modelVariant).toBe("gemini-2.5-flash");
   });
 
   it("retries on 429 and succeeds", async () => {
@@ -290,6 +321,7 @@ describe("GroqAdapter (Llama via Groq)", () => {
     const r = await a.run("Best SEO agency");
     expect(a.id).toBe("groq");
     expect(r.modelVariant).toBe("llama-3.3-70b-versatile");
+    expect(r.requestedModel).toBe("llama-3.3-70b-versatile");
   });
 
   it("throws when API key is empty", async () => {
@@ -305,6 +337,7 @@ describe("MistralAdapter", () => {
     const r = await a.run("Best SEO agency");
     expect(a.id).toBe("mistral");
     expect(r.modelVariant).toBe("mistral-large-latest");
+    expect(r.requestedModel).toBe("mistral-large-latest");
   });
 
   it("throws when API key is empty", async () => {
@@ -320,6 +353,7 @@ describe("DeepSeekAdapter", () => {
     const r = await a.run("Best SEO agency");
     expect(a.id).toBe("deepseek");
     expect(r.modelVariant).toBe("deepseek-chat");
+    expect(r.requestedModel).toBe("deepseek-chat");
   });
 
   it("throws when API key is empty", async () => {

@@ -42,7 +42,19 @@ describe("PerplexityAdapter", () => {
     expect(result.citations[0].url).toBe("https://example.com/acme");
     expect(result.citations[0].position).toBe(1);
     expect(result.modelVariant).toBe("sonar");
+    expect(result.requestedModel).toBe("sonar");
     expect(result.latencyMs).toBeTypeOf("number");
+  });
+
+  // issue #35 slice 2: requestedModel is the model this adapter instance
+  // was configured to call, captured independent of whatever the provider
+  // echoes back in its response.
+  it("captures the requested model separately from a different actual model returned by the provider", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: { ...MOCK_SUCCESS_RESPONSE, model: "sonar-pro" } }]));
+    const adapter = new PerplexityAdapter("test-key", { model: "sonar" });
+    const result = await adapter.run("Best SEO agency in Seattle");
+    expect(result.requestedModel).toBe("sonar");
+    expect(result.modelVariant).toBe("sonar-pro");
   });
 
   it("sends the default 1500 max_tokens output cap (F2)", async () => {
