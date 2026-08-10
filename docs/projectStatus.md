@@ -1,11 +1,43 @@
 ## Resume From
 
 Last session: 2026-08-10
-Branch: main | Version: v1.75.0 | 1307 tests passing | PACKAGED, DEPLOYED to cPanel, migration 0026 verified applied, and QA PASSED
+Branch: main | Version: v1.76.0 | 1315 tests passing | PACKAGED and pushed - NOT YET deployed. No schema migration, but a production process-lifecycle change (see below).
 
-NEXT SESSION (2 items):
-1. Issue #30 / Epic 3 (Measurement Health) is now FULLY COMPLETE as of v1.75.0 (all 5 slices + the admin override) - no further work scoped under it. Next backlog item needs a fresh decision with the user (candidates surfaced in the 2026-08-10 issue #3 gap-analysis: Epic 1 Platform Integration Assurance - the flagged-but-skipped prerequisite - or Epic 7 Client Executive Report, next in the original Phase 2 sequencing).
+NEXT SESSION FIRST: deploy v1.76.0, smoke test, then TD-16 SSH check as
+usual. This version's actual proof is deferred one cycle further: the
+job runner now self-evicts a stale worker instead of needing a manual
+kill, but that only matters for whatever worker is running WHEN THE
+NEXT deploy after this one lands. So this deploy's TD-16 check should
+look normal (verify no crash/regression); the real signal is the deploy
+AFTER this one - if that TD-16 check comes back clean with zero manual
+kills needed, TD-16 is genuinely fixed.
+
+NEXT SESSION (2 items after deploy):
+1. Issue #30 / Epic 3 (Measurement Health) is FULLY COMPLETE as of v1.75.0 (closed on GitHub 2026-08-10) - no further work scoped under it. Next backlog item needs a fresh decision with the user (candidates from the 2026-08-10 issue #3 gap-analysis: Epic 1 Platform Integration Assurance - the flagged-but-skipped prerequisite - or Epic 7 Client Executive Report, next in the original Phase 2 sequencing). Remaining open tech debt if nothing else grabs priority: TD-22 (root-domain extraction not public-suffix-aware) or TD-23 (recommendation overrides don't survive a re-parse).
 2. User-owned, still open: Groq API access. (B-20 GBP API quota check downgraded to Low Priority in the Backlog 2026-08-10 - see Backlog section, no longer a per-session carry-over item.)
+
+Session 2026-08-10 (part 6): v1.76.0 - TD-16 (stale lsnode workers
+surviving a cPanel restart) actually fixed, not just worked around.
+Root cause confirmed while scoping: JobRunner polls the jobs table
+directly on a setInterval, so any live process - stale or fresh -
+competes to claim the same queued jobs; a stale worker isn't idle, it's
+actively grabbing and failing jobs with its outdated process.env
+snapshot (fixed at process boot, no in-code fix possible). New
+server/services/staleness.ts + JobRunner self-eviction: each tick
+re-reads the on-disk package.json version and compares it to the boot
+version; on mismatch (a newer deploy has landed since this process
+started), stops ticking and exit(0)s before touching any jobs, so
+cPanel spins a clean replacement. Opt-in via JobRunner.start()'s new
+third param, fails safe on a read error. Also closed issue #30 (Epic 3:
+Measurement Health) on GitHub with a full closing summary - all 5
+slices + admin override shipped, acceptance criteria met. Backlog
+housekeeping: B-20 (GBP snapshot integration, pending API approval
+since 2026-07-03 with no movement) downgraded Medium -> Low priority per
+user decision; noted (did not fix) a pre-existing duplicate ID - a
+separate, already-shipped item also carries "B-20" under High Priority.
+TDD throughout, RED confirmed before implementing. Full suite (1315
+tests), lint, typecheck all pass. No schema migration. Packaged, tagged
+v1.76.0 (pushed) - NOT YET deployed or smoke-tested this session.
 
 Session 2026-08-10 (part 5): v1.75.0 deployed to cPanel and QA passed by
 the user. Migration 0026 verified applied cleanly against prod data.db
