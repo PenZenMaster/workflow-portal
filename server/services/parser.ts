@@ -15,7 +15,12 @@
  * - v1.00 Sprint 4 initial implementation
  * - v1.01 TD-20: rank detection tolerates markdown emphasis around list markers
  * - v1.02 TD-21: ownership matching accepts URL-formatted brand primary domains
+ * - v1.03 TD-22: root-domain extraction is public-suffix-aware (psl package)
+ *   instead of naively taking the last two dot-separated labels, which
+ *   collapsed multi-part suffixes like co.uk/com.au to the suffix itself
  */
+
+import { get as getRegistrableDomain } from "psl";
 
 // Bumped whenever mention/citation extraction behavior changes — recorded
 // on run manifests for comparability (issue #3 Epic 2).
@@ -63,11 +68,18 @@ export interface ParseResult {
   citations: ParsedCitation[];
 }
 
+// TD-22: public-suffix-aware. "Last two dot-separated labels" is wrong for
+// multi-part suffixes (anything.co.uk -> "co.uk", collapsing every
+// unrelated .co.uk citation onto one meaningless, unclassifiable root).
+// psl.get() returns the actual registrable domain per the Mozilla Public
+// Suffix List, or null for input it can't resolve to one (e.g. the
+// hostname IS a bare public suffix, or isn't a valid domain at all) - the
+// hostname itself is the sanest fallback for that edge case, same
+// catch-all spirit as the try/catch below.
 function extractRootDomain(url: string): string {
   try {
     const { hostname } = new URL(url);
-    const parts = hostname.split(".");
-    return parts.length <= 2 ? hostname : parts.slice(-2).join(".");
+    return getRegistrableDomain(hostname) ?? hostname;
   } catch {
     return url;
   }

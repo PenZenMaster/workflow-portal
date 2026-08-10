@@ -165,6 +165,36 @@ describe("parseResponse — citation extraction", () => {
     expect(result.citations[0].rootDomain).toBe("acme.com");
   });
 
+  // TD-22: naive "last two dot-separated labels" collapsed multi-part
+  // public suffixes to the meaningless suffix itself (anything.co.uk ->
+  // "co.uk"), grouping unrelated citations under one fake root and making
+  // them permanently unclassifiable/unmatchable for ownership. Fixed via
+  // the psl package (the actual Mozilla Public Suffix List).
+  it("extracts the full registrable domain under a multi-part public suffix (co.uk), not just the last two labels", () => {
+    const citations = [{ url: "https://www.chicagometalsupply.co.uk/products", position: 1 }];
+    const result = parseResponse("Some text.", citations, BRANDS);
+    expect(result.citations[0].rootDomain).toBe("chicagometalsupply.co.uk");
+  });
+
+  it("extracts the full registrable domain under other common multi-part suffixes (com.au)", () => {
+    const citations = [{ url: "https://shop.example.com.au/page", position: 1 }];
+    const result = parseResponse("Some text.", citations, BRANDS);
+    expect(result.citations[0].rootDomain).toBe("example.com.au");
+  });
+
+  it("matches ownership for a brand whose primary domain sits under a multi-part public suffix", () => {
+    const ukBrand: BrandInput = {
+      id: 6,
+      canonicalName: "UK Metal Co",
+      primaryDomain: "ukmetalco.co.uk",
+      aliases: [],
+    };
+    const citations = [{ url: "https://www.ukmetalco.co.uk/about", position: 1 }];
+    const result = parseResponse("Some text.", citations, [...BRANDS, ukBrand]);
+    expect(result.citations[0].rootDomain).toBe("ukmetalco.co.uk");
+    expect(result.citations[0].ownedByBrandId).toBe(6);
+  });
+
   it("marks a citation as owned by a brand when domain matches", () => {
     const citations = [{ url: "https://acme.com/about", position: 1 }];
     const result = parseResponse("Some text.", citations, BRANDS);
