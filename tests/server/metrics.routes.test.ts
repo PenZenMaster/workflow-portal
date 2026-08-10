@@ -185,6 +185,89 @@ describe("GET /api/clients/:id/metrics/by-platform (Epic 5 slice 1, issue #29)",
     expect(res.body.data.combined.responseWeighted.trustedThirdPartySupportRate).toBe(0);
     expect(res.body.data.combined.platformBalanced.clientOwnedCitationRate).toBe(0);
   });
+
+  // issue #3 Epic 1 slice 1 (issue #35): missing citation capability must
+  // not display as poor citation performance. Only Perplexity has native
+  // structured citation support - every other platform's "citations" are
+  // regexed out of free text (extractUrlCitations), not real citation
+  // support, so their citation-specific fields must read null, not 0%.
+  describe("citation capability awareness (issue #35 slice 1)", () => {
+    it("flags citationCapable true for perplexity and false for a regex-only platform", async () => {
+      mockMetricStore.aggregateLiveForPeriodByPlatform.mockResolvedValue([
+        { platformId: 1, slug: "perplexity", displayName: "Perplexity", totalCitations: 4, totalMentions: 8, totalAllBrandMentions: 10, totalClientBrandMentions: 6, totalVisibilityScore: 16, totalResponses: 10, totalAllCitations: 8, totalClientOwnedCitations: 4, totalCompetitorOwnedCitations: 2, totalTrustedResponses: 3 },
+        { platformId: 4, slug: "anthropic", displayName: "Claude", totalCitations: 1, totalMentions: 1, totalAllBrandMentions: 2, totalClientBrandMentions: 1, totalVisibilityScore: 1, totalResponses: 2, totalAllCitations: 1, totalClientOwnedCitations: 1, totalCompetitorOwnedCitations: 0, totalTrustedResponses: 0 },
+      ]);
+
+      const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/by-platform");
+      const perplexity = res.body.data.platforms.find((p: { slug: string }) => p.slug === "perplexity");
+      const anthropic = res.body.data.platforms.find((p: { slug: string }) => p.slug === "anthropic");
+      expect(perplexity.citationCapable).toBe(true);
+      expect(anthropic.citationCapable).toBe(false);
+    });
+
+    it("reports null (not 0) for a regex-only platform's citation-specific fields, even with nonzero raw counts", async () => {
+      mockMetricStore.aggregateLiveForPeriodByPlatform.mockResolvedValue([
+        { platformId: 4, slug: "anthropic", displayName: "Claude", totalCitations: 1, totalMentions: 1, totalAllBrandMentions: 2, totalClientBrandMentions: 1, totalVisibilityScore: 1, totalResponses: 2, totalAllCitations: 1, totalClientOwnedCitations: 1, totalCompetitorOwnedCitations: 0, totalTrustedResponses: 0 },
+      ]);
+
+      const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/by-platform");
+      const anthropic = res.body.data.platforms[0];
+      expect(anthropic.citationFrequency).toBeNull();
+      expect(anthropic.clientOwnedCitationRate).toBeNull();
+      expect(anthropic.competitorOwnedCitationRate).toBeNull();
+      expect(anthropic.trustedThirdPartySupportRate).toBeNull();
+      // Non-citation metrics are unaffected.
+      expect(anthropic.mentionRate).toBe(50);
+    });
+
+    it("still reports real numbers for perplexity's citation-specific fields", async () => {
+      mockMetricStore.aggregateLiveForPeriodByPlatform.mockResolvedValue([
+        { platformId: 1, slug: "perplexity", displayName: "Perplexity", totalCitations: 4, totalMentions: 8, totalAllBrandMentions: 10, totalClientBrandMentions: 6, totalVisibilityScore: 16, totalResponses: 10, totalAllCitations: 8, totalClientOwnedCitations: 4, totalCompetitorOwnedCitations: 2, totalTrustedResponses: 3 },
+      ]);
+
+      const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/by-platform");
+      const perplexity = res.body.data.platforms[0];
+      expect(perplexity.citationFrequency).toBe(40);
+      expect(perplexity.clientOwnedCitationRate).toBe(50);
+    });
+
+    it("excludes non-citation-capable platforms from the platformBalanced citation-field average", async () => {
+      mockMetricStore.aggregateLiveForPeriodByPlatform.mockResolvedValue([
+        { platformId: 1, slug: "perplexity", displayName: "Perplexity", totalCitations: 4, totalMentions: 8, totalAllBrandMentions: 10, totalClientBrandMentions: 6, totalVisibilityScore: 16, totalResponses: 10, totalAllCitations: 8, totalClientOwnedCitations: 4, totalCompetitorOwnedCitations: 2, totalTrustedResponses: 3 },
+        { platformId: 4, slug: "anthropic", displayName: "Claude", totalCitations: 1, totalMentions: 1, totalAllBrandMentions: 2, totalClientBrandMentions: 1, totalVisibilityScore: 1, totalResponses: 2, totalAllCitations: 1, totalClientOwnedCitations: 1, totalCompetitorOwnedCitations: 0, totalTrustedResponses: 0 },
+      ]);
+
+      const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/by-platform");
+      // Perplexity alone is 40% - if anthropic's noise were averaged in,
+      // this would come out lower than 40.
+      expect(res.body.data.combined.platformBalanced.citationFrequency).toBe(40);
+    });
+
+    it("reports platformBalanced citation fields as null when no configured platform is citation-capable", async () => {
+      mockMetricStore.aggregateLiveForPeriodByPlatform.mockResolvedValue([
+        { platformId: 4, slug: "anthropic", displayName: "Claude", totalCitations: 1, totalMentions: 1, totalAllBrandMentions: 2, totalClientBrandMentions: 1, totalVisibilityScore: 1, totalResponses: 2, totalAllCitations: 1, totalClientOwnedCitations: 1, totalCompetitorOwnedCitations: 0, totalTrustedResponses: 0 },
+        { platformId: 3, slug: "openai", displayName: "ChatGPT", totalCitations: 1, totalMentions: 1, totalAllBrandMentions: 2, totalClientBrandMentions: 1, totalVisibilityScore: 1, totalResponses: 2, totalAllCitations: 1, totalClientOwnedCitations: 1, totalCompetitorOwnedCitations: 0, totalTrustedResponses: 0 },
+      ]);
+
+      const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/by-platform");
+      expect(res.body.data.combined.platformBalanced.citationFrequency).toBeNull();
+      expect(res.body.data.combined.platformBalanced.clientOwnedCitationRate).toBeNull();
+      expect(res.body.data.combined.platformBalanced.competitorOwnedCitationRate).toBeNull();
+      expect(res.body.data.combined.platformBalanced.trustedThirdPartySupportRate).toBeNull();
+      // Non-citation rollup fields are unaffected.
+      expect(res.body.data.combined.platformBalanced.mentionRate).toBe(50);
+    });
+
+    it("leaves responseWeighted pooling every platform as before (documented boundary - stays equal to /metrics/overview)", async () => {
+      mockMetricStore.aggregateLiveForPeriodByPlatform.mockResolvedValue([
+        { platformId: 1, slug: "perplexity", displayName: "Perplexity", totalCitations: 4, totalMentions: 8, totalAllBrandMentions: 10, totalClientBrandMentions: 6, totalVisibilityScore: 16, totalResponses: 10, totalAllCitations: 8, totalClientOwnedCitations: 4, totalCompetitorOwnedCitations: 2, totalTrustedResponses: 3 },
+        { platformId: 4, slug: "anthropic", displayName: "Claude", totalCitations: 0, totalMentions: 0, totalAllBrandMentions: 0, totalClientBrandMentions: 0, totalVisibilityScore: 0, totalResponses: 10, totalAllCitations: 0, totalClientOwnedCitations: 0, totalCompetitorOwnedCitations: 0, totalTrustedResponses: 0 },
+      ]);
+
+      const res = await request(buildApp("analyst")).get("/api/clients/1/metrics/by-platform");
+      expect(res.body.data.combined.responseWeighted.citationFrequency).toBe(20);
+    });
+  });
 });
 
 describe("GET /api/clients/:id/metrics/trend", () => {

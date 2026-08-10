@@ -16,7 +16,7 @@
  *   already-sent prompt); timeout configurable via LLM_TIMEOUT_MS
  */
 
-import type { PlatformAdapter, RawResponse, RunOptions, CitationRef } from "./types";
+import type { PlatformAdapter, RawResponse, RunOptions, CitationRef, AdapterCapabilities } from "./types";
 import { extractOpenAiUsage, resolveMaxOutputTokens, resolveTimeoutMs } from "./openaiCompatible";
 import { logger } from "../logger";
 
@@ -24,6 +24,19 @@ const PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions";
 const DEFAULT_MODEL = "sonar";
 const MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY_MS = 1_000;
+
+// issue #3 Epic 1 slice 1: the one platform with a native, ordered,
+// structured citations field this adapter actually reads (data.citations
+// below) - every other adapter's "citations" are regexed out of free text.
+export const PERPLEXITY_CAPABILITIES: AdapterCapabilities = {
+  citationSupport: true,
+  orderedCitationSupport: true,
+  webSearchGrounding: true,
+  modelSelection: true,
+  temperatureControl: false,
+  locationContext: true,
+  citationExtractionMethod: "native_structured",
+};
 
 interface PerplexityAdapterOptions {
   model?: string;
@@ -42,6 +55,7 @@ interface PerplexityApiResponse {
 
 export class PerplexityAdapter implements PlatformAdapter {
   readonly id = "perplexity";
+  readonly capabilities = PERPLEXITY_CAPABILITIES;
 
   private readonly apiKey: string;
   private readonly model: string;

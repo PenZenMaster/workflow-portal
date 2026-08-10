@@ -46,6 +46,7 @@ import {
   computeRecommendationRate,
   DEFAULT_WEIGHTS,
 } from "../services/scoring";
+import { getAdapterCapabilities } from "../adapters/registry";
 
 const ANALYST_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
 
@@ -168,13 +169,28 @@ export function registerMetricRoutes(app: Express): void {
     const { fromDate, toDate } = periodToDates(period);
     const byPlatform = await metricStore.aggregateLiveForPeriodByPlatform(clientId, fromDate, toDate);
 
-    const platformMetrics = byPlatform.map((p) => ({
-      platformId: p.platformId,
-      slug: p.slug,
-      displayName: p.displayName,
-      totalResponses: p.totalResponses,
-      ...computeAggregateMetrics(p),
-    }));
+    // issue #3 Epic 1 slice 1 (issue #35): missing citation capability must
+    // not display as poor citation performance. Only a platform whose
+    // adapter reads a native, structured citations field is "capable" -
+    // every other platform's "citations" are regexed out of free text
+    // (extractUrlCitations), which is not real citation support - their
+    // citation-specific fields report null, not a misleading 0%.
+    const platformMetrics = byPlatform.map((p) => {
+      const citationCapable = getAdapterCapabilities(p.slug)?.citationSupport ?? false;
+      const base = computeAggregateMetrics(p);
+      return {
+        platformId: p.platformId,
+        slug: p.slug,
+        displayName: p.displayName,
+        totalResponses: p.totalResponses,
+        citationCapable,
+        ...base,
+        citationFrequency: citationCapable ? base.citationFrequency : null,
+        clientOwnedCitationRate: citationCapable ? base.clientOwnedCitationRate : null,
+        competitorOwnedCitationRate: citationCapable ? base.competitorOwnedCitationRate : null,
+        trustedThirdPartySupportRate: citationCapable ? base.trustedThirdPartySupportRate : null,
+      };
+    });
 
     // responseWeighted: pool every platform's raw counts back together —
     // must equal GET .../metrics/overview for the same client/period.
@@ -208,6 +224,18 @@ export function registerMetricRoutes(app: Express): void {
 
     // platformBalanced: unweighted mean of each platform's own rate — a
     // high-volume platform can't drown out a low-volume one.
+    const average = (values: number[]): number =>
+      values.length === 0 ? 0 : values.reduce((s, v) => s + v, 0) / values.length;
+
+    // issue #35 slice 1: citation-specific fields average only over
+    // citation-capable platforms - a platform with no real citation
+    // feature contributes no opinion, same "no sample, no vote" precedent
+    // as zero-response platforms being omitted entirely (Epic 5 slice 1)
+    // and rank distribution's platform-with-no-ranked-mentions handling
+    // (Epic 5 slice 3). Null (not 0) when NONE of the client's configured
+    // platforms are citation-capable - there's no citation rate to report.
+    const citationCapablePlatforms = platformMetrics.filter((p) => p.citationCapable);
+
     const platformBalanced =
       platformMetrics.length === 0
         ? {
@@ -215,18 +243,25 @@ export function registerMetricRoutes(app: Express): void {
             trustedThirdPartySupportRate: 0, clientOwnedCitationRate: 0, competitorOwnedCitationRate: 0,
           }
         : {
-            mentionRate: platformMetrics.reduce((s, p) => s + p.mentionRate, 0) / platformMetrics.length,
+            mentionRate: average(platformMetrics.map((p) => p.mentionRate)),
+            aiSoV: average(platformMetrics.map((p) => p.aiSoV)),
+            avgVisibilityScore: average(platformMetrics.map((p) => p.avgVisibilityScore)),
             citationFrequency:
-              platformMetrics.reduce((s, p) => s + p.citationFrequency, 0) / platformMetrics.length,
-            aiSoV: platformMetrics.reduce((s, p) => s + p.aiSoV, 0) / platformMetrics.length,
-            avgVisibilityScore:
-              platformMetrics.reduce((s, p) => s + p.avgVisibilityScore, 0) / platformMetrics.length,
-            trustedThirdPartySupportRate:
-              platformMetrics.reduce((s, p) => s + p.trustedThirdPartySupportRate, 0) / platformMetrics.length,
+              citationCapablePlatforms.length === 0
+                ? null
+                : average(citationCapablePlatforms.map((p) => p.citationFrequency as number)),
             clientOwnedCitationRate:
-              platformMetrics.reduce((s, p) => s + p.clientOwnedCitationRate, 0) / platformMetrics.length,
+              citationCapablePlatforms.length === 0
+                ? null
+                : average(citationCapablePlatforms.map((p) => p.clientOwnedCitationRate as number)),
             competitorOwnedCitationRate:
-              platformMetrics.reduce((s, p) => s + p.competitorOwnedCitationRate, 0) / platformMetrics.length,
+              citationCapablePlatforms.length === 0
+                ? null
+                : average(citationCapablePlatforms.map((p) => p.competitorOwnedCitationRate as number)),
+            trustedThirdPartySupportRate:
+              citationCapablePlatforms.length === 0
+                ? null
+                : average(citationCapablePlatforms.map((p) => p.trustedThirdPartySupportRate as number)),
           };
 
     ok(res, {

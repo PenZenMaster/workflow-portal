@@ -5,23 +5,24 @@ interface CorePlatformRow {
   slug: string;
   displayName: string;
   totalResponses: number;
+  citationCapable: boolean;
   mentionRate: number;
-  citationFrequency: number;
+  citationFrequency: number | null;
   aiSoV: number;
   avgVisibilityScore: number;
-  trustedThirdPartySupportRate: number;
-  clientOwnedCitationRate: number;
-  competitorOwnedCitationRate: number;
+  trustedThirdPartySupportRate: number | null;
+  clientOwnedCitationRate: number | null;
+  competitorOwnedCitationRate: number | null;
 }
 
 interface CoreRollup {
   mentionRate: number;
-  citationFrequency: number;
+  citationFrequency: number | null;
   aiSoV: number;
   avgVisibilityScore: number;
-  trustedThirdPartySupportRate: number;
-  clientOwnedCitationRate: number;
-  competitorOwnedCitationRate: number;
+  trustedThirdPartySupportRate: number | null;
+  clientOwnedCitationRate: number | null;
+  competitorOwnedCitationRate: number | null;
 }
 
 interface CoreByPlatform {
@@ -69,6 +70,10 @@ function pct(n: number): string {
   return `${n.toFixed(1)}%`;
 }
 
+function pctOrDash(n: number | null): string {
+  return n === null ? "-" : pct(n);
+}
+
 function rank(n: number | null | undefined): string {
   return n === null || n === undefined ? "—" : n.toFixed(1);
 }
@@ -110,12 +115,12 @@ function CoreMetricsTable({ data }: { data: CoreByPlatform }) {
               <td className="py-2 pr-4">{p.displayName}</td>
               <td className="py-2 pr-4">{p.totalResponses}</td>
               <td className="py-2 pr-4">{pct(p.mentionRate)}</td>
-              <td className="py-2 pr-4">{pct(p.citationFrequency)}</td>
+              <td className="py-2 pr-4">{pctOrDash(p.citationFrequency)}</td>
               <td className="py-2 pr-4">{pct(p.aiSoV)}</td>
               <td className="py-2 pr-4">{p.avgVisibilityScore.toFixed(1)}</td>
-              <td className="py-2 pr-4">{pct(p.trustedThirdPartySupportRate)}</td>
-              <td className="py-2 pr-4">{pct(p.clientOwnedCitationRate)}</td>
-              <td className="py-2">{pct(p.competitorOwnedCitationRate)}</td>
+              <td className="py-2 pr-4">{pctOrDash(p.trustedThirdPartySupportRate)}</td>
+              <td className="py-2 pr-4">{pctOrDash(p.clientOwnedCitationRate)}</td>
+              <td className="py-2">{pctOrDash(p.competitorOwnedCitationRate)}</td>
             </tr>
           ))}
         </tbody>
@@ -124,12 +129,12 @@ function CoreMetricsTable({ data }: { data: CoreByPlatform }) {
             <td className="py-2 pr-4">All Platforms</td>
             <td className="py-2 pr-4" />
             <td className="py-2 pr-4">{pct(platformBalanced.mentionRate)}</td>
-            <td className="py-2 pr-4">{pct(platformBalanced.citationFrequency)}</td>
+            <td className="py-2 pr-4">{pctOrDash(platformBalanced.citationFrequency)}</td>
             <td className="py-2 pr-4">{pct(platformBalanced.aiSoV)}</td>
             <td className="py-2 pr-4">{platformBalanced.avgVisibilityScore.toFixed(1)}</td>
-            <td className="py-2 pr-4">{pct(platformBalanced.trustedThirdPartySupportRate)}</td>
-            <td className="py-2 pr-4">{pct(platformBalanced.clientOwnedCitationRate)}</td>
-            <td className="py-2">{pct(platformBalanced.competitorOwnedCitationRate)}</td>
+            <td className="py-2 pr-4">{pctOrDash(platformBalanced.trustedThirdPartySupportRate)}</td>
+            <td className="py-2 pr-4">{pctOrDash(platformBalanced.clientOwnedCitationRate)}</td>
+            <td className="py-2">{pctOrDash(platformBalanced.competitorOwnedCitationRate)}</td>
           </tr>
         </tfoot>
       </table>

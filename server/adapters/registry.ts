@@ -1,4 +1,4 @@
-import type { PlatformAdapter } from "./types";
+import type { PlatformAdapter, AdapterCapabilities } from "./types";
 import { PerplexityAdapter } from "./perplexity";
 import { OpenAIAdapter } from "./openai";
 import { AnthropicAdapter } from "./anthropic";
@@ -6,6 +6,8 @@ import { GeminiAdapter } from "./gemini";
 import { GroqAdapter } from "./groq";
 import { MistralAdapter } from "./mistral";
 import { DeepSeekAdapter } from "./deepseek";
+import { REGEX_CITATION_CAPABILITIES } from "./openaiCompatible";
+import { PERPLEXITY_CAPABILITIES } from "./perplexity";
 
 function buildAdapters(): Map<string, PlatformAdapter> {
   const map = new Map<string, PlatformAdapter>();
@@ -36,6 +38,26 @@ export function getAdapter(slug: string): PlatformAdapter | undefined {
 
 export function getConfiguredSlugs(): string[] {
   return Array.from(_adapters.keys());
+}
+
+// issue #3 Epic 1 slice 1: capabilities are a static fact about a known
+// adapter TYPE, not about whether it's currently configured with a live
+// API key - unlike getAdapter(), this must still resolve a platform's
+// capabilities even when its key isn't set in this environment (e.g. for
+// reporting on a platform a client used to run but isn't configured for
+// right now). Keyed by the same slug as the platforms table.
+const KNOWN_ADAPTER_CAPABILITIES: Record<string, AdapterCapabilities> = {
+  perplexity: PERPLEXITY_CAPABILITIES,
+  openai: REGEX_CITATION_CAPABILITIES,
+  anthropic: REGEX_CITATION_CAPABILITIES,
+  gemini: REGEX_CITATION_CAPABILITIES,
+  groq: REGEX_CITATION_CAPABILITIES,
+  mistral: REGEX_CITATION_CAPABILITIES,
+  deepseek: REGEX_CITATION_CAPABILITIES,
+};
+
+export function getAdapterCapabilities(slug: string): AdapterCapabilities | undefined {
+  return KNOWN_ADAPTER_CAPABILITIES[slug];
 }
 
 // --- Utility tier (issue #2 F4) ---------------------------------------------

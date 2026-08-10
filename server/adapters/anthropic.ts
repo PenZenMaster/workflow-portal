@@ -1,5 +1,5 @@
 import type { PlatformAdapter, RawResponse, RunOptions } from "./types";
-import { extractUrlCitations, resolveMaxOutputTokens, resolveTimeoutMs } from "./openaiCompatible";
+import { extractUrlCitations, resolveMaxOutputTokens, resolveTimeoutMs, REGEX_CITATION_CAPABILITIES } from "./openaiCompatible";
 import { logger } from "../logger";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
@@ -19,6 +19,7 @@ function extractAnthropicUsage(usage: AnthropicResponse["usage"]): { inputTokens
 
 export class AnthropicAdapter implements PlatformAdapter {
   readonly id = "anthropic";
+  readonly capabilities = REGEX_CITATION_CAPABILITIES;
   private readonly apiKey: string;
   private readonly model: string;
   private readonly timeoutMs: number;

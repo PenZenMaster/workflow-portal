@@ -1,5 +1,5 @@
 import type { PlatformAdapter, RawResponse, RunOptions } from "./types";
-import { extractUrlCitations, resolveMaxOutputTokens, resolveTimeoutMs } from "./openaiCompatible";
+import { extractUrlCitations, resolveMaxOutputTokens, resolveTimeoutMs, REGEX_CITATION_CAPABILITIES } from "./openaiCompatible";
 import { logger } from "../logger";
 
 const DEFAULT_MODEL = "gemini-2.0-flash";
@@ -18,6 +18,7 @@ function extractGeminiUsage(meta: GeminiResponse["usageMetadata"]): { inputToken
 
 export class GeminiAdapter implements PlatformAdapter {
   readonly id = "gemini";
+  readonly capabilities = REGEX_CITATION_CAPABILITIES;
   private readonly apiKey: string;
   private readonly model: string;
   private readonly timeoutMs: number;

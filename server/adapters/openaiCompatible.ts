@@ -16,8 +16,21 @@
  *   have billed the aborted call
  */
 
-import type { PlatformAdapter, RawResponse, RunOptions, CitationRef, TokenUsage } from "./types";
+import type { PlatformAdapter, RawResponse, RunOptions, CitationRef, TokenUsage, AdapterCapabilities } from "./types";
 import { logger } from "../logger";
+
+// issue #3 Epic 1 slice 1: shared by every adapter whose "citations" are
+// really extractUrlCitations() regexing URLs out of free response text -
+// currently every platform except Perplexity (see perplexity.ts).
+export const REGEX_CITATION_CAPABILITIES: AdapterCapabilities = {
+  citationSupport: false,
+  orderedCitationSupport: false,
+  webSearchGrounding: false,
+  modelSelection: true,
+  temperatureControl: false,
+  locationContext: true,
+  citationExtractionMethod: "text_url_regex",
+};
 
 const MAX_RETRIES = 3;
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -77,6 +90,7 @@ interface OpenAIResponse {
 
 export class OpenAICompatibleAdapter implements PlatformAdapter {
   readonly id: string;
+  readonly capabilities = REGEX_CITATION_CAPABILITIES;
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly model: string;
