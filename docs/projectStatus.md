@@ -5,7 +5,7 @@ Branch: main | Version: v1.75.0 | 1307 tests passing | PACKAGED, DEPLOYED to cPa
 
 NEXT SESSION (2 items):
 1. Issue #30 / Epic 3 (Measurement Health) is now FULLY COMPLETE as of v1.75.0 (all 5 slices + the admin override) - no further work scoped under it. Next backlog item needs a fresh decision with the user (candidates surfaced in the 2026-08-10 issue #3 gap-analysis: Epic 1 Platform Integration Assurance - the flagged-but-skipped prerequisite - or Epic 7 Client Executive Report, next in the original Phase 2 sequencing).
-2. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+2. User-owned, still open: Groq API access. (B-20 GBP API quota check downgraded to Low Priority in the Backlog 2026-08-10 - see Backlog section, no longer a per-session carry-over item.)
 
 Session 2026-08-10 (part 5): v1.75.0 deployed to cPanel and QA passed by
 the user. Migration 0026 verified applied cleanly against prod data.db
@@ -2775,17 +2775,6 @@ Confirmed decisions:
   (v1.25.0)**, superseded by the breadcrumb navigation feature: every
   client-scoped page now shows Workflows > Clients > {client name} > {page}
   as a clickable trail.
-- B-20 Feature: GBP snapshot integration. Once Google Business Profile API
-  access is approved (application in progress 2026-07-03), add a per-client
-  "GBP snapshot" action that OAuth-connects (reuse the GA4 integration
-  pattern), calls the Business Information API (locations.get: categories,
-  serviceItems, regularHours, attributes, serviceArea, profile) plus the
-  legacy v4.9 reviews endpoint and Q&A API, and produces the structured
-  snapshot JSON the "Ranking Audit and Improvement Suite" workflow expects.
-  Approval check: Business Profile API quota 0 QPM = pending, 300 QPM =
-  approved. Note: OAuth tokens are per-user; some client profiles (e.g.
-  United Structural Systems) live under a different Google account and need
-  their own connection.
 - B-21 Feature: "Run with AI" input collection — **COMPLETE (v1.23.0)**.
   Workflows with inputs open the launch inputs dialog (new "ai-run" mode)
   before the CSV run; values fill the prompt's <PASTE> tokens server-side
@@ -2868,3 +2857,17 @@ Confirmed decisions:
 - B-10 Evaluate replacing better-sqlite3-session-store (deprecated)
 - B-14 Display the app version number (from package.json) in the footer of every page —
   currently Home.tsx has a one-off footer but no shared layout footer exists across routes.
+- B-20 Feature: GBP snapshot integration. Once Google Business Profile API
+  access is approved (application submitted 2026-07-03, still pending as of
+  2026-08-10 — user-owned, checked every session with no change), add a
+  per-client "GBP snapshot" action that OAuth-connects (reuse the GA4
+  integration pattern), calls the Business Information API (locations.get:
+  categories, serviceItems, regularHours, attributes, serviceArea, profile)
+  plus the legacy v4.9 reviews endpoint and Q&A API, and produces the
+  structured snapshot JSON the "Ranking Audit and Improvement Suite"
+  workflow expects. Approval check: Business Profile API quota 0 QPM =
+  pending, 300 QPM = approved. Note: OAuth tokens are per-user; some client
+  profiles (e.g. United Structural Systems) live under a different Google
+  account and need their own connection. Downgraded Medium -> Low priority
+  2026-08-10 (user decision) — approval has been pending over a month with
+  no movement, no longer worth checking every session.
