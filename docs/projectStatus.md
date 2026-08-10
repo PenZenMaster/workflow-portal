@@ -1,11 +1,56 @@
 ## Resume From
 
-Last session: 2026-08-06
-Branch: main | Version: v1.70.0 | 1248 tests passing | PACKAGED, DEPLOYED to cPanel (migration 0025 verified applied), and SMOKE-TESTED clean
+Last session: 2026-08-09
+Branch: main | Version: v1.71.0 | 1249 tests passing | PACKAGED, DEPLOYED to cPanel (no schema migration), and SMOKE-TESTED clean
 
-NEXT SESSION (2 items):
-1. Decide next issue #30 slice - slice 5 (period-level rollup + UI, admin override) is the last item on the originally-scoped roadmap; folding `parseStatus` into `computeMeasurementHealth` as an 8th data-quality signal was explicitly deferred out of slice 4's scope and could go either before or as part of slice 5.
+NEXT SESSION (3 items):
+1. Decide next issue #30 slice - slice 5 (period-level rollup + UI, admin override) is the last item on the originally-scoped roadmap; folding `parseStatus` into `computeMeasurementHealth` as an 8th data-quality signal was explicitly deferred out of slice 4's scope and could go either before or as part of slice 5. Untouched this session - v1.71.0 was an out-of-roadmap feature.
 2. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+3. If the two `/guides/*.html` pages ever need updating, remember they're static output baked from Claude Artifacts content (embedded fonts as base64, no build step reads them) - edit and republish the source artifacts, then re-copy into `client/public/guides/`, not a live-editable template in this repo.
+
+Session 2026-08-09: shipped v1.71.0 - a new public, no-login "What We Do"
+section, outside the roadmap (issue #30/#29/#3 untouched this session).
+New nav link on Home ("What We Do", `/guides/index.html`) surfaces two
+client-facing plain-language explainer pages, both originally built and
+iterated as Claude Artifacts in a separate conversation, then baked into
+static HTML (custom embedded fonts - Bricolage Grotesque, Source Serif 4,
+IBM Plex Mono - as base64 data URIs, no external font requests) and
+dropped into `client/public/guides/`: `index.html` (a small landing page
+linking to both), `ai-visibility.html` (explains the six live AI
+Visibility reporting metrics - Mention Rate, Citation Frequency, AI Share
+of Voice, Avg Visibility Score, Sentiment, AI Traffic Impact - in plain
+English), and `entity-visibility-audit.html` (explains the Entity
+Visibility Audit's eight scored elements, sourced from a client's Google
+Doc spec for that separate audit product). The two guides cross-link to
+each other via local relative paths (updated from the claude.ai artifact
+URLs they used before landing here).
+Deliberately public (no auth): these are static files served the same
+way as any other built asset (`express.static` in production,
+`vite.middlewares` in dev) and never pass through `Gate()`'s auth check
+in `App.tsx` - same precedent as `/share/:token`, but simpler since
+there's no token/expiry logic at all, just a plain file. Real bug found
+and fixed during verification: Vite's dev middleware does NOT
+auto-resolve a trailing-slash directory request (`/guides/`) to
+`index.html` the way production's `express.static` does (its `index`
+option defaults to `index.html`) - the nav link uses the explicit
+`/guides/index.html` path so behavior is identical in both environments,
+rather than relying on that inconsistent directory-index behavior.
+TDD: new test in `Home.test.tsx` asserting the nav link's href, confirmed
+RED before the link existed, GREEN after. Verified live in Chrome (not
+just the test): both guide pages render correctly with embedded fonts
+and dark-mode tokens, and the cross-link between them navigates
+correctly.
+Full suite (1249 tests), lint, typecheck all pass. No schema migration -
+this is pure static content plus one new anchor tag on Home. Packaged,
+tagged v1.71.0 (pushed), deployed to cPanel, smoke-tested clean by the
+user. Post-deploy TD-16 check via SSH: single fresh worker only (~54min
+old), no stale process.
+NEXT SESSION: (1) issue #30 slice 5 decision (see above, untouched this
+session); (2) user-owned: B-20 GBP API quota check, Groq API access
+(carried over, still not done); (3) if the guide pages need content
+edits later, edit+republish the source Claude Artifacts first, then
+re-bake into `client/public/guides/` - don't hand-edit the static HTML
+in place, since a future artifact update would silently diverge from it.
 
 Session 2026-08-06: issue #30 slice 4 (parser success) SHIPPED as
 v1.70.0, TDD throughout. New `parseStatus`/`parsedAt` columns on
