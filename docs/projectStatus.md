@@ -10,9 +10,18 @@ Register entry updated. The manual SSH ps check remains routine
 deploy-time verification, but the "hunt for a stale PID and kill it"
 step should no longer be needed going forward - flag it if it ever is.
 
-NEXT SESSION (2 items):
+NEXT SESSION (1 item):
 1. Issue #30 / Epic 3 (Measurement Health) is FULLY COMPLETE as of v1.75.0 (closed on GitHub 2026-08-10) - no further work scoped under it. Next candidates: pick an epic (Epic 1 Platform Integration Assurance, or Epic 7 Client Executive Report) or continue tech debt - only TD-23 (recommendation overrides don't survive a re-parse) remains open at Medium severity; TD-12/TD-13 are Low. TD-22's bulk re-parse is queued and draining (see part 9) - spot-check a couple of the 67 affected runs once it's fully drained (several hours out) to confirm root domains actually corrected, e.g. via the source-domains registry or a direct query for root_domain still ='co.uk'/'com.au' (should be 0).
-2. User-owned, still open: Groq API access. (B-20 GBP API quota check downgraded to Low Priority in the Backlog 2026-08-10 - see Backlog section, no longer a per-session carry-over item.)
+
+DROPPED FROM ACTIVE TRACKING 2026-08-10 (user decision, revisit later):
+Groq API access. Not a formal backlog item - just a long-carried note
+that the Groq/Llama adapter is already fully implemented and seeded
+(v1.10.0-era), blocked purely on the user's own Groq account API
+access approval (external, nothing left to build here). If picked back
+up later: the adapter code needs no rework, just a working GROQ_API_KEY.
+(Also carried B-20 GBP API quota check, already downgraded to Low
+Priority in the Backlog 2026-08-10 - see Backlog section, no longer a
+per-session carry-over item either.)
 
 Session 2026-08-10 (part 9): v1.76.1 deployed to cPanel and smoke test
 passed by the user. Post-deploy TD-16 check found the fix genuinely
