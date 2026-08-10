@@ -14,6 +14,7 @@
  * - v1.00 Job runner monitoring feature initial implementation
  */
 
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Job, JobStatus } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -21,6 +22,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Activity, AlertTriangle, RotateCcw, XCircle } from "lucide-react";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+
+// FR-002: the jobs table can hold tens of thousands of rows; the page was
+// unresponsive because the list query had no limit at all. This bounds
+// what's fetched/rendered at once regardless of filter.
+const JOBS_PAGE_SIZE = 200;
 
 interface JobsResponse {
   jobs: Job[];
@@ -60,9 +66,15 @@ function formatAge(ms: number): string {
 
 export default function Jobs() {
   const { toast } = useToast();
+  // FR-001: clicking a status pill filters the list below to that status;
+  // clicking the active pill again clears the filter.
+  const [statusFilter, setStatusFilter] = useState<JobStatus | null>(null);
+
+  const jobsQueryParams = new URLSearchParams({ limit: String(JOBS_PAGE_SIZE) });
+  if (statusFilter) jobsQueryParams.set("status", statusFilter);
 
   const { data: jobsData, isLoading } = useQuery<{ data: JobsResponse }>({
-    queryKey: ["/api/jobs"],
+    queryKey: [`/api/jobs?${jobsQueryParams.toString()}`],
     refetchInterval: 5_000,
   });
 
@@ -77,7 +89,15 @@ export default function Jobs() {
       return res.json() as Promise<{ data: Job }>;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      // The list query's key now carries the current filter/limit as a
+      // query string (e.g. "/api/jobs?limit=200&status=failed"), so a
+      // static key match would silently stop invalidating it - match by
+      // prefix instead. "/api/jobs?" (not "/api/jobs") so this never
+      // also matches the separate /api/jobs/health query.
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          typeof query.queryKey[0] === "string" && query.queryKey[0].startsWith("/api/jobs?"),
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/jobs/health"] });
       toast({ title: "Job requeued" });
     },
@@ -91,7 +111,15 @@ export default function Jobs() {
       return res.json() as Promise<{ data: Job }>;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      // The list query's key now carries the current filter/limit as a
+      // query string (e.g. "/api/jobs?limit=200&status=failed"), so a
+      // static key match would silently stop invalidating it - match by
+      // prefix instead. "/api/jobs?" (not "/api/jobs") so this never
+      // also matches the separate /api/jobs/health query.
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          typeof query.queryKey[0] === "string" && query.queryKey[0].startsWith("/api/jobs?"),
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/jobs/health"] });
       toast({ title: "Job cancelled" });
     },
@@ -105,7 +133,15 @@ export default function Jobs() {
       return res.json() as Promise<{ data: { rescued: number } }>;
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      // The list query's key now carries the current filter/limit as a
+      // query string (e.g. "/api/jobs?limit=200&status=failed"), so a
+      // static key match would silently stop invalidating it - match by
+      // prefix instead. "/api/jobs?" (not "/api/jobs") so this never
+      // also matches the separate /api/jobs/health query.
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          typeof query.queryKey[0] === "string" && query.queryKey[0].startsWith("/api/jobs?"),
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/jobs/health"] });
       toast({ title: `Rescued ${result.data.rescued} hung job${result.data.rescued === 1 ? "" : "s"}` });
     },
@@ -183,14 +219,26 @@ export default function Jobs() {
         </div>
       )}
 
-      {/* Status counts */}
+      {/* Status counts — click a pill to filter the list below, click again to clear */}
       {counts && (
         <div className="flex flex-wrap gap-2 mb-6">
-          {(Object.keys(counts) as JobStatus[]).map((status) => (
-            <span key={status} className={`text-xs px-2 py-1 rounded ${STATUS_STYLE[status]}`}>
-              {status}: {counts[status]}
-            </span>
-          ))}
+          {(Object.keys(counts) as JobStatus[]).map((status) => {
+            const active = statusFilter === status;
+            return (
+              <button
+                key={status}
+                type="button"
+                onClick={() => setStatusFilter(active ? null : status)}
+                aria-pressed={active}
+                title={active ? `Clear ${status} filter` : `Filter to ${status} jobs`}
+                className={`text-xs px-2 py-1 rounded transition-colors ${STATUS_STYLE[status]} ${
+                  active ? "ring-2 ring-offset-1 ring-primary" : "hover-elevate"
+                }`}
+              >
+                {status}: {counts[status]}
+              </button>
+            );
+          })}
         </div>
       )}
 

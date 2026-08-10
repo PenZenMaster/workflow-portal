@@ -89,6 +89,9 @@ app.use((req, res, next) => {
   jobRunner.start(db);
   // Bootstrap the recurring schedule-tick job if one isn't already queued/running.
   jobRunner.seedRecurring("schedule-tick");
+  // FR-002: bootstrap the recurring jobs-table groom job (keeps terminal
+  // jobs bounded so the admin Jobs page stays responsive).
+  jobRunner.seedRecurring("groom-jobs");
 
   app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) {

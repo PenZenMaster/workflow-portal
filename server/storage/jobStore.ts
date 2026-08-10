@@ -14,9 +14,9 @@
  * - v1.00 Job runner monitoring feature initial implementation
  */
 
-import { jobs, JOB_STATUSES } from "@shared/schema";
+import { jobs } from "@shared/schema";
 import type { Job, JobStatus } from "@shared/schema";
-import { and, desc, eq, gte, lt } from "drizzle-orm";
+import { and, desc, eq, gte, lt, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -58,6 +58,7 @@ export interface IJobStore {
   get(id: number): Promise<Job | undefined>;
   requeue(id: number): Promise<Job | undefined>;
   cancel(id: number): Promise<Job | undefined>;
+  groomTerminal(keepCount: number): Promise<number>;
 }
 
 export class JobStore implements IJobStore {
@@ -85,6 +86,11 @@ export class JobStore implements IJobStore {
     return rows.map(hydrate);
   }
 
+  // FR-002: this is polled every 5s by the admin Jobs page. It previously
+  // fetched every row for each status just to count `.length` — a genuine
+  // full-table scan five times over on every poll, a real contributor to
+  // "the page becomes unresponsive" at 55k+ rows. A single grouped
+  // aggregate query returns the same shape without materializing rows.
   async countByStatus(): Promise<JobStatusCounts> {
     const counts: JobStatusCounts = {
       queued: 0,
@@ -93,15 +99,50 @@ export class JobStore implements IJobStore {
       failed: 0,
       cancelled: 0,
     };
-    for (const status of JOB_STATUSES) {
-      const rows = this._db
-        .select()
-        .from(jobs)
-        .where(eq(jobs.status, status))
-        .all();
-      counts[status] = rows.length;
+    const rows = this._db
+      .select({ status: jobs.status, count: sql<number>`count(*)` })
+      .from(jobs)
+      .groupBy(jobs.status)
+      .all();
+    for (const row of rows) {
+      counts[row.status as JobStatus] = row.count;
     }
     return counts;
+  }
+
+  // FR-002: keeps the jobs table bounded so both the admin list and
+  // countByStatus stay fast. Only ever deletes terminal jobs (done/
+  // failed/cancelled) — a queued or running job is never deleted no
+  // matter its age, since an old "running" job is a hung job for the
+  // existing rescue/requeue flow to handle, not something to silently
+  // discard. Deletes in batches (SQLite parameter-count limits) via
+  // repeated "oldest excess batch beyond the keep window" selects; each
+  // pass re-evaluates against the shrinking table, so the keep-window
+  // boundary never shifts as rows are removed from below it.
+  async groomTerminal(keepCount: number): Promise<number> {
+    const BATCH_SIZE = 500;
+    let totalDeleted = 0;
+
+    for (;;) {
+      const batch = this._db
+        .select({ id: jobs.id })
+        .from(jobs)
+        .where(inArray(jobs.status, ["done", "failed", "cancelled"]))
+        .orderBy(desc(jobs.id))
+        .offset(keepCount)
+        .limit(BATCH_SIZE)
+        .all();
+
+      if (batch.length === 0) break;
+
+      this._db
+        .delete(jobs)
+        .where(inArray(jobs.id, batch.map((row) => row.id)))
+        .run();
+      totalDeleted += batch.length;
+    }
+
+    return totalDeleted;
   }
 
   async listHung(now: number): Promise<Job[]> {

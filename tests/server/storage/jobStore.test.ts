@@ -156,6 +156,47 @@ describe("JobStore", () => {
     expect(await store.cancel(99999)).toBeUndefined();
   });
 
+  // FR-002: groom the jobs table down to a bounded size so the admin page
+  // (and the health/count queries polled every 5s) stay responsive.
+  describe("groomTerminal", () => {
+    it("deletes the oldest terminal jobs beyond the keep count, newest terminal jobs survive", async () => {
+      const ids = [
+        insertJob(sqlite, { status: "done", createdAt: 1 }),
+        insertJob(sqlite, { status: "failed", createdAt: 2 }),
+        insertJob(sqlite, { status: "cancelled", createdAt: 3 }),
+        insertJob(sqlite, { status: "done", createdAt: 4 }),
+        insertJob(sqlite, { status: "done", createdAt: 5 }),
+      ];
+
+      const deleted = await store.groomTerminal(2);
+      expect(deleted).toBe(3);
+
+      const remaining = (await store.list()).map((j) => j.id).sort((a, b) => a - b);
+      expect(remaining).toEqual([ids[3], ids[4]]);
+    });
+
+    it("never deletes queued or running jobs, no matter how old", async () => {
+      const oldQueued = insertJob(sqlite, { status: "queued", createdAt: 1 });
+      const oldRunning = insertJob(sqlite, { status: "running", createdAt: 1 });
+      insertJob(sqlite, { status: "done", createdAt: 2 });
+      insertJob(sqlite, { status: "done", createdAt: 3 });
+
+      await store.groomTerminal(0);
+
+      const remaining = (await store.list()).map((j) => j.id).sort((a, b) => a - b);
+      expect(remaining).toEqual([oldQueued, oldRunning].sort((a, b) => a - b));
+    });
+
+    it("deletes nothing and returns 0 when terminal job count is within the keep threshold", async () => {
+      insertJob(sqlite, { status: "done", createdAt: 1 });
+      insertJob(sqlite, { status: "failed", createdAt: 2 });
+
+      const deleted = await store.groomTerminal(5);
+      expect(deleted).toBe(0);
+      expect(await store.list()).toHaveLength(2);
+    });
+  });
+
   it("listByKindAndResponseIds returns matching-kind jobs for given response ids created at/after a timestamp", async () => {
     const before = Date.now() - 10_000;
     const since = Date.now();

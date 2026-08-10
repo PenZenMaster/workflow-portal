@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { registerJobHandlers } from "../../../server/jobs/handlers";
+import { registerJobHandlers, JOBS_KEEP_COUNT, GROOM_JOBS_INTERVAL_MS } from "../../../server/jobs/handlers";
 import { SCHEDULE_TICK_INTERVAL_MS } from "../../../server/services/scheduling";
 import type { JobRunner } from "../../../server/jobs/runner";
 
@@ -74,7 +74,7 @@ const {
   mockSourceDomainStore: { getMapForDomains: vi.fn() },
   mockManifestStore: { create: vi.fn(), getByRunId: vi.fn() },
   mockPromptCollectionStore: { get: vi.fn() },
-  mockJobStore: { get: vi.fn() },
+  mockJobStore: { get: vi.fn(), groomTerminal: vi.fn() },
 }));
 
 const mockGetAdapter = vi.hoisted(() => vi.fn());
@@ -388,6 +388,54 @@ describe("schedule-tick handler", () => {
       4,
       new Date("2026-06-15T10:00:00.000Z").getTime(),
       new Date("2026-06-16T14:00:00.000Z").getTime()
+    );
+  });
+});
+
+// FR-002: keeps the jobs table bounded so the admin page and its 5s-polled
+// health/count queries stay responsive at scale.
+describe("groom-jobs handler", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it("grooms terminal jobs down to JOBS_KEEP_COUNT and re-enqueues itself one interval out", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-15T10:00:00.000Z"));
+    mockJobStore.groomTerminal.mockResolvedValue(1234);
+
+    const { runner, handlers, enqueue } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("groom-jobs")!({}, 1);
+
+    expect(mockJobStore.groomTerminal).toHaveBeenCalledWith(JOBS_KEEP_COUNT);
+    expect(enqueue).toHaveBeenCalledWith(
+      "groom-jobs",
+      {},
+      new Date("2026-06-15T10:00:00.000Z").getTime() + GROOM_JOBS_INTERVAL_MS
+    );
+  });
+
+  it("still re-enqueues itself when there is nothing to groom", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-15T10:00:00.000Z"));
+    mockJobStore.groomTerminal.mockResolvedValue(0);
+
+    const { runner, handlers, enqueue } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("groom-jobs")!({}, 1);
+
+    expect(enqueue).toHaveBeenCalledWith(
+      "groom-jobs",
+      {},
+      new Date("2026-06-15T10:00:00.000Z").getTime() + GROOM_JOBS_INTERVAL_MS
     );
   });
 });

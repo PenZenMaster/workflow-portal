@@ -70,6 +70,14 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// FR-002: how many terminal jobs (done/failed/cancelled) to keep, and how
+// often to check. An hourly cadence matches SCHEDULE_TICK_INTERVAL_MS's
+// precedent for "how often does periodic maintenance need to run" - jobs
+// accumulate over hours/days, not seconds, so there is no need for this to
+// run on every 30s runner tick.
+export const JOBS_KEEP_COUNT = 5_000;
+export const GROOM_JOBS_INTERVAL_MS = 60 * 60 * 1000;
+
 export function registerJobHandlers(runner: JobRunner): void {
   // ---- prompt-run ---------------------------------------------------------
   runner.register({
@@ -615,6 +623,25 @@ export function registerJobHandlers(runner: JobRunner): void {
 
       // Self-perpetuate: schedule the next check one tick interval out.
       runner.enqueue("schedule-tick", {}, now + SCHEDULE_TICK_INTERVAL_MS);
+    },
+  });
+
+  // ---- groom-jobs -----------------------------------------------------
+  // FR-002: keeps the jobs table bounded to JOBS_KEEP_COUNT terminal jobs
+  // so the admin Jobs page and its 5s-polled health/count queries stay
+  // responsive - see jobStore.groomTerminal for why only terminal jobs
+  // are ever eligible for deletion. Self-perpetuating, same pattern as
+  // schedule-tick above; seeded once on startup via
+  // jobRunner.seedRecurring("groom-jobs") in server/index.ts.
+  runner.register({
+    kind: "groom-jobs",
+    async handle() {
+      const now = Date.now();
+      const deleted = await jobStore.groomTerminal(JOBS_KEEP_COUNT);
+      if (deleted > 0) {
+        logger.info("groom-jobs: pruned old terminal jobs", { deleted, keepCount: JOBS_KEEP_COUNT });
+      }
+      runner.enqueue("groom-jobs", {}, now + GROOM_JOBS_INTERVAL_MS);
     },
   });
 }
