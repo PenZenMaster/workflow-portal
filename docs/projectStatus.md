@@ -1,17 +1,17 @@
 ## Resume From
 
 Last session: 2026-08-10
-Branch: main | Version: v1.76.1 | 1318 tests passing | PACKAGED, DEPLOYED to cPanel, and smoke test PASSED
+Branch: main | Version: v1.77.0 | 1335 tests passing | PACKAGED, DEPLOYED to cPanel, and smoke test PASSED
 
-TD-16 CONFIRMED FIXED: production stderr.log shows the outgoing v1.76.0
-worker self-detected and self-evicted cleanly on this deploy - zero
-manual kill needed, first real proof since the fix shipped in v1.76.0.
-Register entry updated. The manual SSH ps check remains routine
-deploy-time verification, but the "hunt for a stale PID and kill it"
-step should no longer be needed going forward - flag it if it ever is.
+TD-16 CONFIRMED WORKING AGAIN: production stderr.log shows the outgoing
+v1.76.1 worker self-detected and self-evicted cleanly at 22:16:08Z on
+this deploy - zero manual kill needed, second consecutive clean
+transition since the fix shipped in v1.76.0. Production package.json
+confirmed on 1.77.0, no errors since the eviction.
 
-NEXT SESSION (1 item):
-1. Issue #30 / Epic 3 (Measurement Health) is FULLY COMPLETE as of v1.75.0 (closed on GitHub 2026-08-10) - no further work scoped under it. Next candidates: pick an epic (Epic 1 Platform Integration Assurance, or Epic 7 Client Executive Report) or continue tech debt - only TD-23 (recommendation overrides don't survive a re-parse) remains open at Medium severity; TD-12/TD-13 are Low. TD-22's bulk re-parse is queued and draining (see part 9) - spot-check a couple of the 67 affected runs once it's fully drained (several hours out) to confirm root domains actually corrected, e.g. via the source-domains registry or a direct query for root_domain still ='co.uk'/'com.au' (should be 0).
+NEXT SESSION (2 items):
+1. Continue Epic 1 (issue #35, Platform Integration Assurance) - slice 1 (capability declarations, citationCapable flag on /metrics/by-platform, N/A rendering in PlatformBreakdownSection) is DONE and deployed as v1.77.0. Next up per the confirmed 5-slice roadmap: slice 2 (requested-vs-actual model tracking).
+2. TD-22's bulk re-parse is still draining in production (2,969 of 3,572 parse-response jobs still queued as of this checkpoint - a persistent background Monitor is tracking it and will fire when fully drained). Once drained: spot-check that no citations remain at root_domain IN ('co.uk','com.au') and close out the TD-22 data note fully.
 
 DROPPED FROM ACTIVE TRACKING 2026-08-10 (user decision, revisit later):
 Groq API access. Not a formal backlog item - just a long-carried note
@@ -22,6 +22,42 @@ up later: the adapter code needs no rework, just a working GROQ_API_KEY.
 (Also carried B-20 GBP API quota check, already downgraded to Low
 Priority in the Backlog 2026-08-10 - see Backlog section, no longer a
 per-session carry-over item either.)
+
+Session 2026-08-10 (part 10): v1.77.0 - Epic 1 (issue #35: Platform
+Integration Assurance) opened with a 5-slice roadmap (capability
+declarations; requested-vs-actual model tracking; distinct timeout
+status; provider request ID + estimated cost; standard adapter-contract
+test suite), confirmed with the user via AskUserQuestion. Slice 1
+SHIPPED: a code-level finding (grep across all adapters for "citation")
+showed only Perplexity has genuine native structured citation support
+(`data.citations`) - the other 6 platforms (OpenAI, Anthropic, Gemini,
+Groq, Mistral, DeepSeek) all share `extractUrlCitations(text)`, a regex
+matching URLs typed into free response text, not real provider support.
+Reporting a citation rate for those 6 was misleading - 0% reads as "no
+citations found" when the platform was never capable of producing the
+signal at all. New `AdapterCapabilities` interface (server/adapters/
+types.ts) - each adapter declares a static capability fact
+(citationSupport, extraction method, etc.) independent of whether its
+API key is configured this session; new `getAdapterCapabilities(slug)`
+(server/adapters/registry.ts). `GET /api/clients/:id/metrics/by-platform`
+now returns a `citationCapable` flag per platform and nulls out the 4
+citation-specific fields (citationFrequency, clientOwnedCitationRate,
+competitorOwnedCitationRate, trustedThirdPartySupportRate) for
+non-capable platforms; the `platformBalanced` rollup averages those 4
+fields only over citation-capable platforms (null when zero are
+capable). `responseWeighted` deliberately left unchanged - a scoping
+decision, not an oversight, to preserve its documented equality with
+`/metrics/overview`. Client `PlatformBreakdownSection` renders "-"
+instead of a misleading percentage for the nullable fields, per-row and
+in the rollup footer. TDD throughout: new `tests/server/adapters/
+registry.test.ts` (9 tests) and 6 new route tests locked in the
+capability facts and null-handling before the UI changed; UI tests
+confirmed RED (`Cannot read properties of null (reading 'toFixed')`)
+before the null-safe `pctOrDash` helper was added. Full suite (1335
+tests), lint, typecheck all pass. No schema migration. Packaged, tagged
+v1.77.0 (pushed), deployed to cPanel, smoke-tested clean by the user.
+Post-deploy TD-16 check: outgoing v1.76.1 worker self-evicted cleanly
+(see top of file) - second consecutive clean transition.
 
 Session 2026-08-10 (part 9): v1.76.1 deployed to cPanel and smoke test
 passed by the user. Post-deploy TD-16 check found the fix genuinely
