@@ -1,11 +1,46 @@
 ## Resume From
 
 Last session: 2026-08-10
-Branch: main | Version: v1.74.0 | 1279 tests passing | PACKAGED, DEPLOYED to cPanel (no schema migration), and QA PASSED
+Branch: main | Version: v1.75.0 | 1307 tests passing | PACKAGED and pushed - NOT YET deployed. Includes a SCHEMA MIGRATION (0026).
 
-NEXT SESSION (2 items):
-1. Issue #30 slice 5b (admin override: record a reason, override a computed health status) - the one deliberately-deferred piece of Epic 3, needs its own schema migration. Epic 3's originally-scoped roadmap is otherwise fully shipped as of v1.73.0.
+NEXT SESSION FIRST: deploy v1.75.0, then verify migration 0026 applied
+cleanly against prod data.db (measurement_health_overrides table exists,
+correct columns) via direct SQL before calling it done - same discipline
+as every prior schema-migration deploy this project. Then TD-16 SSH
+check and update this doc.
+
+NEXT SESSION (2 items after deploy):
+1. Issue #30 / Epic 3 (Measurement Health) is now FULLY COMPLETE as of v1.75.0 (all 5 slices + the admin override) - no further work scoped under it. Next backlog item needs a fresh decision with the user (candidates surfaced in the 2026-08-10 issue #3 gap-analysis: Epic 1 Platform Integration Assurance - the flagged-but-skipped prerequisite - or Epic 7 Client Executive Report, next in the original Phase 2 sequencing).
 2. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+
+Session 2026-08-10 (part 4): v1.75.0 shipped issue #30 slice 5b (admin
+override: record a reason, override a computed measurement-health
+status) - closes out Epic 3's originally-scoped 5-slice roadmap in full.
+New `measurement_health_overrides` table (migration 0026): one override
+per run, admin/agency_admin only, reason required and non-empty (an
+explicit acceptance criterion of this epic, unlike the sibling
+`response_recommendations.human_status` override which has no reason
+field). `PATCH /api/runs/:id/measurement-health/override` sets it,
+`DELETE` clears it back to the computed status. The machine-computed
+status/reasons are never mutated in place - new
+`applyMeasurementHealthOverride`/`effectiveHealthStatus` in
+`measurementHealth.ts` resolve `override?.status ?? status` wherever a
+single answer is needed; both the single-run response and the period-
+rollup's `runs[]`/`rollup` counts now use effective status, so an
+override actually changes "N of M healthy." Moved
+`MEASUREMENT_HEALTH_STATUSES` from `measurementHealth.ts` to
+`shared/schema.ts` (re-exported for existing consumers) so it could back
+the new table's zod validation - same source-of-truth pattern as
+`RECOMMENDATION_STATUSES`. New inline override control on
+`MeasurementHealthSection`'s per-run rows, gated to super_admin/
+agency_admin sessions client-side. TDD throughout, RED confirmed before
+implementing on every new test. Full suite (1307 tests), lint,
+typecheck, db:check all pass. Packaged, tagged v1.75.0 (pushed) - NOT
+YET deployed or smoke-tested this session; this is the first schema
+migration since v1.72.0/issue #30 slice 5, needs the usual direct-SQL
+verification against prod after deploy.
+NEXT SESSION FIRST: deploy + verify migration 0026 + smoke test + TD-16
+check (see top of this file).
 
 Session 2026-08-10 (part 3): v1.74.0 deployed to cPanel and QA passed by
 the user. Post-deploy TD-16 check via SSH: single fresh worker (~1min
