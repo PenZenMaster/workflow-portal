@@ -16,12 +16,19 @@
  * - v1.01 TD-17: unknown job kinds are requeued with a delay (another
  *   worker may know the kind during mixed-version deploy windows) and
  *   only fail after a 24h grace window with no capable worker
+ * - v1.02 TD-16: opt-in self-eviction. A worker that survives a cPanel
+ *   restart keeps ticking with its outdated process.env snapshot; each
+ *   tick now re-reads the on-disk package.json version and self-evicts
+ *   (stops ticking, exits) the moment it no longer matches what this
+ *   process booted with - a newer deploy has landed, this process is now
+ *   an orphan. See server/services/staleness.ts.
  */
 
 import { jobs } from "@shared/schema";
 import { eq, and, lte, isNull, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { logger } from "../logger";
+import { readPackageVersion, isStaleWorker } from "../services/staleness";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
 
@@ -46,27 +53,56 @@ export interface RunnerHealth {
   running: boolean;
 }
 
+export interface StalenessOptions {
+  /** Path to the package.json to watch. Omit to disable staleness checking entirely (default). */
+  packageJsonPath?: string;
+  /** Injectable for tests; defaults to the real process.exit. */
+  exitProcess?: (code: number) => void;
+}
+
 export class JobRunner {
   private readonly handlers = new Map<string, JobHandler>();
   private db: DrizzleDb | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private intervalMs: number | null = null;
   private lastTickAt: number | null = null;
+  private packageJsonPath: string | null = null;
+  private bootVersion: string | null = null;
+  private exitProcess: (code: number) => void = (code) => process.exit(code);
 
   register(handler: JobHandler): this {
     this.handlers.set(handler.kind, handler);
     return this;
   }
 
-  start(db: DrizzleDb, intervalMs = 30_000): void {
+  start(db: DrizzleDb, intervalMs = 30_000, staleness?: StalenessOptions): void {
     this.db = db;
     this.intervalMs = intervalMs;
+    if (staleness?.packageJsonPath) {
+      this.packageJsonPath = staleness.packageJsonPath;
+      this.bootVersion = readPackageVersion(staleness.packageJsonPath);
+    }
+    if (staleness?.exitProcess) this.exitProcess = staleness.exitProcess;
     // Rescue any jobs left in 'running' state from a previous process crash.
     this.rescueOrphans();
     void this.tick();
     this.timer = setInterval(() => {
       void this.tick();
     }, intervalMs);
+  }
+
+  // TD-16: true only when staleness checking is configured AND the on-disk
+  // package.json version has moved past what this process booted with.
+  // Fails safe (false) on a read error - a transient mid-deploy glitch
+  // must never cause a legitimately fresh worker to evict itself.
+  private isStale(): boolean {
+    if (!this.packageJsonPath || !this.bootVersion) return false;
+    try {
+      const currentVersion = readPackageVersion(this.packageJsonPath);
+      return isStaleWorker(this.bootVersion, currentVersion);
+    } catch {
+      return false;
+    }
   }
 
   stop(): void {
@@ -130,6 +166,18 @@ export class JobRunner {
 
   async tick(): Promise<void> {
     if (!this.db) return;
+
+    // TD-16: check before touching any jobs - a stale worker must not
+    // claim/fail jobs with its outdated process.env on its way out.
+    if (this.isStale()) {
+      logger.error("job runner: detected stale worker (package.json version changed since boot) - self-evicting", {
+        bootVersion: this.bootVersion,
+      });
+      this.stop();
+      this.exitProcess(0);
+      return;
+    }
+
     const db = this.db;
     const now = Date.now();
     const lockUntil = now + LOCK_TTL_MS;

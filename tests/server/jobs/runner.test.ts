@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { JobRunner } from "../../../server/jobs/runner";
@@ -261,5 +264,96 @@ describe("JobRunner", () => {
 
     expect(getJob(sqlite, jobId).status).toBe("queued");
     freshRunner.stop();
+  });
+});
+
+// TD-16: a worker process that survives a cPanel restart keeps polling the
+// jobs table with its outdated process.env snapshot. Self-eviction is the
+// fix - detect that the on-disk package.json version has moved past what
+// this process booted with, then stop ticking and exit.
+describe("JobRunner staleness self-eviction (TD-16)", () => {
+  let sqlite: SqliteDb;
+  let db: DrizzleDb;
+  let runner: JobRunner;
+  let dir: string;
+  let packageJsonPath: string;
+
+  beforeEach(() => {
+    const setup = createTestDb();
+    sqlite = setup.sqlite;
+    db = setup.db;
+    runner = new JobRunner();
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "runner-staleness-test-"));
+    packageJsonPath = path.join(dir, "package.json");
+    fs.writeFileSync(packageJsonPath, JSON.stringify({ version: "1.75.0" }));
+  });
+
+  afterEach(() => {
+    runner.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  it("does not self-evict when staleness checking is not configured (opt-in only)", async () => {
+    runner.start(db, 999_999);
+    const jobId = insertJob(sqlite);
+    const handler = vi.fn().mockResolvedValue(undefined);
+    runner.register({ kind: "test-job", handle: handler });
+
+    await runner.tick();
+
+    expect(handler).toHaveBeenCalledOnce();
+    expect(getJob(sqlite, jobId).status).toBe("done");
+  });
+
+  it("does not self-evict when the on-disk package version matches what it booted with", async () => {
+    const exitProcess = vi.fn();
+    runner.start(db, 999_999, { packageJsonPath, exitProcess });
+    const jobId = insertJob(sqlite);
+    const handler = vi.fn().mockResolvedValue(undefined);
+    runner.register({ kind: "test-job", handle: handler });
+
+    await runner.tick();
+
+    expect(exitProcess).not.toHaveBeenCalled();
+    expect(handler).toHaveBeenCalledOnce();
+    expect(getJob(sqlite, jobId).status).toBe("done");
+  });
+
+  it("stops ticking and self-evicts when the on-disk package version has changed since boot", async () => {
+    const exitProcess = vi.fn();
+    runner.start(db, 999_999, { packageJsonPath, exitProcess });
+
+    // Simulate a deploy landing on disk after this process booted.
+    fs.writeFileSync(packageJsonPath, JSON.stringify({ version: "1.76.0" }));
+
+    const jobId = insertJob(sqlite);
+    const handler = vi.fn().mockResolvedValue(undefined);
+    runner.register({ kind: "test-job", handle: handler });
+
+    await runner.tick();
+
+    expect(exitProcess).toHaveBeenCalledWith(0);
+    // The stale worker must not claim/fail jobs with its outdated env on
+    // its way out - the whole point of this feature.
+    expect(handler).not.toHaveBeenCalled();
+    expect(getJob(sqlite, jobId).status).toBe("queued");
+    expect(runner.getHealth().running).toBe(false);
+  });
+
+  it("fails safe (does not evict) if package.json cannot be read at check time", async () => {
+    const exitProcess = vi.fn();
+    runner.start(db, 999_999, { packageJsonPath, exitProcess });
+    fs.rmSync(packageJsonPath); // simulate a mid-deploy read glitch
+
+    const jobId = insertJob(sqlite);
+    const handler = vi.fn().mockResolvedValue(undefined);
+    runner.register({ kind: "test-job", handle: handler });
+
+    await runner.tick();
+
+    expect(exitProcess).not.toHaveBeenCalled();
+    expect(handler).toHaveBeenCalledOnce();
+    expect(getJob(sqlite, jobId).status).toBe("done");
   });
 });

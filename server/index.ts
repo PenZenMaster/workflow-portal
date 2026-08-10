@@ -86,7 +86,15 @@ app.use((req, res, next) => {
       ga4: new Ga4Service(),
     }),
   ]);
-  jobRunner.start(db);
+  // TD-16: self-eviction - cPanel's Application Root is always this
+  // process's cwd regardless of the entry file's own location (same
+  // convention DATA_DB_PATH's "../persistent" documentation relies on),
+  // so this resolves correctly in both dev and production without
+  // touching __dirname/import.meta.url (which behave differently between
+  // the ESM dev source and the CJS production bundle).
+  jobRunner.start(db, undefined, {
+    packageJsonPath: path.join(process.cwd(), "package.json"),
+  });
   // Bootstrap the recurring schedule-tick job if one isn't already queued/running.
   jobRunner.seedRecurring("schedule-tick");
   // FR-002: bootstrap the recurring jobs-table groom job (keeps terminal
