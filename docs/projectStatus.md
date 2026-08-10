@@ -1,12 +1,15 @@
 ## Resume From
 
 Last session: 2026-08-10
-Branch: main | Version: v1.74.0 | 1279 tests passing | PACKAGED, awaiting deploy confirmation
+Branch: main | Version: v1.74.0 | 1279 tests passing | PACKAGED, DEPLOYED to cPanel (no schema migration), and QA PASSED
 
-NEXT SESSION (3 items):
-1. Confirm v1.74.0 deployed + smoke-tested (FR-001/FR-002 on /admin/jobs), then run the usual TD-16 SSH check and update this doc.
-2. Issue #30 slice 5b (admin override: record a reason, override a computed health status) - the one deliberately-deferred piece of Epic 3, needs its own schema migration. Epic 3's originally-scoped roadmap is otherwise fully shipped as of v1.73.0.
-3. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+NEXT SESSION (2 items):
+1. Issue #30 slice 5b (admin override: record a reason, override a computed health status) - the one deliberately-deferred piece of Epic 3, needs its own schema migration. Epic 3's originally-scoped roadmap is otherwise fully shipped as of v1.73.0.
+2. User-owned, carried over: B-20 GBP API quota check, Groq API access.
+
+Session 2026-08-10 (part 3): v1.74.0 deployed to cPanel and QA passed by
+the user. Post-deploy TD-16 check via SSH: single fresh worker (~1min
+old), no stale process.
 
 Session 2026-08-10 (part 2): v1.74.0 shipped two user-filed feature
 requests on the super-admin `/admin/jobs` page.
