@@ -1,21 +1,17 @@
 ## Resume From
 
 Last session: 2026-08-10
-Branch: main | Version: v1.78.0 | 1342 tests passing | PACKAGED, DEPLOYED to cPanel, and smoke test PASSED
+Branch: main | Version: v1.79.0 | 1349 tests passing | PACKAGED and TAGGED - NOT YET deployed or smoke-tested this session
 
-TD-16 CONFIRMED WORKING AGAIN (3rd consecutive clean transition): v1.77.0
-worker self-evicted cleanly at 22:54:36Z on this deploy. Migration 0027
-(responses_raw.requested_model, nullable text) verified applied cleanly
-against production data.db via direct SQL (`PRAGMA table_info`). Smoke
-test initially reported FAIL by the user (page showed raw unrendered
-index.html source) - investigated: node process was up (PID 2334389,
-booted 22:55, right after the self-eviction), curl confirmed HTTP 200 /
-text/html from the live site. User confirmed moments later it was just a
-slow cold-start load, not a real failure - false alarm, no code issue.
+TD-22 FULLY CLOSED: the bulk re-parse (3,572 jobs, ids 55161-58732)
+finished draining and was re-verified via direct SQL - zero citations
+remain at root_domain IN ('co.uk','com.au'); spot-checked corrected
+domains look real (froggys.com.au x13, rankmax.com.au x11,
+blueboxhire.co.uk x6, etc). Tech Debt Register entry updated to fully
+closed (see below).
 
-NEXT SESSION (2 items):
-1. Continue Epic 1 (issue #35, Platform Integration Assurance) - slices 1 and 2 are DONE and deployed (v1.77.0, v1.78.0). Next up per the confirmed 5-slice roadmap: slice 3 (distinct `timeout` status, replacing the current fold-into-`failed` behavior).
-2. TD-22's bulk re-parse is still draining in production (2,569 of 3,572 parse-response jobs still queued as of this checkpoint - a persistent background Monitor is tracking it and will fire when fully drained). Once drained: spot-check that no citations remain at root_domain IN ('co.uk','com.au') and close out the TD-22 data note fully.
+NEXT SESSION (1 item):
+1. Deploy + smoke test v1.79.0 (Epic 1 issue #35 slice 3: distinct `timeout` status). No schema migration this time - simpler post-deploy check than the last two (just the standard TD-16 SSH check). Once confirmed, continue Epic 1 with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
 
 DROPPED FROM ACTIVE TRACKING 2026-08-10 (user decision, revisit later):
 Groq API access. Not a formal backlog item - just a long-carried note
@@ -26,6 +22,19 @@ up later: the adapter code needs no rework, just a working GROQ_API_KEY.
 (Also carried B-20 GBP API quota check, already downgraded to Low
 Priority in the Backlog 2026-08-10 - see Backlog section, no longer a
 per-session carry-over item either.)
+
+Session 2026-08-10 (part 12): TD-22 bulk re-parse (queued in part 9)
+fully drained - persistent background Monitor fired when the last of
+3,572 parse-response jobs (ids 55161-58732) left the queue. Re-verified
+per the standing NEXT SESSION item: direct SQL confirms zero citations
+remain at root_domain IN ('co.uk','com.au'), and a spot-check of the
+now-corrected rows shows real registrable domains grouped sensibly
+(froggys.com.au x13, rankmax.com.au x11, rapidfixgaragedoors.com.au x7,
+blueboxhire.co.uk x6, etc) instead of everything pooled under the bare
+suffix. TD-22 marked fully closed in the Tech Debt Register (was
+"Done" for the code fix since v1.76.1, this closes out the lingering
+data note). No code changes this session - purely a verification and
+docs-closure step.
 
 Session 2026-08-10 (part 11): v1.78.0 - Epic 1 slice 2 (requested-vs-
 actual model tracking) SHIPPED. Every adapter already knew the model it
@@ -2862,7 +2871,7 @@ Confirmed decisions:
 | TD-19 | Low | Done | No non-interactive SSH access to production from the dev machine. RESOLVED 2026-07-14: the old passphrase-protected key was replaced with a new passphrase-free ed25519 keypair (~/.ssh/workflow-portal); user imported the public key in cPanel as 'fmj' and authorized it. Verified: `ssh -o BatchMode=yes -i ~/.ssh/workflow-portal fullmetaljacket@69.72.136.208 "echo SSH-OK"` succeeds with no prompt. Live-DB queries now work non-interactively. | ops/local dev environment |
 | TD-21 | Medium | Done | Citation ownership matching silently failed for URL-formatted brand domains: parser.ts unconditionally prefixed "https://" to brands.primary_domain before extracting the root domain, so values stored as full URLs ("https://chicagometal.com/", "https://www.kmsheetmetal.com/" — how the Brands UI accepted them) produced an unparseable double-scheme URL and ownedByBrandId never matched. Predates v1.34.0: competitor-owned citation attribution in Sources analysis was broken for every URL-formatted brand since Sprint 4; surfaced during v1.34.0 QA when chicagometalsupply.com classified unknown instead of competitor_owned. FIXED in v1.34.1: scheme prefixed only when missing. RELATED DATA ISSUE (user, portal UI): Chicago Metal's brand record says chicagometal.com but AI responses cite chicagometalsupply.com — correct the brand's primary domain if that's the real site. Affected responses need a re-parse after deploy. | server/services/parser.ts (parsedCitations owner match) |
 | TD-23 | Medium | Open | Human recommendation overrides do not survive a re-parse: the parse-response handler deletes and recreates response_recommendations rows, and human_status/human_user_id/human_at live on those rows, so re-parsing a run silently discards analyst corrections made via the v1.36.0 override UI (weakens FR-11). Same root pattern that scoped archive out of B-26. Fix options: preserve override columns on recreate (match by response+brand), or move overrides to a separate table keyed by response_id+brand_id that the parse cycle never touches. | server/jobs/handlers.ts (parse-response), server/storage/recommendationStore.ts |
-| TD-22 | Medium | Done | Root-domain extraction is not public-suffix-aware: multi-part public suffixes collapse to the suffix itself (anything.co.uk -> "co.uk"), so 35 production citations are grouped under the meaningless root "co.uk" and can never be classified or matched for ownership. Found during the 2026-07-15 registry review. FIXED 2026-08-10 (user decision: `psl` package over a hand-curated suffix table - the actual Mozilla Public Suffix List, correct for co.uk/com.au/thousands of others, vs. a table guaranteed to keep missing suffixes on unpredictable future citations). `extractRootDomain` (server/services/parser.ts) now calls `psl.get()`, falling back to the bare hostname only when psl can't resolve one. TypeScript couldn't resolve psl's own bundled types through its package.json "exports" map (no "types" condition) under this project's `moduleResolution: "bundler"` - fixed with a minimal local ambient declaration (server/types.d.ts, same pattern already used for better-sqlite3-session-store) rather than the deprecated `@types/psl` stub, which didn't actually resolve it either. **Data note (in progress 2026-08-10):** 67 distinct production runs across 10 of 11 clients carried citations collapsed to a bare suffix (98 at root_domain='co.uk', 94 at 'com.au' - grown from the 35 originally found 2026-07-15). Bulk re-parse queued the same day with explicit user confirmation after a dry run showed the real scope (3,572 affected responses, not 67 - a run re-parse reprocesses every completed response in the run, not just the ones with the bad citation) - 3,572 parse-response jobs inserted directly into the production jobs table (same job shape POST /api/runs/:id/reparse itself enqueues), draining at the runner's normal throughput (~6h estimated). Verify fully drained and re-check for any remaining root_domain='co.uk'/'com.au' rows (should be 0) before marking this data note closed. | server/services/parser.ts (extractRootDomain), server/types.d.ts |
+| TD-22 | Medium | Done | Root-domain extraction is not public-suffix-aware: multi-part public suffixes collapse to the suffix itself (anything.co.uk -> "co.uk"), so 35 production citations are grouped under the meaningless root "co.uk" and can never be classified or matched for ownership. Found during the 2026-07-15 registry review. FIXED 2026-08-10 (user decision: `psl` package over a hand-curated suffix table - the actual Mozilla Public Suffix List, correct for co.uk/com.au/thousands of others, vs. a table guaranteed to keep missing suffixes on unpredictable future citations). `extractRootDomain` (server/services/parser.ts) now calls `psl.get()`, falling back to the bare hostname only when psl can't resolve one. TypeScript couldn't resolve psl's own bundled types through its package.json "exports" map (no "types" condition) under this project's `moduleResolution: "bundler"` - fixed with a minimal local ambient declaration (server/types.d.ts, same pattern already used for better-sqlite3-session-store) rather than the deprecated `@types/psl` stub, which didn't actually resolve it either. **Data note: FULLY CLOSED 2026-08-10.** 67 distinct production runs across 10 of 11 clients carried citations collapsed to a bare suffix (98 at root_domain='co.uk', 94 at 'com.au' - grown from the 35 originally found 2026-07-15). Bulk re-parse queued the same day with explicit user confirmation after a dry run showed the real scope (3,572 affected responses, not 67 - a run re-parse reprocesses every completed response in the run, not just the ones with the bad citation) - 3,572 parse-response jobs inserted directly into the production jobs table (same job shape POST /api/runs/:id/reparse itself enqueues). Fully drained; re-verified via direct SQL: zero citations remain at root_domain IN ('co.uk','com.au'), and a spot-check of the corrected rows shows real registrable domains (e.g. froggys.com.au x13, rankmax.com.au x11, blueboxhire.co.uk x6). | server/services/parser.ts (extractRootDomain), server/types.d.ts |
 | TD-24 | High | Done | Snapshot-delta period metrics assumed cumulative history is monotonic: aggregateForPeriod derived overview/SoV totals as (latest snapshot) minus (baseline snapshot), but aggregate-snapshot-daily recomputes LIFETIME totals from current mention rows, and re-parses/brand-pruning delete rows — history shrinks. Salvo (client 4) non-client cumulative mentions collapsed 205 -> 9 on 2026-07-15, so any window whose baseline predates it reported AI SoV > 100% (observed 106.4% on 2026-07-16). FIXED in v1.43.1: overview + /metrics/sov use new metricStore.aggregateLiveForPeriod (raw-table aggregate windowed on captured_at, visibility score recomputed via computeVisibilityScore; client mentions are a subset of all-brand mentions by construction). Trend timeseries still reads snapshots (per-point cumulative ratios are self-consistent). Snapshot deltas remain in aggregateForPeriod but no route uses them for ratios. | server/storage/metricStore.ts, server/routes/metrics.ts |
 | TD-20 | Medium | Done | Numbered-list rank detection missed markdown-formatted list items: detectRecommendationRank required `N.` plus only whitespace directly before the brand mention, but LLM responses almost always bold list items (`1. **Brand**`) or the number itself (`**1.**`). Effect: recommendationRank was almost never set on real responses, so first_choice was effectively unreachable in the v1.33.0 classifier AND the visibility score's firstRecommended component (scoring.ts) never fired — this predates v1.33.0. Found during v1.33.0 production QA (Run #75 response 3447: brand at list position 1 stored as listed_option/no rank). FIXED in v1.33.2: rank regex now tolerates markdown emphasis chars around the list marker; decimal numbers ("4.5") still excluded. Affected runs need a re-parse after deploy for corrected ranks/statuses/scores. | server/services/parser.ts (detectRecommendationRank) |
 
