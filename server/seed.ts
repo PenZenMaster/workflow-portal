@@ -451,6 +451,35 @@ Return:
     launchLabel: "",
     pinned: false,
   },
+
+  {
+    name: "Location Page Builder (Rank Rocket + WordPress)",
+    category: "Local SEO",
+    description:
+      'Builds and publishes SEO-optimized location landing pages via the Rank Rocket SEO plugin\'s WordPress REST API. Uses the "location-page-builder" skill to generate on-brand, locally-relevant page content per target city or service area, then publishes drafts through Rank Rocket\'s REST endpoints for review before going live.',
+    inputs: [
+      "WordPress site URL",
+      "Rank Rocket REST API endpoint / key",
+      "Business name",
+      "Target city or service area(s)",
+      "Primary service / money page URL",
+      "Page template / content style preferences",
+    ],
+    tags: ["local-seo", "rankrocket", "wordpress", "skill", "location-pages", "rest-api"],
+    prompt: `Use the "location-page-builder" skill.
+
+WordPress site URL: <PASTE>
+Rank Rocket REST API endpoint / key: <PASTE>
+Business name: <PASTE>
+Target city or service area(s): <PASTE>
+Primary service / money page URL: <PASTE>
+Page template / content style preferences: <PASTE>
+
+Generate one SEO-optimized location page per target city/service area, matching the existing site's tone and template. Publish each page as a draft via the Rank Rocket plugin's WordPress REST API endpoints - do not publish live without explicit confirmation. Return the list of created draft page URLs/IDs for review.`,
+    launchUrl: "https://www.perplexity.ai/",
+    launchLabel: "Launch in Perplexity",
+    pinned: false,
+  },
 ];
 
 export function seedIfEmpty() {
