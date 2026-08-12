@@ -459,7 +459,7 @@ Return:
       'Builds and publishes SEO-optimized location landing pages via the Rank Rocket SEO plugin\'s WordPress REST API. Uses the "location-page-builder" skill to generate on-brand, locally-relevant page content per target city or service area, then publishes drafts through Rank Rocket\'s REST endpoints for review before going live.',
     inputs: [
       "WordPress site URL",
-      "Rank Rocket REST API endpoint / key",
+      "Rank Rocket REST API Key",
       "Business name",
       "Target city or service area(s)",
       "Primary service / money page URL",
@@ -469,7 +469,7 @@ Return:
     prompt: `Use the "location-page-builder" skill.
 
 WordPress site URL: <PASTE>
-Rank Rocket REST API endpoint / key: <PASTE>
+Rank Rocket REST API Key: <PASTE>
 Business name: <PASTE>
 Target city or service area(s): <PASTE>
 Primary service / money page URL: <PASTE>
