@@ -76,3 +76,24 @@ export function getLaunchPlan(
   }
   return { mode: "clipboard", url: launchUrl };
 }
+
+// Client-side cap for an attached reference file, mirrors the server's
+// MAX_CSV_BYTES precedent (server/services/workflowFileRun.ts) even though
+// this file is never sent to the server.
+export const MAX_TEMPLATE_FILE_BYTES = 5 * 1024 * 1024;
+
+export function isHtmlFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return file.type === "text/html" || name.endsWith(".html") || name.endsWith(".htm");
+}
+
+// Folds an attached reference file's content into the already-filled
+// prompt. Never persisted anywhere — the caller reads the File client-side
+// and passes its text straight through.
+export function appendTemplateFile(
+  prompt: string,
+  filename: string,
+  content: string
+): string {
+  return `${prompt}\n\nTemplate reference (uploaded file: ${filename}):\n\`\`\`html\n${content}\n\`\`\``;
+}

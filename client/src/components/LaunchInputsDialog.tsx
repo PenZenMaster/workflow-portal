@@ -11,9 +11,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ExternalLink, ClipboardCheck, FileUp } from "lucide-react";
+import { ExternalLink, ClipboardCheck, FileUp, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { fillPrompt, getLaunchPlan, type LaunchMode } from "@/lib/launchUtils";
+import {
+  fillPrompt,
+  getLaunchPlan,
+  isHtmlFile,
+  appendTemplateFile,
+  MAX_TEMPLATE_FILE_BYTES,
+  type LaunchMode,
+  type LaunchPlan,
+} from "@/lib/launchUtils";
 
 type Props = {
   workflow: Workflow;
@@ -41,6 +49,7 @@ export function LaunchInputsDialog({
   const [values, setValues] = useState<string[]>([]);
   const [optionalValues, setOptionalValues] = useState<string[]>([]);
   const [launched, setLaunched] = useState<LaunchedState | null>(null);
+  const [templateFile, setTemplateFile] = useState<File | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -48,6 +57,7 @@ export function LaunchInputsDialog({
       setValues(workflow.inputs.map(() => ""));
       setOptionalValues(workflow.optionalInputs.map(() => ""));
       setLaunched(null);
+      setTemplateFile(null);
     }
   }, [open, workflow.inputs, workflow.optionalInputs]);
 
@@ -112,6 +122,46 @@ export function LaunchInputsDialog({
   // values; a blank optional value fills its token as empty text.
   const allValues = [...values, ...optionalValues];
 
+  const handleTemplateFileChange = (file: File | undefined) => {
+    if (!file) return;
+    if (!isHtmlFile(file)) {
+      toast({
+        title: "Not an HTML file",
+        description: "Only .html/.htm files can be attached as a template.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (file.size > MAX_TEMPLATE_FILE_BYTES) {
+      toast({
+        title: "File too large",
+        description: "Attached templates are limited to 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setTemplateFile(file);
+  };
+
+  // Builds the final prompt, folding in the attached template file's
+  // content (if any). Never sent to the server or persisted anywhere -
+  // the file is only read for the duration of this call.
+  const buildFinalPrompt = async (): Promise<string | null> => {
+    const filled = fillPrompt(workflow.prompt, allValues);
+    if (!templateFile) return filled;
+    try {
+      const content = await templateFile.text();
+      return appendTemplateFile(filled, templateFile.name, content);
+    } catch {
+      toast({
+        title: "Couldn't read attached file",
+        description: "Remove it and try again, or launch without it.",
+        variant: "destructive",
+      });
+      return null;
+    }
+  };
+
   const handleRunConfirm = () => {
     persistValues();
     onRun?.(allValues);
@@ -120,11 +170,17 @@ export function LaunchInputsDialog({
 
   const handleLaunch = async () => {
     persistValues();
-    const filled = fillPrompt(workflow.prompt, allValues);
-    const plan = getLaunchPlan(workflow.launchUrl, filled, [
-      ...workflow.inputs,
-      ...workflow.optionalInputs,
-    ]);
+    const filled = await buildFinalPrompt();
+    if (filled === null) return;
+    // An attached template file is folded into the prompt as free text -
+    // always force clipboard mode rather than risk it being auto-submitted
+    // via a Perplexity URL, regardless of the encoded-length fallback.
+    const plan: LaunchPlan = templateFile
+      ? { mode: "clipboard", url: workflow.launchUrl }
+      : getLaunchPlan(workflow.launchUrl, filled, [
+          ...workflow.inputs,
+          ...workflow.optionalInputs,
+        ]);
 
     // Copy in every mode as a safety net; clipboard mode depends on it.
     let copied = false;
@@ -153,7 +209,8 @@ export function LaunchInputsDialog({
   };
 
   const handleCopyOnly = async () => {
-    const filled = fillPrompt(workflow.prompt, allValues);
+    const filled = await buildFinalPrompt();
+    if (filled === null) return;
     try {
       await navigator.clipboard.writeText(filled);
       setLaunched((prev) => (prev ? { ...prev, copied: true } : prev));
@@ -230,6 +287,46 @@ export function LaunchInputsDialog({
               />
             </div>
           ))}
+          {mode === "launch" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="launch-template-file-input">
+                Attach an HTML template{" "}
+                <span className="text-muted-foreground font-normal">
+                  (optional)
+                </span>
+              </Label>
+              {templateFile ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="truncate">{templateFile.name}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    onClick={() => setTemplateFile(null)}
+                    title="Remove attached file"
+                    data-testid="launch-template-file-remove"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <Input
+                  id="launch-template-file-input"
+                  type="file"
+                  accept=".html,.htm,text/html"
+                  className="h-9 text-xs"
+                  onChange={(e) =>
+                    handleTemplateFileChange(e.target.files?.[0])
+                  }
+                  data-testid="launch-template-file-input"
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                Not stored - only folded into the prompt you copy/launch.
+              </p>
+            </div>
+          )}
         </div>
         )}
 

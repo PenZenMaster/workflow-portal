@@ -95,7 +95,9 @@ describe("LaunchInputsDialog - optional inputs", () => {
     expect(screen.getByTestId("launch-input-0")).toBeInTheDocument();
     expect(screen.getByTestId("launch-optional-input-0")).toBeInTheDocument();
     expect(screen.getByText(/Competitor URL/)).toBeInTheDocument();
-    expect(screen.getByText(/\(optional\)/)).toBeInTheDocument();
+    expect(
+      screen.getByTestId("launch-optional-input-0").closest("div")
+    ).toHaveTextContent(/\(optional\)/);
   });
 
   it("fills <PASTE> tokens with required values first, then optional values", async () => {
@@ -268,5 +270,149 @@ describe("LaunchInputsDialog - launch instruction step", () => {
     await user.click(await screen.findByTestId("button-launch-done"));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("LaunchInputsDialog - template file attachment", () => {
+  it("renders the template file picker in launch mode", () => {
+    renderDialog();
+    expect(screen.getByTestId("launch-template-file-input")).toBeInTheDocument();
+  });
+
+  it("does not render the template file picker in ai-run mode", () => {
+    render(
+      <LaunchInputsDialog
+        workflow={WORKFLOW}
+        open={true}
+        onOpenChange={vi.fn()}
+        mode="ai-run"
+        onRun={vi.fn()}
+      />
+    );
+    expect(
+      screen.queryByTestId("launch-template-file-input")
+    ).not.toBeInTheDocument();
+  });
+
+  it("rejects a non-HTML file and does not attach it", async () => {
+    const user = setupUser();
+    renderDialog();
+
+    const file = new File(["a,b,c"], "data.csv", { type: "text/csv" });
+    await user.upload(screen.getByTestId("launch-template-file-input"), file);
+
+    expect(screen.queryByText("data.csv")).not.toBeInTheDocument();
+
+    await user.type(screen.getByTestId("launch-input-0"), "https://uss.com");
+    await user.click(screen.getByTestId("button-launch-copy"));
+
+    expect(writeTextMock).toHaveBeenCalledWith(
+      expect.not.stringContaining("Template reference")
+    );
+  });
+
+  it("rejects an oversized HTML file and does not attach it", async () => {
+    const user = setupUser();
+    renderDialog();
+
+    const file = new File(["<html></html>"], "big.html", { type: "text/html" });
+    Object.defineProperty(file, "size", { value: 6 * 1024 * 1024 });
+    await user.upload(screen.getByTestId("launch-template-file-input"), file);
+
+    expect(screen.queryByText("big.html")).not.toBeInTheDocument();
+  });
+
+  it("includes the attached HTML file's content when copying the prompt", async () => {
+    const user = setupUser();
+    renderDialog();
+
+    const file = new File(["<div>hello</div>"], "template.html", {
+      type: "text/html",
+    });
+    await user.upload(screen.getByTestId("launch-template-file-input"), file);
+    expect(screen.getByText("template.html")).toBeInTheDocument();
+
+    await user.type(screen.getByTestId("launch-input-0"), "https://uss.com");
+    await user.click(screen.getByTestId("button-launch-copy"));
+
+    expect(writeTextMock).toHaveBeenCalledWith(
+      expect.stringContaining("<div>hello</div>")
+    );
+    expect(writeTextMock).toHaveBeenCalledWith(
+      expect.stringContaining("template.html")
+    );
+  });
+
+  it("forces clipboard mode and includes file content when Launch is clicked, even for a Perplexity URL", async () => {
+    const user = setupUser();
+    const openSpy = vi.fn().mockReturnValue(null);
+    vi.stubGlobal("open", openSpy);
+
+    render(
+      <LaunchInputsDialog
+        workflow={{ ...WORKFLOW, launchUrl: "https://www.perplexity.ai/" }}
+        open={true}
+        onOpenChange={vi.fn()}
+      />
+    );
+
+    const file = new File(["<div>hello</div>"], "template.html", {
+      type: "text/html",
+    });
+    await user.upload(screen.getByTestId("launch-template-file-input"), file);
+    await user.type(screen.getByTestId("launch-input-0"), "https://uss.com");
+    await user.click(screen.getByTestId("button-launch-confirm"));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://www.perplexity.ai/",
+      "_blank",
+      "noopener,noreferrer"
+    );
+    expect(writeTextMock).toHaveBeenCalledWith(
+      expect.stringContaining("<div>hello</div>")
+    );
+    expect(await screen.findByTestId("launch-instructions")).toHaveTextContent(
+      /Ctrl\+V/
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it("excludes the file's content once it is removed before launching", async () => {
+    const user = setupUser();
+    renderDialog();
+
+    const file = new File(["<div>hello</div>"], "template.html", {
+      type: "text/html",
+    });
+    await user.upload(screen.getByTestId("launch-template-file-input"), file);
+    await user.click(screen.getByTestId("launch-template-file-remove"));
+    expect(screen.queryByText("template.html")).not.toBeInTheDocument();
+
+    await user.type(screen.getByTestId("launch-input-0"), "https://uss.com");
+    await user.click(screen.getByTestId("button-launch-copy"));
+
+    expect(writeTextMock).toHaveBeenCalledWith(
+      expect.not.stringContaining("Template reference")
+    );
+  });
+
+  it("resets the attached file when the dialog is reopened", async () => {
+    const user = setupUser();
+    const { rerender } = renderDialog();
+
+    const file = new File(["<div>hello</div>"], "template.html", {
+      type: "text/html",
+    });
+    await user.upload(screen.getByTestId("launch-template-file-input"), file);
+    expect(screen.getByText("template.html")).toBeInTheDocument();
+
+    rerender(
+      <LaunchInputsDialog workflow={WORKFLOW} open={false} onOpenChange={vi.fn()} />
+    );
+    rerender(
+      <LaunchInputsDialog workflow={WORKFLOW} open={true} onOpenChange={vi.fn()} />
+    );
+
+    expect(screen.queryByText("template.html")).not.toBeInTheDocument();
   });
 });

@@ -5,6 +5,9 @@ import {
   buildPerplexityLaunchUrl,
   hasSensitiveInputLabel,
   getLaunchPlan,
+  isHtmlFile,
+  appendTemplateFile,
+  MAX_TEMPLATE_FILE_BYTES,
 } from "./launchUtils";
 
 describe("fillPrompt", () => {
@@ -168,5 +171,52 @@ describe("getLaunchPlan", () => {
     const plan = getLaunchPlan("https://claude.ai/", "hello", []);
     expect(plan.mode).toBe("clipboard");
     expect(plan.url).toBe("https://claude.ai/");
+  });
+});
+
+describe("isHtmlFile", () => {
+  it("accepts a file with text/html mime type", () => {
+    const file = new File(["<html></html>"], "template", { type: "text/html" });
+    expect(isHtmlFile(file)).toBe(true);
+  });
+
+  it("accepts a .html extension regardless of mime type", () => {
+    const file = new File(["<html></html>"], "template.html", { type: "" });
+    expect(isHtmlFile(file)).toBe(true);
+  });
+
+  it("accepts a .htm extension", () => {
+    const file = new File(["<html></html>"], "template.HTM", { type: "" });
+    expect(isHtmlFile(file)).toBe(true);
+  });
+
+  it("rejects a .csv file", () => {
+    const file = new File(["a,b,c"], "data.csv", { type: "text/csv" });
+    expect(isHtmlFile(file)).toBe(false);
+  });
+
+  it("rejects a .txt file with no matching mime type", () => {
+    const file = new File(["plain text"], "notes.txt", { type: "text/plain" });
+    expect(isHtmlFile(file)).toBe(false);
+  });
+});
+
+describe("appendTemplateFile", () => {
+  it("appends the filename and content after the prompt", () => {
+    const result = appendTemplateFile("Base prompt", "page.html", "<div>hi</div>");
+    expect(result).toBe(
+      "Base prompt\n\nTemplate reference (uploaded file: page.html):\n```html\n<div>hi</div>\n```"
+    );
+  });
+
+  it("preserves the original prompt text unmodified", () => {
+    const result = appendTemplateFile("Line one\nLine two", "t.html", "content");
+    expect(result).toContain("Line one\nLine two");
+  });
+});
+
+describe("MAX_TEMPLATE_FILE_BYTES", () => {
+  it("is 5MB", () => {
+    expect(MAX_TEMPLATE_FILE_BYTES).toBe(5 * 1024 * 1024);
   });
 });
