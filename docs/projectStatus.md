@@ -1,11 +1,67 @@
 ## Resume From
 
 Last session: 2026-08-12
-Branch: main | Version: v1.81.0 | 1365 tests passing | DEPLOYED and smoke-tested PASS
+Branch: main | Version: v1.82.0 | 1365 tests passing | data-only change, LIVE in prod already (SQL applied directly); dist/ not yet packaged/deployed since there's no code difference to ship
 
 NEXT SESSION:
-1. PROCESS GAP FOUND 2026-08-12 (see part 15 below) - decide whether to re-sync `server/seed.ts` against production's actual current 21-card catalog, since several existing cards have diverged (renamed or added directly in prod, never reflected back to dev/seed.ts). Not fixed - out of scope, flagged only.
+1. Decide whether to fix the fillPrompt <PASTE>-alignment bug found this session on prod's "SEO Audit via Rank Rocket SEO Plugin" and "Ranking Audit and Improvement Suite" cards (WP Username/Password sit mid-array while the prompt skips their tokens, shifting every later field's autofilled value by one position when using the Launch button). Not fixed - flagged only, out of scope for this session's card-content fix.
 2. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
+
+Session 2026-08-12 (part 18): v1.82.0 - two things, both pure data/content,
+no app-code changes.
+(a) Synced dev `data.db` and `server/seed.ts` against production's actual
+21-card catalog (the process gap flagged in part 15/17). Production had
+drifted from dev via direct "Add/Edit Workflow" UI edits since the original
+seed: 2 cards renamed ("SEO Site Audit (full skill)" -> "SEO Audit via Rank
+Rocket SEO Plugin", with a substantially rewritten WP-credential-aware
+prompt/inputs; "Uniform audit report (Easy Dumpster format)" -> "Uniform
+Audit Report"), 4 cards with smaller field edits (launch target/label on 2,
+pinned toggled on 3, including the user pinning the new Location Page
+Builder card live in prod after last session's deploy), and one wholly new
+prod-only card ("Ranking Audit and Improvement Suite") never reflected back
+to dev/seed.ts. Confirmed one-directional (prod-wins) sync was correct:
+diffed by updated_at first, then verified every field content-for-content
+against prod - dev had zero unique edits of its own anywhere. Generated the
+sync SQL and a seed.ts verification script programmatically from prod's own
+JSON (via a temporary tsx script importing the live SEED array) rather than
+hand-transcribing the longer prompts, to eliminate transcription risk on
+production data; caught and fixed a bug in the generator itself before
+running it (the two renamed cards were about to get double-inserted as
+duplicate new rows in addition to their correct UPDATE). No production
+writes were needed for this part - prod was already the correct target
+state, only dev/seed.ts needed to catch up.
+(b) User caught that the Location Page Builder card's "Rank Rocket REST API
+Key" input (added last session) didn't correspond to any real credential -
+investigated the actual rankmath-rest-bridge plugin source (found locally
+at E:\projects\rank_rocket_seo_plugin\rankmath-rest-bridge.php, not part of
+this repo) and confirmed its REST routes are namespaced `rankrocket-seo/v1`
+(renamed from the legacy `rankmath-bridge/v1` in v2.2.0) and every route's
+`permission_callback` just checks `current_user_can('manage_options')` -
+i.e. standard WordPress auth (Application Passwords), no custom API-key
+concept exists in the plugin at all. Replaced the single fake field with
+the same 3-field pattern the two real Rank Rocket audit cards already use
+(WP Username, WP App Password, RankMath REST Bridge Base URL), added an
+inline tooltip-style hint on the Base URL field explaining how to construct
+it (matches this app's existing convention of baking hints into label text,
+e.g. the audit card's "CMS — (WordPress, Squarespace...)" field - no new
+tooltip UI component was built, since none exists anywhere in this
+codebase and one field doesn't warrant inventing one). Deliberately placed
+WP Username/Password LAST in the inputs array (unlike the two production
+reference cards) specifically to avoid the fillPrompt misalignment bug
+found while researching this (see NEXT SESSION item 1) - this card's
+autofill is verified correctly aligned, unlike its production siblings.
+Fixed in dev `data.db`, production `data.db` (direct SQL over SSH, same
+technique as prior sessions - the broken field was already live in prod
+from last session's deploy), and `server/seed.ts`, then re-verified all
+three are byte-identical for all 21 cards via the same tsx-based comparison
+script.
+Full quality gate re-verified green (lint, typecheck, 1365 tests) though no
+application logic changed in either part. Version bumped 1.81.0 -> 1.82.0
+(minor: real content/catalog changes) per this repo's versioning rule, even
+though nothing in dist/ differs - not packaged or deployed, since a code
+deploy has nothing to ship for a pure data change that's already applied
+directly to both DBs.
+NOT YET DONE: git commit/push of this session's work.
 
 Session 2026-08-12 (part 17): v1.81.0 deployed to cPanel and smoke test
 passed by the user. Post-deploy TD-16 check via SSH: single fresh worker

@@ -15,18 +15,23 @@ type SeedRow = {
 
 const SEED: SeedRow[] = [
   {
-    name: "SEO Site Audit (full skill)",
+    name: "SEO Audit via Rank Rocket SEO Plugin",
     category: "Audit",
     description:
       "Repeatable browser-rendered SEO audit: on-page, technical, local, schema, and off-page recommendations. Prompts for inputs, runs parallel browser scans, and delivers a prioritized fix list applied one at a time with rescan confirmation.",
     inputs: [
       "Website URL",
-      "Google Business Profile link",
-      "Business type / category",
-      "SAB vs exposed address",
-      "Service area or restrictions",
-      "Site architecture (franchise vs standalone)",
-      "Report branding preferences",
+      "WP Username",
+      "WP App Password",
+      "GBP URL - Maps Share Link or None",
+      "Business Type - GBP Primary Category or Business Type",
+      "Location/Market - Service Area",
+      "SAB or Exposed Address",
+      "GBP Restrictions - Are there any restrictions on touching the GBP? (e.g., recently verified, cooling off period, name set by Google)",
+      "CMS — (WordPress, Squarespace, Wix, custom, etc.)",
+      "SEO Plugin — (RankRocket SEO, RankMath, Yoast, HFCM, All-in-One SEO, none, etc.)",
+      "Site Architecture - Standalone site (handles its own bookings/leads), Franchise/Parent-Child site (regional site that hands bookings off to a central parent domain), Multi-Location Site (one site covering multiple service areas with separate location pages)",
+      "Report Branding - AMS, Rank Rocket, Other",
     ],
     tags: ["seo", "audit", "browser-rendered", "skill", "v2.6"],
     prompt: `Use the "seo-site-audit" skill.
@@ -35,12 +40,20 @@ Website URL: <PASTE>
 GBP: <PASTE>
 Business type: <PASTE>
 SAB or exposed address: <PASTE>
-Franchise or standalone: <PASTE>
+GBP Restrictions: <PASTE>
+CMS: <PASTE>
+SEO Plugin: <PASTE>
+Site Architecture: <PASTE>
 Report branding: <PASTE>
 
+WordPress credentials (WP sites only — do NOT paste the App Password here):
+  WP Username: <PASTE username only>
+  WP App Password: enter in the secure credential form when prompted
+    (or reuse the saved vault entry for this hostname if one exists)
+
 Run the parallel scans and return a prioritized findings report. Apply fixes one at a time and pause for rescan confirmation between each.`,
-    launchUrl: "https://www.perplexity.ai/",
-    launchLabel: "Launch in Perplexity",
+    launchUrl: "https://www.perplexity.ai/computer",
+    launchLabel: "Start Audit",
     pinned: true,
   },
   {
@@ -61,8 +74,8 @@ Last audit: <DATE / link>
 Fixes deployed since: <LIST>
 
 Verify prior fixes, flag regressions, and add new findings.`,
-    launchUrl: "https://www.perplexity.ai/",
-    launchLabel: "Launch in Perplexity",
+    launchUrl: "https://www.perplexity.ai/computer",
+    launchLabel: "Start Audit",
     pinned: false,
   },
   {
@@ -108,8 +121,8 @@ Services: <LIST>
 
 Use @type appropriate to the trade. Include geo (or areaServed for SAB), openingHoursSpecification, and aggregateRating only if real data exists. Return paste-ready <script type="application/ld+json"> block.`,
     launchUrl: "https://validator.schema.org/",
-    launchLabel: "Validate at schema.org",
-    pinned: true,
+    launchLabel: "Create Schema",
+    pinned: false,
   },
   {
     name: "FAQPage schema from on-page FAQ",
@@ -198,10 +211,10 @@ Return:
 Output as a downloadable markdown file.`,
     launchUrl: "",
     launchLabel: "",
-    pinned: true,
+    pinned: false,
   },
   {
-    name: "Uniform audit report (Easy Dumpster format)",
+    name: "Uniform Audit Report",
     category: "Reporting",
     description:
       "Render audit findings using the standardized agency report format established with the Easy Dumpster Jacksonville and United Structural Systems audits. Consistent sectioning, severity badges, and prioritized fixes.",
@@ -327,7 +340,7 @@ Check the iframe src parameters, any cached pb= string, and confirm the rendered
 6. Commit with message: "RankRocket vX.Y.Z: <summary>".`,
     launchUrl: "https://github.com/PenZenMaster/rankmath-rest-bridge/",
     launchLabel: "Open repo",
-    pinned: true,
+    pinned: false,
   },
   {
     name: "VS Code WordPress dev SOP",
@@ -459,25 +472,103 @@ Return:
       'Builds and publishes SEO-optimized location landing pages via the Rank Rocket SEO plugin\'s WordPress REST API. Uses the "location-page-builder" skill to generate on-brand, locally-relevant page content per target city or service area, then publishes drafts through Rank Rocket\'s REST endpoints for review before going live.',
     inputs: [
       "WordPress site URL",
-      "Rank Rocket REST API Key",
+      "RankMath REST Bridge Base URL - your site's REST API namespace URL, e.g. https://yoursite.com/wp-json/rankrocket-seo/v1 (older plugin versions use /wp-json/rankmath-bridge/v1)",
       "Business name",
       "Target city or service area(s)",
       "Primary service / money page URL",
       "Page template / content style preferences",
+      "WP Username",
+      "WP App Password",
     ],
     tags: ["local-seo", "rankrocket", "wordpress", "skill", "location-pages", "rest-api"],
     prompt: `Use the "location-page-builder" skill.
 
 WordPress site URL: <PASTE>
-Rank Rocket REST API Key: <PASTE>
+RankMath REST Bridge Base URL: <PASTE>
 Business name: <PASTE>
 Target city or service area(s): <PASTE>
 Primary service / money page URL: <PASTE>
 Page template / content style preferences: <PASTE>
 
+WordPress credentials (do NOT paste the App Password here):
+  WP Username: <PASTE username only>
+  WP App Password: enter in the secure credential form when prompted
+    (or reuse the saved vault entry for this hostname if one exists)
+
 Generate one SEO-optimized location page per target city/service area, matching the existing site's tone and template. Publish each page as a draft via the Rank Rocket plugin's WordPress REST API endpoints - do not publish live without explicit confirmation. Return the list of created draft page URLs/IDs for review.`,
     launchUrl: "https://www.perplexity.ai/",
     launchLabel: "Launch in Perplexity",
+    pinned: true,
+  },
+
+  {
+    name: "Ranking Audit and Improvement Suite",
+    category: "Audit",
+    description:
+      "Create a markdown SEO and local SEO growth plan from a keyword ranking CSV, website URL, WordPress credentials, Rank Math REST Bridge access, and a Google Business Profile share link or structured GBP snapshot. Built to reuse scan, remediation, and reporting patterns from an existing SEO audit system while restoring reliable GBP-aware planning. Filters the union (OR) of keywords with exact Tag = Root Keyword and keywords with strict numeric search volume greater than 10000 after cleaning. Drafts implementation assets including title tags, meta descriptions, H1S, H2S, FAQ ideas, schema recommendations, internal links, GBP services, GBP post topics, and review themes. Uses a persistent project knowledge store and avoids duplicate scans.",
+    inputs: [
+      "Ranking CSV (attach the file in Perplexity)",
+      "Website URL",
+      "GBP share link or snapshot",
+      "WP Username",
+      "WP App Password",
+      "RankMath REST Bridge Base URL",
+      "Project Knowledge Store",
+    ],
+    tags: ["audit"],
+    prompt: `Run the seo-rank-and-gbp-growth-planner skill.
+
+Before starting, confirm understanding of the assignment in 3-6 bullets and list any missing required inputs.
+
+Inputs:
+- ranking_csv: <PASTE>
+- website_url: <PASTE>
+- gbp_input: <PASTE>
+- wp_username: <PASTE>
+- wp_app_password: <PASTE>
+- rankmath_rest_bridge_base_url: <PASTE>
+- project_knowledge_store: <PASTE>
+
+Optional supporting inputs:
+- target_service_areas: <PASTE>
+- core_services: <PASTE>
+- target_competitors: <PASTE>
+- existing_location_pages: <PASTE>
+- preferred_brand_terminology: <PASTE>
+- prior_seo_changes: <PASTE>
+- schema_policies: <PASTE>
+
+Requirements:
+- Output markdown only.
+- Keyword filter is a UNION (OR), not an intersection: include every row where Tag exactly equals "Root Keyword" OR where # of Searches is a strict numeric value greater than 10000 after cleaning. A row qualifies if it satisfies EITHER condition; it does not need to satisfy both.
+- In the "Filtered keyword set" section, report the counts separately: rows matched by Tag, rows matched by search volume, rows matched by both, and the total union.
+- Draft implementation assets, not just recommendations.
+- Reuse prior project knowledge before rescanning anything.
+- Do not repeat the same scan multiple times.
+- If GBP data is incomplete, label those items as verification-needed or reduced-confidence rather than missing.
+
+Analysis goals:
+- Improve Google Rank.
+- Improve Google.com Mobile Rank.
+- Improve Google.com Maps Rank.
+- Prioritize actions by impact, effort, and cross-keyword reuse value.
+- Map keyword clusters to the best existing page, new page, or GBP action.
+
+Required output structure:
+# Keyword Ranking Growth Plan
+## Scope
+## Filtered keyword set
+## Findings
+### Organic
+### Mobile
+### Maps
+## Priority actions
+## Draft implementation assets
+## Verification needed or blockers
+## Project memory updates
+## Final validation checklist`,
+    launchUrl: "https://www.perplexity.ai/computer",
+    launchLabel: "Start Audit",
     pinned: false,
   },
 ];
