@@ -1,13 +1,15 @@
 ## Resume From
 
 Last session: 2026-08-12
-Branch: main | Version: v1.81.0 | 1365 tests passing | v1.81.0 (HTML template file attach) is LOCAL/COMMITTED ONLY - not packaged, deployed, or browser-verified this session
+Branch: main | Version: v1.81.0 | 1365 tests passing | DEPLOYED and smoke-tested PASS
 
 NEXT SESSION:
-1. Manually verify the new "Attach an HTML template" picker on the Location Page Builder card's Launch dialog in the dev browser (dev server running at localhost:5000), then decide whether/when to package + deploy v1.81.0 to production.
-2. User to click-through the "Location Page Builder" card on the live production site (Local SEO filter) to confirm v1.80.1's fix still renders and the Launch flow works end to end - not yet done, only verified via direct SQL so far.
-3. PROCESS GAP FOUND 2026-08-12 (see part 15 below) - decide whether to re-sync `server/seed.ts` against production's actual current 21-card catalog, since several existing cards have diverged (renamed or added directly in prod, never reflected back to dev/seed.ts). Not fixed - out of scope, flagged only.
-4. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
+1. PROCESS GAP FOUND 2026-08-12 (see part 15 below) - decide whether to re-sync `server/seed.ts` against production's actual current 21-card catalog, since several existing cards have diverged (renamed or added directly in prod, never reflected back to dev/seed.ts). Not fixed - out of scope, flagged only.
+2. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
+
+Session 2026-08-12 (part 17): v1.81.0 deployed to cPanel and smoke test
+passed by the user. Post-deploy TD-16 check via SSH: single fresh worker
+only (PID 2699147, ~3min old), no stale process.
 
 Session 2026-08-12 (part 16): v1.81.0 - added an optional "attach an HTML
 template" capability to the manual Launch flow, so a workflow card can hand
