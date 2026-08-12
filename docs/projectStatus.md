@@ -1,12 +1,55 @@
 ## Resume From
 
 Last session: 2026-08-12
-Branch: main | Version: v1.80.1 | 1349 tests passing | Location Page Builder card is LIVE in production (id 22) with the corrected input label; v1.80.0's app code (dist/) also deployed and smoke-tested otherwise clean
+Branch: main | Version: v1.81.0 | 1365 tests passing | v1.81.0 (HTML template file attach) is LOCAL/COMMITTED ONLY - not packaged, deployed, or browser-verified this session
 
 NEXT SESSION:
-1. User to click-through the "Location Page Builder" card on the live production site (Local SEO filter) to confirm it now renders and the Launch flow works end to end - not yet done this session, only verified via direct SQL so far.
-2. PROCESS GAP FOUND THIS SESSION (see below) - decide whether to re-sync `server/seed.ts` against production's actual current 21-card catalog, since several existing cards have diverged (renamed or added directly in prod, never reflected back to dev/seed.ts). Not fixed this session - out of scope, flagged only.
-3. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
+1. Manually verify the new "Attach an HTML template" picker on the Location Page Builder card's Launch dialog in the dev browser (dev server running at localhost:5000), then decide whether/when to package + deploy v1.81.0 to production.
+2. User to click-through the "Location Page Builder" card on the live production site (Local SEO filter) to confirm v1.80.1's fix still renders and the Launch flow works end to end - not yet done, only verified via direct SQL so far.
+3. PROCESS GAP FOUND 2026-08-12 (see part 15 below) - decide whether to re-sync `server/seed.ts` against production's actual current 21-card catalog, since several existing cards have diverged (renamed or added directly in prod, never reflected back to dev/seed.ts). Not fixed - out of scope, flagged only.
+4. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
+
+Session 2026-08-12 (part 16): v1.81.0 - added an optional "attach an HTML
+template" capability to the manual Launch flow, so a workflow card can hand
+a complete HTML file to an external AI tool (e.g. a Perplexity skill) as a
+style/structure reference. Prompted by the Location Page Builder card
+needing this for the "location-page-builder" skill.
+Investigated first (not assumed): this app has no way to deliver a file to
+Perplexity automatically - `launchUtils.ts`'s entire launch mechanism only
+ever sends text (URL `q` param or clipboard). The existing
+`accepts_file_upload` flag is unrelated - it's hard-wired to a completely
+different flow (CSV text piped through an in-app AI adapter call,
+`workflowFileRun.ts` + `POST /api/workflows/:id/run-with-file`), not the
+manual "Launch in Perplexity" flow this card uses. No multer/multipart
+exists anywhere in this codebase; the only prior file-read precedent is
+`File.text()` in `WorkflowCard.tsx` for CSV.
+Design (confirmed with user: available on every launch card, no new DB
+column/migration; HTML only): read the attached file's text client-side and
+fold it into the same prompt that gets filled/copied - two new pure
+functions in `launchUtils.ts` (`isHtmlFile`, `appendTemplateFile`, plus
+`MAX_TEMPLATE_FILE_BYTES` = 5MB mirroring the server's `MAX_CSV_BYTES`
+precedent), wired into `LaunchInputsDialog.tsx` (new `templateFile` state,
+reset alongside existing dialog state on open; new file picker rendered
+only in `mode === "launch"`, separate from the existing CSV picker in
+`WorkflowCard.tsx`/`mode === "ai-run"`, which is untouched). Whenever a
+template file is attached, `handleLaunch` forces clipboard mode (bypasses
+`getLaunchPlan` entirely) rather than relying on the existing 1800-char URL
+length fallback, to avoid any edge case where a small template slips under
+that cap and gets auto-submitted via `/search` instead of reviewed first.
+Nothing is sent to any server or persisted anywhere - same "never
+persisted" precedent as the CSV flow, just done entirely client-side.
+TDD throughout, RED confirmed before implementing at both layers (8 new
+`launchUtils.test.ts` cases, 7 new `LaunchInputsDialog.test.tsx` cases). One
+pre-existing test (`renders required fields first, then optional fields
+labeled (optional)`) broke as expected collateral from the new "(optional)"
+label text colliding with its unscoped `getByText(/\(optional\)/)` query -
+fixed by scoping that assertion to the specific optional-input's container
+rather than weakening what it verifies. Full quality gate green: lint,
+typecheck, 1365 tests (up from 1349).
+NOT YET DONE: manual browser verification (dev server was restarted but not
+clicked through this session - see NEXT SESSION item 1); package/deploy;
+this was git-committed and pushed but the user has not yet been asked
+whether to proceed to packaging.
 
 Session 2026-08-12 (part 15): v1.80.0's new card FAILED smoke test - "New
 card is not visible" in production. Root cause: the v1.80.0 deploy ships
