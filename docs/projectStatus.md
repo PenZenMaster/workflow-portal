@@ -1,12 +1,58 @@
 ## Resume From
 
 Last session: 2026-08-12
-Branch: main | Version: v1.80.0 | 1349 tests passing | v1.80.0 is LOCAL DEV ONLY - not packaged, deployed, or smoke-tested against production this session
+Branch: main | Version: v1.80.1 | 1349 tests passing | Location Page Builder card is LIVE in production (id 22) with the corrected input label; v1.80.0's app code (dist/) also deployed and smoke-tested otherwise clean
 
 NEXT SESSION:
-1. User to visually confirm the new "Location Page Builder" card in the dev browser (name/category/tags render correctly, Launch in Perplexity flow collects the 6 inputs and opens Perplexity) - not yet done this session.
-2. Decide whether/when to package + deploy v1.80.0 to production.
+1. User to click-through the "Location Page Builder" card on the live production site (Local SEO filter) to confirm it now renders and the Launch flow works end to end - not yet done this session, only verified via direct SQL so far.
+2. PROCESS GAP FOUND THIS SESSION (see below) - decide whether to re-sync `server/seed.ts` against production's actual current 21-card catalog, since several existing cards have diverged (renamed or added directly in prod, never reflected back to dev/seed.ts). Not fixed this session - out of scope, flagged only.
 3. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
+
+Session 2026-08-12 (part 15): v1.80.0's new card FAILED smoke test - "New
+card is not visible" in production. Root cause: the v1.80.0 deploy ships
+app code (dist/, migrations/) only, not data. The card had only ever been
+inserted into local dev's `data.db` (part 14, below); `seedIfEmpty()` only
+seeds a completely empty `workflows` table, so appending to `seed.ts`'s
+`SEED` array never reached prod's already-populated table (19 rows at the
+time). This was flagged as an explicit risk in the add-workflow-card skill
+written in part 14, but not surfaced clearly enough before calling the
+card "done."
+Second, independent finding while diagnosing: production's `workflows`
+table has drifted from dev/seed.ts - several existing cards have different
+names in prod than in seed.ts (e.g. prod id 1 is literally "SEO Audit via
+Rank Rocket SEO Plugin", not dev's "SEO Site Audit (full skill)"; prod id 9
+is "Uniform Audit Report" vs dev's longer name), and prod has a 20th card
+("Ranking Audit and Improvement Suite") that doesn't exist in seed.ts at
+all. Confirms cards get edited/added directly in production via the
+`WorkflowDialog` UI independent of dev, and seed.ts has not been kept in
+sync. Not fixed this session (separate concern from the immediate bug) -
+see NEXT SESSION item 2.
+Third finding, in prod's real "SEO Audit via Rank Rocket SEO Plugin" card
+(id 1) while comparing it to the new card being added: its `inputs` array
+includes "WP Username"/"WP App Password" but the prompt template only has 9
+literal `<PASTE>` tokens against those 12 inputs, with WP Username/Password
+handled via non-`<PASTE>`-token static instructional text instead
+("WP Username: <PASTE username only>" - deliberately not an exact `<PASTE>`
+match, so fillPrompt's regex never touches it). This pattern was noted but
+NOT replicated for the new card (its complexity/exact mechanism wasn't
+fully verified) - instead, the new card's "Rank Rocket REST API endpoint /
+key" input was found to fail `launchUtils.ts`'s `SENSITIVE_LABEL` regex
+match (`api[\s_-]?key` requires "api" immediately followed by "key" - the
+label's "API endpoint / key" wording didn't qualify), meaning it would have
+tried to embed the key into a Perplexity URL instead of forcing
+clipboard-only mode. Fixed by renaming the input to "Rank Rocket REST API
+Key" (exact regex match) in both dev `data.db` (id 20) and `seed.ts`.
+Shipped as v1.80.1 (patch bump, `server/seed.ts` + `package.json` only).
+Full quality gate (lint, typecheck, 1349 tests) re-verified green even
+though no application logic changed. Committed and pushed - NOT packaged/
+tagged/re-deployed via `npm run package`, since the fix was applied
+directly to prod's `data.db` over SSH (same direct-SQL technique as the
+TD-22 fix) rather than via a code deploy; v1.80.0's dist/ (already deployed)
+has no logic dependent on this data, so no rebuild was needed. Verified via
+direct SQL that prod's `workflows` table now has the corrected row (id 22 -
+note the id gap at 21 is pre-existing/unrelated, not from this session).
+User has not yet visually confirmed the fix in the live browser - see NEXT
+SESSION item 1.
 
 Session 2026-08-12 (part 14): v1.80.0 - added a new "Location Page Builder
 (Rank Rocket + WordPress)" workflow card (id 20 in dev data.db), category
