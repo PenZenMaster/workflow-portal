@@ -1,10 +1,42 @@
 ## Resume From
 
 Last session: 2026-08-12
-Branch: main | Version: v1.79.0 | 1349 tests passing | DEPLOYED and smoke-tested PASS
+Branch: main | Version: v1.80.0 | 1349 tests passing | v1.80.0 is LOCAL DEV ONLY - not packaged, deployed, or smoke-tested against production this session
 
-NEXT SESSION (1 item):
-1. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
+NEXT SESSION:
+1. User to visually confirm the new "Location Page Builder" card in the dev browser (name/category/tags render correctly, Launch in Perplexity flow collects the 6 inputs and opens Perplexity) - not yet done this session.
+2. Decide whether/when to package + deploy v1.80.0 to production.
+3. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
+
+Session 2026-08-12 (part 14): v1.80.0 - added a new "Location Page Builder
+(Rank Rocket + WordPress)" workflow card (id 20 in dev data.db), category
+"Local SEO". Modeled on two existing cards: "SEO Site Audit (full skill)"
+(Perplexity skill-launch pattern - prompt opens with `Use the "<skill>"
+skill.`, launches to perplexity.ai) and "RankRocket plugin patch flow"
+(RankRocket/WordPress plugin context, tags). The new card launches a
+"location-page-builder" Perplexity skill that generates SEO-optimized
+location pages per target city/service area and publishes them as drafts
+via the Rank Rocket plugin's WordPress REST API (not live, pending review).
+6 required inputs, no CSV upload (user declined), no AI-adapter slug (skill
+launch, not an in-app automated run).
+Confirmed via code read (not assumption) that `server/seed.ts`'s
+`seedIfEmpty()` only inserts into a completely empty workflows table -
+editing seed.ts alone does not add a card to the already-populated dev/prod
+DB. Added the card two ways: (1) direct SQL INSERT into dev `data.db`
+(same technique as the TD-22 production fix) so it's immediately live in
+dev, and (2) appended the same object to `seed.ts`'s `SEED` array for
+fresh-install parity - no schema migration needed, pure data addition.
+Full quality gate re-verified green (lint, typecheck, 1349 tests) even
+though no application logic changed. Version bumped 1.79.0 -> 1.80.0
+(minor, new user-visible card) per this repo's versioning rule.
+New reusable skill added: `.claude/skills/add-workflow-card/SKILL.md` -
+captures the mechanism above (workflows table, seedIfEmpty()'s empty-table-
+only limit, row shape/category enum/prompt convention, launch_url
+conventions) so a future "Add Workflow Portal Card" request can skip
+straight to gathering the new card's content instead of re-deriving how
+cards get added.
+NOT YET DONE: browser verification of the new card (user hasn't reviewed
+it in the dev UI yet); npm run package + cPanel deploy for v1.80.0.
 
 Session 2026-08-12 (part 13): v1.79.0 deployed to cPanel and smoke test
 passed by the user. Post-deploy TD-16 check via SSH: single fresh worker
