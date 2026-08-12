@@ -1,17 +1,21 @@
 ## Resume From
 
-Last session: 2026-08-10
-Branch: main | Version: v1.79.0 | 1349 tests passing | PACKAGED and TAGGED - NOT YET deployed or smoke-tested this session
+Last session: 2026-08-12
+Branch: main | Version: v1.79.0 | 1349 tests passing | DEPLOYED and smoke-tested PASS
 
-TD-22 FULLY CLOSED: the bulk re-parse (3,572 jobs, ids 55161-58732)
+NEXT SESSION (1 item):
+1. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
+
+Session 2026-08-12 (part 13): v1.79.0 deployed to cPanel and smoke test
+passed by the user. Post-deploy TD-16 check via SSH: single fresh worker
+only (PID 2125851, ~9min old), no stale process.
+
+TD-22 FULLY CLOSED (2026-08-10): the bulk re-parse (3,572 jobs, ids 55161-58732)
 finished draining and was re-verified via direct SQL - zero citations
 remain at root_domain IN ('co.uk','com.au'); spot-checked corrected
 domains look real (froggys.com.au x13, rankmax.com.au x11,
 blueboxhire.co.uk x6, etc). Tech Debt Register entry updated to fully
 closed (see below).
-
-NEXT SESSION (1 item):
-1. Deploy + smoke test v1.79.0 (Epic 1 issue #35 slice 3: distinct `timeout` status). No schema migration this time - simpler post-deploy check than the last two (just the standard TD-16 SSH check). Once confirmed, continue Epic 1 with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
 
 DROPPED FROM ACTIVE TRACKING 2026-08-10 (user decision, revisit later):
 Groq API access. Not a formal backlog item - just a long-carried note
