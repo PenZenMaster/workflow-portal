@@ -63,6 +63,42 @@ upload support (mirrors the CSV-upload cards from v1.20.0). Only set
 rather than an external skill launch — confirm this with the user, it's a
 different execution model than "Launch in Perplexity".
 
+**If any input label represents a credential/secret** (API key, password,
+token, etc.), it MUST match `client/src/lib/launchUtils.ts`'s
+`SENSITIVE_LABEL` regex (`/password|passphrase|secret|token|api[\s_-]?key|credential/i`)
+or the card will try to embed the secret into a Perplexity URL query string
+instead of forcing clipboard-only mode. `api[\s_-]?key` requires "api"
+*immediately* followed by "key" (optionally separated by one space/`_`/`-`)
+— a label like "API endpoint / key" does NOT match; "API Key" or "Rank
+Rocket API Key" does. Check every credential-like label against this regex
+before finalizing the row, don't assume the wording is safe.
+
+## Production is a separate, non-optional insert
+
+**A code deploy (`npm run package` + cPanel) ships `dist/` and
+`migrations/` only — it never ships data.** `seedIfEmpty()` only fires on a
+completely empty `workflows` table, so a `seed.ts` entry — even one already
+committed and deployed — will silently never reach a production DB that
+already has rows in it (which it always will, past the very first
+install). Adding a card to dev does not add it to production, and
+deploying the code to production does not either.
+
+If the card needs to exist in production, you MUST separately insert the
+row into prod's `data.db` (`/home/fullmetaljacket/persistent/data.db` over
+SSH, same direct-SQL technique as the TD-22 fix) — regardless of whether a
+code deploy has already happened or is planned. Confirm with the user
+whether "add this card" means dev only, prod only, or both, and don't let
+a deploy stand in for the data insert. This exact gap caused a shipped
+v1.80.0 card to fail its production smoke test on 2026-08-12 ("card not
+visible") purely because the insert had only ever been done against dev.
+
+Also be aware **production's `workflows` table can drift from
+`server/seed.ts`** — cards get renamed/added directly via the live
+"Add Workflow" UI independent of dev. Before drafting a new card, query
+production's actual current catalog (not just dev's) if there's any chance
+of a naming collision or if matching an existing card's established
+pattern matters — dev/seed.ts may be stale.
+
 ## Steps
 
 1. **Gather the card-specific content from the user** — do NOT re-derive the
@@ -112,5 +148,7 @@ different execution model than "Launch in Perplexity".
 ## Existing cards for reference
 
 Query `sqlite3 -json data.db "SELECT id,name,category,tags FROM
-workflows;"` to see the full current catalog before drafting a new card —
-useful for spotting naming/tag conventions and avoiding near-duplicates.
+workflows;"` (dev) and, if production parity matters, the same query over
+SSH against prod's `data.db` — see the drift warning above — before
+drafting a new card. Useful for spotting naming/tag conventions and
+avoiding near-duplicates.
