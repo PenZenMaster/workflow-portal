@@ -580,10 +580,10 @@ Required output structure:
     name: "RankRocket Site Insights",
     category: "Audit",
     description:
-      "Ask questions about a RankRocket-managed WordPress site's SEO status, content, redirects, snippets, performance settings, or images - answered by Claude using live, read-only RankRocket MCP tools instead of manually pasting credentials into an external AI chat. This workflow can only read data; it never attempts a write/mutating action.",
+      "Ask questions about a RankRocket-managed WordPress site's SEO status, content, and configuration - answered by Claude using live, read-only RankRocket MCP tools instead of manually pasting credentials into an external AI chat. Can surface: plugin/WordPress/RankMath status and capabilities; heading hierarchy, broken links, image alt-text coverage, schema markup, and llms.txt diffs; stored SEO meta for a post or term; redirect rules; text snippets; performance/cache dequeue and defer rules; and Elementor page layout data. This workflow can only read data; it never attempts a write/mutating action.",
     inputs: [
       "RankRocket MCP site key (e.g. tristate-hvac, trevoraspiranti - see your RankRocket MCP site registry)",
-      "What do you want to know about this site?",
+      'What do you want to know about this site? (e.g. "is the plugin active and what\'s alt-text coverage?", "any broken links?", "what SEO meta is set for post 42?", "list current redirects", "what perf/cache rules are configured?")',
     ],
     tags: ["rankrocket", "mcp", "read-only", "wordpress"],
     prompt: `Answer the operator's question about the RankRocket-managed WordPress site below using the available RankRocket tools (site status/capabilities, content audits, SEO meta, redirects, snippets, perf/cache settings, images, Elementor layout preview). These tools are strictly read-only in this workflow - never attempt or suggest a write/mutating action.
