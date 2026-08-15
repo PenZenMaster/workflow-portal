@@ -52,7 +52,8 @@
       "Bash(npx tsx *)",
       "Bash(sqlite3 prod.data.db \"SELECT id, kind, status, attempts, max_attempts, next_run_at, locked_until, last_error FROM jobs WHERE status IN \\('queued','running'\\) ORDER BY id;\")",
       "Bash(node -e \"console.log\\(Date.now\\(\\)\\)\")",
-      "Bash(ssh -o BatchMode=yes -i ~/.ssh/workflow-portal fullmetaljacket@69.72.136.208 *)"
+      "Bash(ssh -o BatchMode=yes -i ~/.ssh/workflow-portal fullmetaljacket@69.72.136.208 *)",
+      "Bash(ssh -o BatchMode=yes -i ~/.ssh/workflow-portal fullmetaljacket@69.72.136.208 \"sqlite3 ~/persistent/data.db\" < *)"
     ]
   }
 }
