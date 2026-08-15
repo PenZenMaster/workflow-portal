@@ -241,7 +241,9 @@ export function LaunchInputsDialog({
           <DialogTitle>{workflow.name}</DialogTitle>
           <DialogDescription>
             {mode === "ai-run"
-              ? "Fill in the inputs, then run the workflow against your CSV file."
+              ? workflow.acceptsFileUpload
+                ? "Fill in the inputs, then run the workflow against your CSV file."
+                : "Fill in the inputs, then run the workflow."
               : launched
                 ? "One more step to start the session."
                 : "Fill in the required inputs. The completed prompt will be copied to your clipboard when you launch."}

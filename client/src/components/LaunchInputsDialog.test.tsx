@@ -40,6 +40,7 @@ const WORKFLOW: Workflow = {
   pinned: false,
   acceptsFileUpload: false,
   aiAdapterSlug: null,
+  rankrocketMcpEnabled: false,
   createdAt: 1,
   updatedAt: 1,
 };

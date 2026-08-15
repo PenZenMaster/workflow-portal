@@ -13,6 +13,8 @@
  * Comments:
  * - v1.00 Initial tests (workflow CSV upload feature, v1.20.0)
  * - v1.01 B-21: Run with AI collects launch inputs before running
+ * - v1.02 Phase 3 read-only slice: RankRocket MCP in-app run (no CSV);
+ *   response panel hoisted out of the acceptsFileUpload block, retested here
  */
 
 import "@testing-library/jest-dom/vitest";
@@ -36,6 +38,7 @@ const BASE_WORKFLOW: Workflow = {
   pinned: false,
   acceptsFileUpload: true,
   aiAdapterSlug: null,
+  rankrocketMcpEnabled: false,
   createdAt: 1,
   updatedAt: 1,
 };
@@ -205,5 +208,80 @@ describe("WorkflowCard - optional inputs", () => {
     expect(
       await screen.findByTestId("button-launch-confirm")
     ).toBeInTheDocument();
+  });
+});
+
+describe("WorkflowCard - RankRocket MCP run", () => {
+  const MCP_WORKFLOW: Workflow = {
+    ...BASE_WORKFLOW,
+    acceptsFileUpload: false,
+    rankrocketMcpEnabled: true,
+  };
+
+  it("shows a Run button (no file input) when rankrocketMcpEnabled is true", () => {
+    renderCard(MCP_WORKFLOW);
+    expect(screen.getByTestId("button-run-prompt-7")).toBeInTheDocument();
+    expect(screen.queryByTestId("input-file-7")).not.toBeInTheDocument();
+  });
+
+  it("hides the Run button when rankrocketMcpEnabled is false", () => {
+    renderCard(BASE_WORKFLOW);
+    expect(screen.queryByTestId("button-run-prompt-7")).not.toBeInTheDocument();
+  });
+
+  it("POSTs to /api/workflows/:id/run and renders the response (no acceptsFileUpload needed)", async () => {
+    const user = userEvent.setup();
+    renderCard(MCP_WORKFLOW);
+
+    await user.click(screen.getByTestId("button-run-prompt-7"));
+
+    expect(
+      await screen.findByText(/Local pack rankings are strong/)
+    ).toBeInTheDocument();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/workflows/7/run");
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBe(
+      "application/json"
+    );
+    expect(JSON.parse(init.body as string)).toEqual({ inputValues: [] });
+  });
+
+  it("opens the inputs dialog instead of running immediately when the workflow has inputs", async () => {
+    const user = userEvent.setup();
+    renderCard({ ...MCP_WORKFLOW, inputs: ["Site key"] });
+
+    await user.click(screen.getByTestId("button-run-prompt-7"));
+
+    expect(await screen.findByTestId("button-run-confirm")).toBeInTheDocument();
+    const runCalls = fetchMock.mock.calls.filter(([url]) =>
+      String(url).endsWith("/run")
+    );
+    expect(runCalls).toHaveLength(0);
+  });
+
+  it("POSTs JSON with the collected inputValues after the dialog is confirmed", async () => {
+    const user = userEvent.setup();
+    renderCard({ ...MCP_WORKFLOW, inputs: ["Site key"] });
+
+    await user.click(screen.getByTestId("button-run-prompt-7"));
+    await user.type(await screen.findByTestId("launch-input-0"), "tristate-hvac");
+    await user.click(screen.getByTestId("button-run-confirm"));
+
+    expect(
+      await screen.findByText(/Local pack rankings are strong/)
+    ).toBeInTheDocument();
+
+    const runCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).endsWith("/run")
+    );
+    expect(runCall).toBeDefined();
+    const [url, init] = runCall as [string, RequestInit];
+    expect(url).toBe("/api/workflows/7/run");
+    expect(JSON.parse(init.body as string)).toEqual({
+      inputValues: ["tristate-hvac"],
+    });
   });
 });

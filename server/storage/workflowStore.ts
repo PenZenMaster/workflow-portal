@@ -56,6 +56,7 @@ function hydrate(row: Row): Workflow {
     pinned: !!row.pinned,
     acceptsFileUpload: !!row.acceptsFileUpload,
     aiAdapterSlug: row.aiAdapterSlug ?? null,
+    rankrocketMcpEnabled: !!row.rankrocketMcpEnabled,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -104,6 +105,7 @@ export class WorkflowStore implements IWorkflowStore {
         pinned: data.pinned ? 1 : 0,
         acceptsFileUpload: data.acceptsFileUpload ? 1 : 0,
         aiAdapterSlug: data.aiAdapterSlug ?? null,
+        rankrocketMcpEnabled: data.rankrocketMcpEnabled ? 1 : 0,
         createdAt: now,
         updatedAt: now,
       })
@@ -135,6 +137,7 @@ export class WorkflowStore implements IWorkflowStore {
         pinned: data.pinned ? 1 : 0,
         acceptsFileUpload: data.acceptsFileUpload ? 1 : 0,
         aiAdapterSlug: data.aiAdapterSlug ?? null,
+        rankrocketMcpEnabled: data.rankrocketMcpEnabled ? 1 : 0,
         updatedAt: now,
       })
       .where(eq(workflows.id, id))

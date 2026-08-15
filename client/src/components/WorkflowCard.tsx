@@ -100,6 +100,43 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
     }
   };
 
+  // RankRocket MCP in-app run (Phase 3, read-only slice) - same collect-
+  // inputs-first pattern as handleRunWithFile/executeRun, but no CSV.
+  const handleRunPrompt = () => {
+    if (workflow.inputs.length + workflow.optionalInputs.length > 0) {
+      setRunDialogOpen(true);
+      return;
+    }
+    void executePromptRun();
+  };
+
+  const executePromptRun = async (inputValues?: string[]) => {
+    setAiRunning(true);
+    try {
+      const res = await fetch(`/api/workflows/${workflow.id}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inputValues: inputValues ?? [] }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(err?.error ?? `Request failed (${res.status})`);
+      }
+      const json = (await res.json()) as { data: { response: string } };
+      setAiResponse(json.data.response);
+    } catch (e) {
+      toast({
+        title: "AI run failed",
+        description: e instanceof Error ? e.message : "Please try again.",
+      });
+    } finally {
+      setAiRunning(false);
+    }
+  };
+
   const handleCopy = async () => {
     if (!workflow.prompt) {
       toast({ title: "No prompt to copy", description: "Edit this workflow to add a prompt." });
@@ -281,24 +318,46 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
                 )}
               </Button>
             </div>
-            {aiResponse !== null && (
-              <div
-                className="relative rounded-md border border-card-border bg-muted/40 p-3"
-                data-testid={`panel-ai-response-${workflow.id}`}
-              >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-1 right-1 h-6 w-6"
-                  onClick={() => setAiResponse(null)}
-                  title="Dismiss"
-                  data-testid={`button-dismiss-response-${workflow.id}`}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-                <p className="text-sm whitespace-pre-wrap pr-6">{aiResponse}</p>
-              </div>
-            )}
+          </div>
+        )}
+
+        {workflow.rankrocketMcpEnabled && (
+          <div className="space-y-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={aiRunning}
+              onClick={handleRunPrompt}
+              data-testid={`button-run-prompt-${workflow.id}`}
+            >
+              {aiRunning ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  Running...
+                </>
+              ) : (
+                "Run"
+              )}
+            </Button>
+          </div>
+        )}
+
+        {aiResponse !== null && (
+          <div
+            className="relative rounded-md border border-card-border bg-muted/40 p-3"
+            data-testid={`panel-ai-response-${workflow.id}`}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-1 right-1 h-6 w-6"
+              onClick={() => setAiResponse(null)}
+              title="Dismiss"
+              data-testid={`button-dismiss-response-${workflow.id}`}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+            <p className="text-sm whitespace-pre-wrap pr-6">{aiResponse}</p>
           </div>
         )}
 
@@ -365,6 +424,16 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
           onOpenChange={setRunDialogOpen}
           mode="ai-run"
           onRun={(values) => void executeRun(values)}
+        />
+      )}
+
+      {workflow.rankrocketMcpEnabled && hasLaunchInputs && (
+        <LaunchInputsDialog
+          workflow={workflow}
+          open={runDialogOpen}
+          onOpenChange={setRunDialogOpen}
+          mode="ai-run"
+          onRun={(values) => void executePromptRun(values)}
         />
       )}
     </Card>

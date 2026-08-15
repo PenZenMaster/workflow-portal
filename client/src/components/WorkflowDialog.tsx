@@ -55,6 +55,7 @@ type FormValues = {
   pinned: boolean;
   acceptsFileUpload: boolean;
   aiAdapterSlug: string;
+  rankrocketMcpEnabled: boolean;
 };
 
 // The form keeps inputs/tags as raw text and we split on submit.
@@ -72,6 +73,7 @@ const localSchema = z.object({
   acceptsFileUpload: z.boolean().default(false),
   // "" = default (first configured adapter)
   aiAdapterSlug: z.string().default(""),
+  rankrocketMcpEnabled: z.boolean().default(false),
 });
 
 export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
@@ -91,6 +93,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
       pinned: false,
       acceptsFileUpload: false,
       aiAdapterSlug: "",
+      rankrocketMcpEnabled: false,
     },
   });
 
@@ -117,6 +120,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
           pinned: editing.pinned,
           acceptsFileUpload: editing.acceptsFileUpload,
           aiAdapterSlug: editing.aiAdapterSlug ?? "",
+          rankrocketMcpEnabled: editing.rankrocketMcpEnabled,
         });
       } else {
         form.reset({
@@ -132,6 +136,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
           pinned: false,
           acceptsFileUpload: false,
           aiAdapterSlug: "",
+          rankrocketMcpEnabled: false,
         });
       }
     }
@@ -161,6 +166,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
         pinned: values.pinned,
         acceptsFileUpload: values.acceptsFileUpload,
         aiAdapterSlug: values.aiAdapterSlug ? values.aiAdapterSlug : null,
+        rankrocketMcpEnabled: values.rankrocketMcpEnabled,
       };
       if (editing) {
         return apiRequest("PUT", `/api/workflows/${editing.id}`, payload);
@@ -295,6 +301,35 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
                     Shows an upload + Run with AI action on the workflow card.
                     The CSV is sent to the AI model below along with this
                     workflow's prompt.
+                  </FormDescription>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="rankrocketMcpEnabled"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <FormLabel>RankRocket MCP (read-only)</FormLabel>
+                  <FormControl>
+                    <div className="flex items-center gap-2 h-10">
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-rankrocket-mcp"
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {field.value
+                          ? "Runs in-app via the RankRocket MCP connector"
+                          : "No RankRocket MCP run"}
+                      </span>
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    Shows a Run action that answers questions using
+                    rankrocket-mcp's read-only tools directly, instead of
+                    launching an external AI chat. No write tools are used.
                   </FormDescription>
                 </FormItem>
               )}

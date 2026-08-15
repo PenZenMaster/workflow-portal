@@ -6,11 +6,15 @@ type SeedRow = {
   category: string;
   description: string;
   inputs: string[];
+  optionalInputs?: string[];
   tags: string[];
   prompt: string;
   launchUrl: string;
   launchLabel: string;
   pinned: boolean;
+  acceptsFileUpload?: boolean;
+  aiAdapterSlug?: string | null;
+  rankrocketMcpEnabled?: boolean;
 };
 
 const SEED: SeedRow[] = [
@@ -571,6 +575,28 @@ Required output structure:
     launchLabel: "Start Audit",
     pinned: false,
   },
+
+  {
+    name: "RankRocket Site Insights",
+    category: "Audit",
+    description:
+      "Ask questions about a RankRocket-managed WordPress site's SEO status, content, redirects, snippets, performance settings, or images - answered by Claude using live, read-only RankRocket MCP tools instead of manually pasting credentials into an external AI chat. This workflow can only read data; it never attempts a write/mutating action.",
+    inputs: [
+      "RankRocket MCP site key (e.g. tristate-hvac, trevoraspiranti - see your RankRocket MCP site registry)",
+      "What do you want to know about this site?",
+    ],
+    tags: ["rankrocket", "mcp", "read-only", "wordpress"],
+    prompt: `Answer the operator's question about the RankRocket-managed WordPress site below using the available RankRocket tools (site status/capabilities, content audits, SEO meta, redirects, snippets, perf/cache settings, images, Elementor layout preview). These tools are strictly read-only in this workflow - never attempt or suggest a write/mutating action.
+
+Site key: <PASTE>
+Question: <PASTE>
+
+Call whichever RankRocket tools are relevant using the site key above. Cite the specific data the tools return rather than guessing, and say plainly if a tool returns nothing useful for the question.`,
+    launchUrl: "",
+    launchLabel: "",
+    pinned: false,
+    rankrocketMcpEnabled: true,
+  },
 ];
 
 export function seedIfEmpty() {
@@ -584,11 +610,15 @@ export function seedIfEmpty() {
         category: row.category,
         description: row.description,
         inputs: JSON.stringify(row.inputs),
+        optionalInputs: JSON.stringify(row.optionalInputs ?? []),
         tags: JSON.stringify(row.tags),
         prompt: row.prompt,
         launchUrl: row.launchUrl,
         launchLabel: row.launchLabel,
         pinned: row.pinned ? 1 : 0,
+        acceptsFileUpload: row.acceptsFileUpload ? 1 : 0,
+        aiAdapterSlug: row.aiAdapterSlug ?? null,
+        rankrocketMcpEnabled: row.rankrocketMcpEnabled ? 1 : 0,
         createdAt: now,
         updatedAt: now,
       })

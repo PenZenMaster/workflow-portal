@@ -630,6 +630,8 @@ Trigger phrase: **"Project shutdown"**
 | BUDGET_MONTHLY_TOKEN_WARN | No | Per-client month-to-date token count (input+output) at which run creation logs a warning but proceeds. Disabled (no budget enforced) unless set to a positive integer. |
 | BUDGET_MONTHLY_TOKEN_BLOCK | No | Per-client month-to-date token count at which run creation (manual trigger, retry-failed, schedule-tick) is refused with 429 BUDGET_EXCEEDED. Disabled unless set to a positive integer. |
 | UTILITY_MODEL_<SLUG> | No    | Override the economy model for internal calls per provider, e.g. UTILITY_MODEL_OPENAI=gpt-4o-mini |
+| RANKROCKET_MCP_TOKEN | No** | Bearer token for rankrocket-mcp's `/mcp` endpoint (secret - never log). Required to enable the "RankRocket Site Insights" workflow card; that card's run returns 503 without it. |
+| RANKROCKET_MCP_URL | No     | rankrocket-mcp endpoint override (default `https://mcp.fullmetaljacketseo.com/mcp`) |
 | SMTP_HOST         | No*      | SMTP server hostname (required for password reset) |
 | SMTP_PORT         | No*      | SMTP port — 465 for SSL, 587 for STARTTLS (default 465) |
 | SMTP_USER         | No*      | SMTP username / sender address                   |
@@ -637,6 +639,7 @@ Trigger phrase: **"Project shutdown"**
 | BASE_URL          | No*      | Portal public URL for reset links (e.g. https://portal.fullmetaljacketseo.com) |
 
 \* Required together to enable the "Forgot password?" feature.
+\*\* Also requires `ANTHROPIC_API_KEY` to be set.
 
 ---
 

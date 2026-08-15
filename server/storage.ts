@@ -101,6 +101,7 @@ export const SCHEMA_SQL = `
     pinned INTEGER NOT NULL DEFAULT 0,
     accepts_file_upload INTEGER NOT NULL DEFAULT 0,
     ai_adapter_slug TEXT,
+    rankrocket_mcp_enabled INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );

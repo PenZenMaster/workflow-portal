@@ -20,6 +20,9 @@ export const workflows = sqliteTable("workflows", {
   acceptsFileUpload: integer("accepts_file_upload").notNull().default(0),
   // Adapter slug for "Run with AI"; null = first configured adapter
   aiAdapterSlug: text("ai_adapter_slug"),
+  // Runs in-app via the RankRocket MCP connector (Anthropic adapter, no CSV,
+  // no external launch) instead of the copy/launch-to-Perplexity pattern.
+  rankrocketMcpEnabled: integer("rankrocket_mcp_enabled").notNull().default(0),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -53,6 +56,7 @@ export const insertWorkflowSchema = createInsertSchema(workflows)
     pinned: z.boolean().default(false),
     acceptsFileUpload: z.boolean().default(false),
     aiAdapterSlug: z.string().nullable().default(null),
+    rankrocketMcpEnabled: z.boolean().default(false),
     name: z.string().min(1, "Name is required"),
     category: z.string().min(1, "Category is required"),
     description: z.string().min(1, "Description is required"),
@@ -78,6 +82,7 @@ export type Workflow = {
   pinned: boolean;
   acceptsFileUpload: boolean;
   aiAdapterSlug: string | null;
+  rankrocketMcpEnabled: boolean;
   createdAt: number;
   updatedAt: number;
 };

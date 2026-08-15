@@ -310,6 +310,58 @@ describe("AnthropicAdapter", () => {
     const r = await new AnthropicAdapter("sk-ant-test", { retryDelayMs: 0 }).run("p");
     expect(r.usage).toEqual({ inputTokens: 42, outputTokens: 117 });
   });
+
+  it("selects the LAST text block, not the first, when the response has multiple (e.g. a tool-use preamble)", async () => {
+    const MULTI_TEXT_BODY = {
+      ...ANTHROPIC_BODY,
+      content: [
+        { type: "text", text: "Let me check that for you." },
+        { type: "mcp_tool_use", id: "toolu_1", name: "rankrocket_status", input: {} },
+        { type: "mcp_tool_result", tool_use_id: "toolu_1", content: [] },
+        { type: "text", text: "Final answer: the plugin is active." },
+      ],
+    };
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: MULTI_TEXT_BODY }]));
+    const r = await new AnthropicAdapter("sk-ant-test", { retryDelayMs: 0 }).run("p");
+    expect(r.text).toBe("Final answer: the plugin is active.");
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("AnthropicAdapter MCP connector", () => {
+  const MCP_OPTS = {
+    mcp: { url: "https://mcp.example.com/mcp", token: "rrmcp-token", serverName: "rankrocket" },
+  };
+
+  it("adds mcp_servers, the mcp_toolset tool, and the beta header when mcp opts are passed", async () => {
+    const f = mockFetch([{ status: 200, body: ANTHROPIC_BODY }]);
+    vi.stubGlobal("fetch", f);
+    await new AnthropicAdapter("sk-ant-test", { retryDelayMs: 0, ...MCP_OPTS }).run("p");
+
+    const [, init] = f.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers["anthropic-beta"]).toBe("mcp-client-2025-11-20");
+
+    const body = JSON.parse(init.body as string);
+    expect(body.mcp_servers).toEqual([
+      { type: "url", url: "https://mcp.example.com/mcp", name: "rankrocket", authorization_token: "rrmcp-token" },
+    ]);
+    expect(body.tools).toEqual([{ type: "mcp_toolset", mcp_server_name: "rankrocket" }]);
+  });
+
+  it("does not add mcp_servers, tools, or the beta header when mcp opts are omitted (regression guard)", async () => {
+    const f = mockFetch([{ status: 200, body: ANTHROPIC_BODY }]);
+    vi.stubGlobal("fetch", f);
+    await new AnthropicAdapter("sk-ant-test", { retryDelayMs: 0 }).run("p");
+
+    const [, init] = f.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers["anthropic-beta"]).toBeUndefined();
+
+    const body = JSON.parse(init.body as string);
+    expect(body.mcp_servers).toBeUndefined();
+    expect(body.tools).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
