@@ -1,12 +1,18 @@
 ## Resume From
 
-Last session: 2026-08-12
-Branch: main | Version: v1.82.0 | 1365 tests passing | PACKAGED and TAGGED - card content already LIVE in prod (applied via direct SQL, not through this deploy); dist/ deploy is code-only catch-up, not yet deployed or smoke-tested this session
+Last session: 2026-08-15
+Branch: main | Version: v1.82.0 | DEPLOYED to cPanel and smoke test PASSED by the user. Post-deploy TD-16 check via SSH: single fresh portal.fullmetaljacketseo.com worker only (PID 3575056), no stale process.
 
 NEXT SESSION:
-1. Deploy + smoke test v1.82.0 (standard TD-16 SSH check; no schema migration; no functional change expected since the actual card-content fixes are already live in prod's DB from this session's direct-SQL work - this deploy just brings dist/'s version number in line).
-2. Decide whether to fix the fillPrompt <PASTE>-alignment bug found this session on prod's "SEO Audit via Rank Rocket SEO Plugin" and "Ranking Audit and Improvement Suite" cards (WP Username/Password sit mid-array while the prompt skips their tokens, shifting every later field's autofilled value by one position when using the Launch button). Not fixed - flagged only, out of scope for this session's card-content fix.
-3. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
+1. Decide whether to fix the fillPrompt <PASTE>-alignment bug found in the 2026-08-12 session on prod's "SEO Audit via Rank Rocket SEO Plugin" and "Ranking Audit and Improvement Suite" cards (WP Username/Password sit mid-array while the prompt skips their tokens, shifting every later field's autofilled value by one position when using the Launch button). Not fixed - flagged only, out of scope so far.
+2. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
+
+Session 2026-08-15: v1.82.0 deployed to cPanel and smoke test passed by
+the user (code-only catch-up deploy - the actual card-content fixes from
+the 2026-08-12 session were already live in prod via direct SQL, so no
+functional change was expected). Post-deploy TD-16 check via SSH: single
+fresh worker only (PID 3575056, portal.fullmetaljacketseo.com), no stale
+process.
 
 Session 2026-08-12 (part 18): v1.82.0 - two things, both pure data/content,
 no app-code changes.
