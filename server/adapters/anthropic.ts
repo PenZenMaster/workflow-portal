@@ -18,19 +18,6 @@ function extractAnthropicUsage(usage: AnthropicResponse["usage"]): { inputTokens
   return { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens };
 }
 
-// Anthropic's MCP connector (beta): lets Claude call tools on a remote MCP
-// server server-side, no client-side agent loop needed. Only set on adapter
-// instances built specifically to reach a given MCP server (e.g.
-// getRankRocketMcpAdapter()) - every other AnthropicAdapter instance is
-// unaffected.
-export interface McpConnectorConfig {
-  url: string;
-  token: string;
-  serverName: string;
-}
-
-const MCP_BETA_HEADER = "mcp-client-2025-11-20";
-
 export class AnthropicAdapter implements PlatformAdapter {
   readonly id = "anthropic";
   readonly capabilities = REGEX_CITATION_CAPABILITIES;
@@ -39,18 +26,13 @@ export class AnthropicAdapter implements PlatformAdapter {
   private readonly timeoutMs: number;
   private readonly retryDelayMs: number;
   private readonly maxTokens: number;
-  private readonly mcp?: McpConnectorConfig;
 
-  constructor(
-    apiKey: string,
-    opts: { model?: string; timeoutMs?: number; retryDelayMs?: number; maxTokens?: number; mcp?: McpConnectorConfig } = {}
-  ) {
+  constructor(apiKey: string, opts: { model?: string; timeoutMs?: number; retryDelayMs?: number; maxTokens?: number } = {}) {
     this.apiKey = apiKey;
     this.model = opts.model ?? DEFAULT_MODEL;
     this.timeoutMs = resolveTimeoutMs(opts.timeoutMs);
     this.retryDelayMs = opts.retryDelayMs ?? 1_000;
     this.maxTokens = resolveMaxOutputTokens(opts.maxTokens);
-    this.mcp = opts.mcp;
   }
 
   async run(prompt: string, opts: RunOptions = {}): Promise<RawResponse> {
@@ -60,18 +42,12 @@ export class AnthropicAdapter implements PlatformAdapter {
       ? `You are a helpful assistant. Focus on results relevant to ${opts.geo}.`
       : "You are a helpful assistant.";
 
-    const body: Record<string, unknown> = {
+    const body = {
       model: this.model,
       max_tokens: this.maxTokens,
       system: systemPrompt,
       messages: [{ role: "user", content: prompt }],
     };
-    if (this.mcp) {
-      body.mcp_servers = [
-        { type: "url", url: this.mcp.url, name: this.mcp.serverName, authorization_token: this.mcp.token },
-      ];
-      body.tools = [{ type: "mcp_toolset", mcp_server_name: this.mcp.serverName }];
-    }
 
     let lastError: Error = new Error("Unknown error");
     const startMs = Date.now();
@@ -87,7 +63,6 @@ export class AnthropicAdapter implements PlatformAdapter {
             "Content-Type": "application/json",
             "x-api-key": this.apiKey,
             "anthropic-version": "2023-06-01",
-            ...(this.mcp ? { "anthropic-beta": MCP_BETA_HEADER } : {}),
           },
           body: JSON.stringify(body),
           signal: controller.signal,
@@ -97,9 +72,10 @@ export class AnthropicAdapter implements PlatformAdapter {
 
         if (response.ok) {
           const data = (await response.json()) as AnthropicResponse;
-          // The last text block, not the first: with MCP tool use Claude
-          // can legitimately emit a preamble text block before/between
-          // tool calls, and the final synthesized answer is always last.
+          // The last text block, not the first: multi-text-block responses
+          // are possible on this API and the final synthesized answer is
+          // always last (first-and-only == last-and-only for the common
+          // single-text-block case, so this is safe everywhere).
           const text = data.content?.filter((c) => c.type === "text").pop()?.text ?? "";
           return {
             text,

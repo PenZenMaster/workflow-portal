@@ -4,15 +4,19 @@
  *
  * Description:
  * Route tests for POST /api/workflows/:id/run - the in-app RankRocket MCP
- * prompt run endpoint (Phase 3, read-only slice). No CSV involved. Covers
- * auth, validation, the rankrocketMcpEnabled gate, missing-config 503, and
- * the success envelope.
+ * prompt run endpoint (Phase 3 v2, read-only slice). No CSV involved.
+ * Covers auth, validation, the rankrocketMcpEnabled gate, and the success
+ * envelope. Mocks runWorkflowPrompt() at the service boundary rather than
+ * the registry/mcpClient/tool-loop internals it now composes - those are
+ * covered by workflowPromptRun.test.ts; this file only tests route
+ * concerns (auth, validation, error/response envelope).
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-08-15
- * Last Modified Date: 2026-08-15
+ * Last Modified Date: 2026-08-16
  * Comments:
- * - v1.00 Initial implementation
+ * - v1.00 Initial implementation (Phase 3 v1)
+ * - v2.00 Phase 3 v2: mock runWorkflowPrompt() directly, not the registry
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -33,12 +37,9 @@ vi.mock("../../server/storage", () => ({
   workflowInputValueStore: { getByWorkflow: vi.fn(), upsertMany: vi.fn() },
 }));
 
-const mockGetRankRocketMcpAdapter = vi.fn();
-vi.mock("../../server/adapters/registry", () => ({
-  getAdapter: () => undefined,
-  getUtilityAdapter: () => undefined,
-  getConfiguredSlugs: () => [],
-  getRankRocketMcpAdapter: () => mockGetRankRocketMcpAdapter(),
+const mockRunWorkflowPrompt = vi.fn();
+vi.mock("../../server/services/workflowPromptRun", () => ({
+  runWorkflowPrompt: (...args: unknown[]) => mockRunWorkflowPrompt(...args),
 }));
 
 const { registerWorkflowRoutes } = await import("../../server/routes/workflows");
@@ -94,7 +95,6 @@ describe("POST /api/workflows/:id/run", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockStorage.getWorkflow.mockResolvedValue(WORKFLOW);
-    mockGetRankRocketMcpAdapter.mockReturnValue(undefined);
   });
 
   it("returns 401 when unauthenticated", async () => {
@@ -122,17 +122,21 @@ describe("POST /api/workflows/:id/run", () => {
     const res = await request(app).post("/api/workflows/1/run").send({ inputValues: [] });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("RANKROCKET_MCP_NOT_ENABLED");
+    expect(mockRunWorkflowPrompt).not.toHaveBeenCalled();
   });
 
-  it("returns 503 RANKROCKET_MCP_NOT_CONFIGURED when the adapter is not configured", async () => {
+  it("propagates a 503 thrown by runWorkflowPrompt (e.g. RANKROCKET_MCP_NOT_CONFIGURED)", async () => {
+    mockRunWorkflowPrompt.mockRejectedValue(
+      new AppError(503, "RankRocket MCP is not configured", "RANKROCKET_MCP_NOT_CONFIGURED")
+    );
     const app = buildApp();
     const res = await request(app).post("/api/workflows/1/run").send({ inputValues: [] });
     expect(res.status).toBe(503);
     expect(res.body.code).toBe("RANKROCKET_MCP_NOT_CONFIGURED");
   });
 
-  it("returns 200 with the response and passes the filled prompt to the adapter", async () => {
-    const run = vi.fn().mockResolvedValue({
+  it("returns 200 with the response and passes the filled prompt to runWorkflowPrompt", async () => {
+    mockRunWorkflowPrompt.mockResolvedValue({
       text: "The plugin is active; alt-text coverage is 92%.",
       summaryBlock: null,
       citations: [],
@@ -142,7 +146,6 @@ describe("POST /api/workflows/:id/run", () => {
       rawPayload: {},
       usage: null,
     });
-    mockGetRankRocketMcpAdapter.mockReturnValue({ id: "anthropic", run });
 
     const app = buildApp();
     const res = await request(app)
@@ -152,13 +155,14 @@ describe("POST /api/workflows/:id/run", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.response).toContain("alt-text coverage is 92%");
     expect(res.body.data.modelVariant).toBe("claude-opus-5");
-
-    const sentPrompt = run.mock.calls[0][0] as string;
-    expect(sentPrompt).toBe("Site key: tristate-hvac\nQuestion: What's the plugin status?");
+    expect(mockRunWorkflowPrompt).toHaveBeenCalledWith(WORKFLOW.prompt, [
+      "tristate-hvac",
+      "What's the plugin status?",
+    ]);
   });
 
   it("defaults inputValues to an empty array when omitted", async () => {
-    const run = vi.fn().mockResolvedValue({
+    mockRunWorkflowPrompt.mockResolvedValue({
       text: "ok",
       summaryBlock: null,
       citations: [],
@@ -168,12 +172,11 @@ describe("POST /api/workflows/:id/run", () => {
       rawPayload: {},
       usage: null,
     });
-    mockGetRankRocketMcpAdapter.mockReturnValue({ id: "anthropic", run });
 
     const app = buildApp();
     const res = await request(app).post("/api/workflows/1/run").send({});
 
     expect(res.status).toBe(200);
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(mockRunWorkflowPrompt).toHaveBeenCalledWith(WORKFLOW.prompt, []);
   });
 });

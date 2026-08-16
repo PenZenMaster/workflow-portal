@@ -99,29 +99,30 @@ export function getUtilityAdapter(slug: string): PlatformAdapter | undefined {
   return factory.build(key, { model, maxTokens: UTILITY_MAX_TOKENS });
 }
 
-// --- RankRocket MCP connector (Phase 3, read-only slice) --------------------
-// Dedicated Anthropic adapter wired to rankrocket-mcp's remote MCP server
-// (https://mcp.fullmetaljacketseo.com/mcp) via Anthropic's MCP connector
-// (beta) - Claude calls rankrocket-mcp's tools server-side, no agent-loop
-// code needed here. Separate from getAdapter()/getUtilityAdapter() since it
-// needs extra config (MCP url + token) beyond just an API key, and it's a
-// single-purpose instance, not a general "anthropic" any card can select
-// via aiAdapterSlug.
+// --- RankRocket MCP (Phase 3 v2, read-only slice) ----------------------------
+// Config for workflow-portal's own MCP client (server/mcp/mcpClient.ts) +
+// tool loop (server/adapters/anthropicToolLoop.ts) talking to rankrocket-mcp
+// directly. Anthropic's server-side MCP connector was tried first and
+// verified in production not to work against rankrocket-mcp's plain
+// bearer-token (non-OAuth) auth - see docs/projectStatus.md. Plain config,
+// not an AnthropicAdapter instance - the tool loop isn't a PlatformAdapter.
 
 const RANKROCKET_MCP_DEFAULT_URL = "https://mcp.fullmetaljacketseo.com/mcp";
-const RANKROCKET_MCP_MODEL = "claude-opus-5";
-const RANKROCKET_MCP_MAX_TOKENS = 4096; // matches UTILITY_MAX_TOKENS - MCP responses can be verbose
-const RANKROCKET_MCP_TIMEOUT_MS = 60_000; // longer than the 30s default; server-side tool calls add latency
+export const RANKROCKET_MCP_MODEL = "claude-opus-5";
+export const RANKROCKET_MCP_MAX_TOKENS = 4096; // matches UTILITY_MAX_TOKENS - tool-driven responses can be verbose
+export const RANKROCKET_MCP_TIMEOUT_MS = 60_000; // longer than the 30s default; multi-round-trip tool calls add latency
 
-export function getRankRocketMcpAdapter(): PlatformAdapter | undefined {
+export interface RankRocketMcpConfig {
+  apiKey: string;
+  url: string;
+  token: string;
+  model: string;
+}
+
+export function getRankRocketMcpConfig(): RankRocketMcpConfig | undefined {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const token = process.env.RANKROCKET_MCP_TOKEN;
   if (!apiKey || !token) return undefined;
   const url = process.env.RANKROCKET_MCP_URL || RANKROCKET_MCP_DEFAULT_URL;
-  return new AnthropicAdapter(apiKey, {
-    model: RANKROCKET_MCP_MODEL,
-    maxTokens: RANKROCKET_MCP_MAX_TOKENS,
-    timeoutMs: RANKROCKET_MCP_TIMEOUT_MS,
-    mcp: { url, token, serverName: "rankrocket" },
-  });
+  return { apiKey, url, token, model: RANKROCKET_MCP_MODEL };
 }
