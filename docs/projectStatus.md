@@ -1,14 +1,52 @@
 ## Resume From
 
 Last session: 2026-08-16
-Branch: main | Version: v1.84.0 | Packaged and tagged (workflow-portal-v1.84.0.tar.gz) - NOT YET deployed. Live-verified end-to-end via a standalone script against production rankrocket-mcp + the real Anthropic API (see part 3 below); the app itself has never been clicked through in a browser this feature's entire two-session life, since it's login-gated and Claude never enters passwords - the user should do a real click-through after deploying.
+Branch: main | Version: v1.85.0 | Packaged and tagged (workflow-portal-v1.85.0.tar.gz) - NOT YET deployed. v1.84.0 is also still not yet deployed (see below) - v1.85.0 is layered on top of it, so both go out together in the next deploy. Full quality gate green (lint/check/1420 tests); UI change not yet exercised in a real browser (login-gated, Claude never signs in) - needs a real click-through after deploying.
 
 NEXT SESSION:
-1. Deploy v1.84.0, then do a real browser click-through of "RankRocket Site Insights" - the underlying pipeline is proven working (script-level), but the actual UI has never been exercised.
-2. Post-deploy TD-16 check via SSH (standard ritual).
-3. Decide whether to fix the fillPrompt <PASTE>-alignment bug found in the 2026-08-12 session on prod's "SEO Audit via Rank Rocket SEO Plugin" and "Ranking Audit and Improvement Suite" cards (WP Username/Password sit mid-array while the prompt skips their tokens, shifting every later field's autofilled value by one position when using the Launch button). Not fixed - flagged only, out of scope so far.
-4. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
-5. Phase 3 follow-ups, explicitly out of scope for this slice: write-tool access (rankrocket_*_write, action_execute/rollback), a clients-table -> site-key mapping (currently manual site-key text input only), retrofitting the three existing Perplexity-launch RankRocket cards to use this pattern instead, and generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server (the interfaces already don't assume rankrocket-mcp specifically, but wiring a second server is deferred until there is one).
+1. Deploy v1.85.0 (which includes v1.84.0's MCP-client pivot), then do a real browser click-through of "RankRocket Site Insights" - both the tool-loop pipeline (proven script-level in v1.84.0) and the new site/question dropdowns (only unit/integration-tested so far) need a live check.
+2. rankrocket-mcp v0.10.0 (the `rankrocket_sites` tool this feature's site dropdown depends on) is also NOT YET deployed - built, tested, tagged, tarball ready in that repo's dist/. Must deploy before or alongside v1.85.0, or the site dropdown will show "No sites available" in production (the client cache degrades gracefully - no crash, just an empty list).
+3. Post-deploy TD-16 check via SSH (standard ritual).
+4. Decide whether to fix the fillPrompt <PASTE>-alignment bug found in the 2026-08-12 session on prod's "SEO Audit via Rank Rocket SEO Plugin" and "Ranking Audit and Improvement Suite" cards (WP Username/Password sit mid-array while the prompt skips their tokens, shifting every later field's autofilled value by one position when using the Launch button). Not fixed - flagged only, out of scope so far.
+5. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
+6. Phase 3 follow-ups, explicitly out of scope for this slice: write-tool access (rankrocket_*_write, action_execute/rollback), a clients-table -> site-key mapping (site dropdown is now live-synced to rankrocket-mcp's sites.json, but still no per-client auto-selection), retrofitting the three existing Perplexity-launch RankRocket cards to use this pattern instead, a third input for page/post-scoped read-only capabilities (heading hierarchy, schema graph, per-post SEO meta, Elementor layout, agentic-browsing - not reachable through this card's question dropdown yet, since it only lists site-wide capabilities), and generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server.
+
+Session 2026-08-16 (part 4): v1.85.0 - dropdown inputs for "RankRocket
+Site Insights", a two-repo slice built on top of part 3's MCP-client
+architecture. rankrocket-mcp gained `rankrocket_sites` (read-only, no
+`site` param - lists the configured site keys from sites.json via the
+existing `listSiteNames()`), v0.9.0 -> v0.10.0, deliberately NOT added
+to workflow-portal's Claude-facing RANKROCKET_READONLY_TOOLS allowlist -
+it's called directly by workflow-portal's own MCP client at boot, never
+by Claude. workflow-portal added `server/mcp/sitesCache.ts` (in-memory
+cache, `refreshRankRocketSitesCache()` fire-and-forget at app startup via
+server/index.ts, `getCachedRankRocketSites()` reads it; missing config or
+an unreachable server degrades to an empty cache rather than blocking
+boot or throwing), `GET /api/rankrocket-mcp/sites` (server/routes/
+workflows.ts, deliberately not nested under /api/workflows/:id to avoid
+colliding with that route's numeric :id parsing), and
+`RANKROCKET_QUESTION_OPTIONS` in shared/schema.ts (8 fixed options, one
+per site-wide read-only capability with no extra parameter - page-scoped
+capabilities are out of scope until a third "which page" input exists).
+Client: LaunchInputsDialog.tsx special-cases index 0/1 of workflow.inputs
+into shadcn Selects when workflow.rankrocketMcpEnabled is true (site key
+from the fetched cache, question from the fixed list); every other card's
+plain-text Inputs are unchanged - this is a position + flag-keyed branch,
+not a new generic input-type concept. Empty/failed site list renders the
+select disabled with an explanatory placeholder rather than allowing an
+invalid selection.
+Had to add pointer-capture/scrollIntoView polyfills to tests/setup.ts
+(jsdom doesn't implement them) - no prior test in this repo actually
+opened a Radix Select and picked an option, only rendered one; the
+existing ResizeObserver stub covered render but not interaction. One
+pre-existing WorkflowCard.test.tsx test (RankRocket MCP run) reused a
+single-input `rankrocketMcpEnabled` fixture that had been typing into
+what's now index-0's site Select - updated to mock the sites endpoint and
+drive the dropdown instead of typing.
+Full gate green: lint, check, 1420/1420 tests (108 files) after fixing
+the one WorkflowCard regression. Committed, pushed, packaged, tagged
+v1.85.0. Deploy stays manual per this session's established convention -
+NOT done yet, see NEXT SESSION above.
 
 Session 2026-08-16 (part 3): v1.84.0 - workflow-portal became its own MCP
 client, replacing the Phase-3-v1 approach (Anthropic's server-side MCP
