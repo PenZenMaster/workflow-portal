@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Service Area Hub and City Page Templates</title>
+  <meta name="description" content="Reusable SEO, AEO, and GEO templates for service-area hub pages and city/location pages." />
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --heading: #111827;
+      --border: #e5e7eb;
+      --accent: #2563eb;
+      --accent-dark: #1d4ed8;
+      --code-bg: #111827;
+      --code-text: #f9fafb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #111827, #1f2937);
+      color: white;
+      border-radius: 22px;
+      padding: 48px;
+      margin-bottom: 32px;
+    }
+
+    .hero p {
+      color: #d1d5db;
+      max-width: 780px;
+      margin-bottom: 0;
+    }
+
+    .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #93c5fd;
+      margin: 0 0 10px;
+    }
+
+    h1, h2, h3 {
+      color: var(--heading);
+      line-height: 1.2;
+    }
+
+    .hero h1 {
+      color: #ffffff;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      margin: 0 0 18px;
+    }
+
+    h2 {
+      font-size: 1.75rem;
+      margin-top: 2.4rem;
+      padding-top: 0.4rem;
+    }
+
+    h3 {
+      font-size: 1.2rem;
+      margin-top: 1.6rem;
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    .toc,
+    .section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 28px;
+      margin: 24px 0;
+      box-shadow: 0 10px 30px rgba(17, 24, 39, 0.04);
+    }
+
+    .toc ul {
+      margin-bottom: 0;
+    }
+
+    .note {
+      border-left: 4px solid var(--accent);
+      background: #eff6ff;
+      padding: 16px 18px;
+      border-radius: 12px;
+      margin: 20px 0;
+    }
+
+    code {
+      background: #eef2ff;
+      color: #312e81;
+      padding: 0.1em 0.35em;
+      border-radius: 5px;
+      font-size: 0.92em;
+    }
+
+    pre {
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 22px;
+      border-radius: 14px;
+      overflow-x: auto;
+      white-space: pre;
+      line-height: 1.5;
+      margin: 18px 0;
+      border: 1px solid #374151;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      border-radius: 0;
+      font-size: 0.9rem;
+    }
+
+    ul, ol {
+      padding-left: 1.5rem;
+    }
+
+    li {
+      margin: 0.3rem 0;
+    }
+
+    .checklist li {
+      list-style: none;
+      margin-left: -1.1rem;
+    }
+
+    .checklist li::before {
+      content: "☐";
+      margin-right: 0.55rem;
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    .footer {
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+      margin-top: 48px;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+
+      .page {
+        max-width: none;
+        padding: 0;
+      }
+
+      .hero,
+      .toc,
+      .section {
+        box-shadow: none;
+      }
+
+      pre {
+        white-space: pre-wrap;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">Skippy the SEO Visionary</p>
+      <h1>Service Area Hub and City Page Templates</h1>
+      <p>
+        Reusable SEO, AEO, and GEO templates for <code>/service-area/</code> hub pages and
+        <code>/service-area/{{city-slug}}/</code> city/location pages.
+      </p>
+    </header>
+
+    <nav class="toc" aria-label="Table of contents">
+      <h2>Table of Contents</h2>
+      <ul>
+        <li><a href="#hub-page">Template 1: /service-area/ Hub Page Layout</a></li>
+        <li><a href="#city-page">Template 2: City / Location Page Layout</a></li>
+        <li><a href="#internal-linking">Recommended Internal Linking Model</a></li>
+        <li><a href="#geo-aeo">GEO / AEO Content Blocks</a></li>
+        <li><a href="#checklist">City Page Quality Checklist</a></li>
+        <li><a href="#publishing">Best-Practice Publishing Rules</a></li>
+      </ul>
+    </nav>
+
+    <section class="section">
+      <p>
+        These templates are based on the provided HTML and JSON-LD standards, including FAQ accordion
+        conventions and LocalBusiness schema structure. Use them as a foundation for scalable, high-quality
+        service-area architecture.
+      </p>
+
+      <div class="note">
+        <strong>Important:</strong> Avoid thin city-swap doorway pages. Each city page should contain
+        unique, locally useful content, not just duplicated copy with the city name changed.
+      </div>
+    </section>
+
+    <section id="hub-page" class="section">
+      <h2>Template 1: <code>/service-area/</code> Hub Page Layout</h2>
+
+      <h3>SEO Purpose</h3>
+      <p>
+        The hub page should act as the entity bridge between:
+      </p>
+
+      <pre><code>Homepage → Core Service Pages → Service Area Hub → City Pages</code></pre>
+
+      <p>Its job is not to rank for every city. Its job is to clearly define:</p>
+      <ul>
+        <li>Who the business serves</li>
+        <li>What services are available</li>
+        <li>Which locations are covered</li>
+        <li>How the city pages relate to the main business entity</li>
+        <li>Why the business is qualified across the region</li>
+      </ul>
+
+      <h3>URL</h3>
+      <pre><code>/service-area/</code></pre>
+
+      <h3>Recommended Meta</h3>
+      <pre><code>&lt;title&gt;{{Primary Service}} Service Areas | {{Business Name}}&lt;/title&gt;
+&lt;meta name="description" content="{{Business Name}} provides {{primary service}} across {{region/state/metro}}. View our service areas, nearby cities, and local service options."&gt;
+&lt;link rel="canonical" href="https://www.example.com/service-area/"&gt;</code></pre>
+
+      <h3>Page Structure</h3>
+      <pre><code>&lt;section class="rr-blog-content service-area-hub"&gt;
+  &lt;div class="container"&gt;
+
+    &lt;header class="service-area-hero"&gt;
+      &lt;p class="eyebrow"&gt;Service Areas&lt;/p&gt;
+      &lt;h1&gt;{{Primary Service}} Service Areas in {{Region / State / Metro}}&lt;/h1&gt;
+
+      &lt;p&gt;
+        {{Business Name}} provides {{primary service category}} for homeowners and businesses across
+        {{region/state/metro}}. Use this page to find your city, confirm whether we serve your area,
+        and explore location-specific information about {{service type}}, response times, local needs,
+        and common customer questions.
+      &lt;/p&gt;
+
+      &lt;a href="/contact/" class="primary-cta"&gt;Request Service&lt;/a&gt;
+      &lt;a href="tel:{{Phone Number}}" class="secondary-cta"&gt;Call {{Phone Number}}&lt;/a&gt;
+    &lt;/header&gt;
+
+    &lt;section class="service-summary"&gt;
+      &lt;h2&gt;{{Primary Service}} Across {{Region}}&lt;/h2&gt;
+      &lt;p&gt;
+        We serve {{region}} with {{brief description of service}}. Our team helps customers with
+        {{service 1}}, {{service 2}}, {{service 3}}, and {{service 4}}. Each location page below includes
+        local details, service availability, and answers to common questions for that specific community.
+      &lt;/p&gt;
+    &lt;/section&gt;
+
+    &lt;section class="service-area-map"&gt;
+      &lt;h2&gt;Where We Provide Service&lt;/h2&gt;
+      &lt;p&gt;
+        Our service area includes the cities and communities listed below. Availability may vary based on
+        distance, scheduling, job type, weather, traffic, or emergency demand.
+      &lt;/p&gt;
+
+      &lt;!-- Optional map embed --&gt;
+      &lt;div class="map-wrapper"&gt;
+        [[Embed static service-area map or Google Map here]]
+      &lt;/div&gt;
+    &lt;/section&gt;
+
+    &lt;section class="city-links"&gt;
+      &lt;h2&gt;Find {{Business Name}} Near You&lt;/h2&gt;
+      &lt;p&gt;
+        Select your city to learn more about our local {{primary service}} options.
+      &lt;/p&gt;
+
+      &lt;div class="city-grid"&gt;
+        &lt;a href="/service-area/{{city-1-slug}}/"&gt;{{City 1}}, {{State}}&lt;/a&gt;
+        &lt;a href="/service-area/{{city-2-slug}}/"&gt;{{City 2}}, {{State}}&lt;/a&gt;
+        &lt;a href="/service-area/{{city-3-slug}}/"&gt;{{City 3}}, {{State}}&lt;/a&gt;
+        &lt;a href="/service-area/{{city-4-slug}}/"&gt;{{City 4}}, {{State}}&lt;/a&gt;
+        &lt;a href="/service-area/{{city-5-slug}}/"&gt;{{City 5}}, {{State}}&lt;/a&gt;
+        &lt;a href="/service-area/{{city-6-slug}}/"&gt;{{City 6}}, {{State}}&lt;/a&gt;
+      &lt;/div&gt;
+    &lt;/section&gt;
+
+    &lt;section class="services-by-area"&gt;
+      &lt;h2&gt;Services Available Across Our Service Area&lt;/h2&gt;
+      &lt;p&gt;
+        Customers across {{region}} rely on us for dependable {{industry/service category}} support.
+        Our most requested services include:
+      &lt;/p&gt;
+
+      &lt;ul&gt;
+        &lt;li&gt;&lt;a href="/services/{{service-1-slug}}/"&gt;{{Service 1}}&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="/services/{{service-2-slug}}/"&gt;{{Service 2}}&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="/services/{{service-3-slug}}/"&gt;{{Service 3}}&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="/services/{{service-4-slug}}/"&gt;{{Service 4}}&lt;/a&gt;&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/section&gt;
+
+    &lt;section class="regional-proof"&gt;
+      &lt;h2&gt;Why Customers Across {{Region}} Choose {{Business Name}}&lt;/h2&gt;
+      &lt;p&gt;
+        {{Business Name}} combines local experience, clear communication, and reliable service standards
+        across every community we serve. Whether you are located in {{City 1}}, {{City 2}}, {{City 3}},
+        or a nearby area, our team brings the same commitment to quality, safety, and customer care.
+      &lt;/p&gt;
+
+      &lt;ul&gt;
+        &lt;li&gt;{{Proof point 1: licensed, certified, insured, years in business}}&lt;/li&gt;
+        &lt;li&gt;{{Proof point 2: local reviews, customer satisfaction, warranty}}&lt;/li&gt;
+        &lt;li&gt;{{Proof point 3: emergency availability, fast response, specialized equipment}}&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/section&gt;
+
+    &lt;section class="local-content-cluster"&gt;
+      &lt;h2&gt;Helpful Local Resources&lt;/h2&gt;
+      &lt;p&gt;
+        Explore related guides that help customers understand {{service category}} needs across {{region}}.
+      &lt;/p&gt;
+
+      &lt;ul&gt;
+        &lt;li&gt;&lt;a href="/blog/{{local-guide-1}}/"&gt;{{Local Guide 1}}&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="/blog/{{local-guide-2}}/"&gt;{{Local Guide 2}}&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="/blog/{{local-guide-3}}/"&gt;{{Local Guide 3}}&lt;/a&gt;&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/section&gt;
+
+    &lt;section class="conversion-block"&gt;
+      &lt;h2&gt;Need {{Primary Service}} in {{Region}}?&lt;/h2&gt;
+      &lt;p&gt;
+        Contact {{Business Name}} today to confirm service availability in your area, schedule an appointment,
+        or request an estimate.
+      &lt;/p&gt;
+
+      &lt;a href="/contact/" class="primary-cta"&gt;Schedule Service&lt;/a&gt;
+    &lt;/section&gt;
+
+  &lt;/div&gt;
+
+  &lt;div class="rr-faq-section"&gt;
+    &lt;h2&gt;Frequently Asked Questions&lt;/h2&gt;
+
+    &lt;div class="faq"&gt;
+      &lt;button class="faq-question"&gt;What areas does {{Business Name}} serve?&lt;/button&gt;
+      &lt;div class="faq-answer"&gt;
+        &lt;p&gt;{{Business Name}} serves {{City 1}}, {{City 2}}, {{City 3}}, {{City 4}}, and surrounding communities throughout {{region/state}}.&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;button class="faq-question"&gt;Do you charge extra for service outside {{Primary City}}?&lt;/button&gt;
+      &lt;div class="faq-answer"&gt;
+        &lt;p&gt;Travel fees may vary depending on distance, job type, and scheduling. Contact us to confirm availability and pricing for your location.&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;button class="faq-question"&gt;Can I schedule same-day service in my city?&lt;/button&gt;
+      &lt;div class="faq-answer"&gt;
+        &lt;p&gt;Same-day availability depends on your location, the requested service, and current schedule capacity. Call {{Phone Number}} for the fastest confirmation.&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;button class="faq-question"&gt;Are your services the same in every city?&lt;/button&gt;
+      &lt;div class="faq-answer"&gt;
+        &lt;p&gt;Most core services are available across our service area, though availability may vary by location, local requirements, and project scope.&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;button class="faq-question"&gt;How do I know whether you serve my address?&lt;/button&gt;
+      &lt;div class="faq-answer"&gt;
+        &lt;p&gt;The easiest way is to call {{Phone Number}} or submit a service request with your address. Our team will confirm whether your property is within our service range.&lt;/p&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/section&gt;</code></pre>
+
+      <h3>Hub Page JSON-LD</h3>
+      <pre><code>&lt;script type="application/ld+json"&gt;
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "LocalBusiness",
+      "@id": "https://www.example.com/#localbusiness",
+      "name": "{{Business Name}}",
+      "image": "https://www.example.com/logo.jpg",
+      "description": "{{Short business description focused on services and region served.}}",
+      "url": "https://www.example.com",
+      "telephone": "{{Phone Number}}",
+      "email": "{{Email Address}}",
+      "priceRange": "{{Price Range}}",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "{{Street Address}}",
+        "addressLocality": "{{Primary City}}",
+        "addressRegion": "{{State}}",
+        "postalCode": "{{ZIP}}",
+        "addressCountry": "US"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "{{Latitude}}",
+        "longitude": "{{Longitude}}"
+      },
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+          "opens": "09:00",
+          "closes": "17:00"
+        }
+      ],
+      "areaServed": [
+        {
+          "@type": "City",
+          "name": "{{City 1}}, {{State}}"
+        },
+        {
+          "@type": "City",
+          "name": "{{City 2}}, {{State}}"
+        },
+        {
+          "@type": "City",
+          "name": "{{City 3}}, {{State}}"
+        }
+      ],
+      "sameAs": [
+        "{{Facebook URL}}",
+        "{{Instagram URL}}",
+        "{{LinkedIn URL}}",
+        "{{GBP URL}}"
+      ]
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://www.example.com/service-area/#webpage",
+      "url": "https://www.example.com/service-area/",
+      "name": "{{Primary Service}} Service Areas in {{Region}}",
+      "isPartOf": {
+        "@id": "https://www.example.com/#website"
+      },
+      "about": {
+        "@id": "https://www.example.com/#localbusiness"
+      }
+    },
+    {
+      "@type": "ItemList",
+      "@id": "https://www.example.com/service-area/#city-list",
+      "name": "{{Business Name}} Service Area Locations",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "{{City 1}}, {{State}}",
+          "url": "https://www.example.com/service-area/{{city-1-slug}}/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "{{City 2}}, {{State}}",
+          "url": "https://www.example.com/service-area/{{city-2-slug}}/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "{{City 3}}, {{State}}",
+          "url": "https://www.example.com/service-area/{{city-3-slug}}/"
+        }
+      ]
+    }
+  ]
+}
+&lt;/script&gt;</code></pre>
+    </section>
+
+    <section id="city-page" class="section">
+      <h2>Template 2: City / Location Page Layout</h2>
+
+      <h3>SEO Purpose</h3>
+      <p>
+        Each city page should answer:
+      </p>
+
+      <pre><code>“Does this business provide this service in this specific city, and why should I trust them here?”</code></pre>
+
+      <p>
+        The page should be unique because of local proof, not just city-name swaps. Add city-specific details
+        such as neighborhoods, landmarks, response patterns, local regulations, climate/property conditions,
+        project examples, reviews from nearby customers, and city-specific FAQs.
+      </p>
+
+      <h3>URL Pattern</h3>
+      <pre><code>/service-area/{{city-slug}}/</code></pre>
+
+      <p>Example:</p>
+      <pre><code>/service-area/tacoma-wa/</code></pre>
+
+      <h3>Recommended Meta</h3>
+      <pre><code>&lt;title&gt;{{Primary Service}} in {{City}}, {{State}} | {{Business Name}}&lt;/title&gt;
+&lt;meta name="description" content="{{Business Name}} provides {{primary service}} in {{City}}, {{State}} and nearby areas. Call {{Phone Number}} to schedule local service."&gt;
+&lt;link rel="canonical" href="https://www.example.com/service-area/{{city-slug}}/"&gt;</code></pre>
+
+      <h3>City Page Template</h3>
+      <pre><code>&lt;section class="rr-blog-content city-location-page"&gt;
+  &lt;div class="container"&gt;
+
+    &lt;header class="city-hero"&gt;
+      &lt;p class="eyebrow"&gt;Now Serving {{City}}, {{State}}&lt;/p&gt;
+      &lt;h1&gt;{{Primary Service}} in {{City}}, {{State}}&lt;/h1&gt;
+
+      &lt;p&gt;
+        {{Business Name}} provides reliable {{primary service}} in {{City}}, {{State}} and nearby communities.
+        Whether you need {{service use case 1}}, {{service use case 2}}, or help with {{service use case 3}},
+        our team offers local service backed by {{trust signal: experience, licensing, warranty, reviews}}.
+      &lt;/p&gt;
+
+      &lt;a href="/contact/" class="primary-cta"&gt;Request Service in {{City}}&lt;/a&gt;
+      &lt;a href="tel:{{Phone Number}}" class="secondary-cta"&gt;Call {{Phone Number}}&lt;/a&gt;
+    &lt;/header&gt;
+
+    &lt;section class="local-service-intro"&gt;
+      &lt;h2&gt;Local {{Primary Service}} for {{City}} Homes and Businesses&lt;/h2&gt;
+      &lt;p&gt;
+        Customers in {{City}} often need {{service category}} because of {{local condition 1}},
+        {{local condition 2}}, and {{local condition 3}}. Our team understands the needs of properties
+        in {{City neighborhood 1}}, {{City neighborhood 2}}, {{City neighborhood 3}}, and surrounding areas.
+      &lt;/p&gt;
+    &lt;/section&gt;
+
+    &lt;section class="services-in-city"&gt;
+      &lt;h2&gt;{{Services Category}} We Offer in {{City}}&lt;/h2&gt;
+      &lt;p&gt;
+        Our {{City}} service options include:
+      &lt;/p&gt;
+
+      &lt;ul&gt;
+        &lt;li&gt;&lt;a href="/services/{{service-1-slug}}/"&gt;{{Service 1}}&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="/services/{{service-2-slug}}/"&gt;{{Service 2}}&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="/services/{{service-3-slug}}/"&gt;{{Service 3}}&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="/services/{{service-4-slug}}/"&gt;{{Service 4}}&lt;/a&gt;&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/section&gt;
+
+    &lt;section class="local-proof"&gt;
+      &lt;h2&gt;Why {{City}} Customers Choose {{Business Name}}&lt;/h2&gt;
+      &lt;p&gt;
+        {{Business Name}} is trusted by customers throughout {{region}} because we combine professional
+        service standards with local knowledge. For {{City}} customers, that means practical recommendations,
+        clear communication, and service options matched to local property needs.
+      &lt;/p&gt;
+
+      &lt;ul&gt;
+        &lt;li&gt;{{Proof point 1: licensed / insured / certified}}&lt;/li&gt;
+        &lt;li&gt;{{Proof point 2: local reviews or nearby completed jobs}}&lt;/li&gt;
+        &lt;li&gt;{{Proof point 3: transparent estimates / warranty / emergency response}}&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/section&gt;
+
+    &lt;section class="nearby-areas"&gt;
+      &lt;h2&gt;Areas We Serve Near {{City}}&lt;/h2&gt;
+      &lt;p&gt;
+        In addition to {{City}}, we also serve nearby communities including:
+      &lt;/p&gt;
+
+      &lt;ul&gt;
+        &lt;li&gt;&lt;a href="/service-area/{{nearby-city-1-slug}}/"&gt;{{Nearby City 1}}, {{State}}&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="/service-area/{{nearby-city-2-slug}}/"&gt;{{Nearby City 2}}, {{State}}&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="/service-area/{{nearby-city-3-slug}}/"&gt;{{Nearby City 3}}, {{State}}&lt;/a&gt;&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/section&gt;
+
+    &lt;section class="city-specific-example"&gt;
+      &lt;h2&gt;Common {{Service Category}} Needs in {{City}}&lt;/h2&gt;
+      &lt;p&gt;
+        In {{City}}, we commonly help customers with {{specific issue 1}}, {{specific issue 2}},
+        and {{specific issue 3}}. These needs are often influenced by {{local climate, property age,
+        terrain, traffic patterns, local building styles, or seasonal conditions}}.
+      &lt;/p&gt;
+    &lt;/section&gt;
+
+    &lt;section class="directions-or-availability"&gt;
+      &lt;h2&gt;Schedule {{Primary Service}} in {{City}}&lt;/h2&gt;
+      &lt;p&gt;
+        To schedule service in {{City}}, call {{Phone Number}} or submit a request online. Please include
+        your address, preferred service date, and a short description of the issue so our team can confirm
+        availability.
+      &lt;/p&gt;
+
+      &lt;a href="/contact/" class="primary-cta"&gt;Book {{City}} Service&lt;/a&gt;
+    &lt;/section&gt;
+
+  &lt;/div&gt;
+
+  &lt;div class="rr-faq-section"&gt;
+    &lt;h2&gt;{{City}} Service FAQs&lt;/h2&gt;
+
+    &lt;div class="faq"&gt;
+      &lt;button class="faq-question"&gt;Does {{Business Name}} serve {{City}}, {{State}}?&lt;/button&gt;
+      &lt;div class="faq-answer"&gt;
+        &lt;p&gt;Yes. {{Business Name}} provides {{primary service}} in {{City}}, {{State}} and nearby communities.&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;button class="faq-question"&gt;How soon can you provide service in {{City}}?&lt;/button&gt;
+      &lt;div class="faq-answer"&gt;
+        &lt;p&gt;Availability depends on schedule capacity, job type, and location within {{City}}. Call {{Phone Number}} for the fastest scheduling confirmation.&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;button class="faq-question"&gt;What {{service category}} services are available in {{City}}?&lt;/button&gt;
+      &lt;div class="faq-answer"&gt;
+        &lt;p&gt;We offer {{service 1}}, {{service 2}}, {{service 3}}, and {{service 4}} for customers in {{City}}.&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;button class="faq-question"&gt;Do you serve neighborhoods near {{City}}?&lt;/button&gt;
+      &lt;div class="faq-answer"&gt;
+        &lt;p&gt;Yes. We also serve nearby areas such as {{Nearby City 1}}, {{Nearby City 2}}, and {{Nearby City 3}}.&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;button class="faq-question"&gt;How do I request an estimate in {{City}}?&lt;/button&gt;
+      &lt;div class="faq-answer"&gt;
+        &lt;p&gt;You can request an estimate by calling {{Phone Number}} or submitting the contact form with your {{City}} address and project details.&lt;/p&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/section&gt;</code></pre>
+
+      <h3>City Page JSON-LD</h3>
+      <pre><code>&lt;script type="application/ld+json"&gt;
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "LocalBusiness",
+      "@id": "https://www.example.com/#localbusiness",
+      "name": "{{Business Name}}",
+      "image": "https://www.example.com/logo.jpg",
+      "description": "{{Business Name}} provides {{primary service}} in {{City}}, {{State}} and nearby communities.",
+      "url": "https://www.example.com",
+      "telephone": "{{Phone Number}}",
+      "email": "{{Email Address}}",
+      "priceRange": "{{Price Range}}",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "{{Street Address}}",
+        "addressLocality": "{{Primary Business City}}",
+        "addressRegion": "{{State}}",
+        "postalCode": "{{ZIP}}",
+        "addressCountry": "US"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "{{Business Latitude}}",
+        "longitude": "{{Business Longitude}}"
+      },
+      "areaServed": {
+        "@type": "City",
+        "name": "{{City}}, {{State}}"
+      },
+      "sameAs": [
+        "{{Facebook URL}}",
+        "{{Instagram URL}}",
+        "{{LinkedIn URL}}",
+        "{{GBP URL}}"
+      ]
+    },
+    {
+      "@type": "Service",
+      "@id": "https://www.example.com/service-area/{{city-slug}}/#service",
+      "name": "{{Primary Service}} in {{City}}, {{State}}",
+      "serviceType": "{{Primary Service Category}}",
+      "provider": {
+        "@id": "https://www.example.com/#localbusiness"
+      },
+      "areaServed": {
+        "@type": "City",
+        "name": "{{City}}, {{State}}"
+      },
+      "description": "{{Short description of the service offered in this city.}}"
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://www.example.com/service-area/{{city-slug}}/#webpage",
+      "url": "https://www.example.com/service-area/{{city-slug}}/",
+      "name": "{{Primary Service}} in {{City}}, {{State}}",
+      "about": {
+        "@id": "https://www.example.com/service-area/{{city-slug}}/#service"
+      },
+      "isPartOf": {
+        "@id": "https://www.example.com/#website"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://www.example.com/service-area/{{city-slug}}/#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Does {{Business Name}} serve {{City}}, {{State}}?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. {{Business Name}} provides {{primary service}} in {{City}}, {{State}} and nearby communities."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How soon can you provide service in {{City}}?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Availability depends on schedule capacity, job type, and location within {{City}}. Call {{Phone Number}} for the fastest scheduling confirmation."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What {{service category}} services are available in {{City}}?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "{{Business Name}} offers {{service 1}}, {{service 2}}, {{service 3}}, and {{service 4}} for customers in {{City}}."
+          }
+        }
+      ]
+    }
+  ]
+}
+&lt;/script&gt;</code></pre>
+    </section>
+
+    <section id="internal-linking" class="section">
+      <h2>Recommended Internal Linking Model</h2>
+
+      <p>Use this structure:</p>
+
+      <pre><code>/
+├── /services/
+│   ├── /services/service-1/
+│   ├── /services/service-2/
+│   └── /services/service-3/
+│
+├── /service-area/
+│   ├── /service-area/city-1/
+│   ├── /service-area/city-2/
+│   └── /service-area/city-3/
+│
+└── /blog/
+    ├── local-service-guide-1/
+    ├── cost-guide/
+    └── seasonal-maintenance-guide/</code></pre>
+
+      <p>Each city page should link to:</p>
+      <ul>
+        <li>The <code>/service-area/</code> hub</li>
+        <li>The main service page</li>
+        <li>2–4 related service pages</li>
+        <li>2–3 nearby city pages</li>
+        <li>1–2 relevant local blog/supporting pages</li>
+        <li>Contact or booking page</li>
+      </ul>
+
+      <p>Each service page should link back to:</p>
+      <ul>
+        <li>The service area hub</li>
+        <li>Top-priority city pages</li>
+        <li>Relevant case studies or FAQs</li>
+      </ul>
+
+      <p>
+        This supports topical authority, entity relationships, and AI answer extraction rather than
+        leaving city pages isolated.
+      </p>
+    </section>
+
+    <section id="geo-aeo" class="section">
+      <h2>GEO / AEO Content Blocks to Add</h2>
+
+      <p>
+        For each city page, include short, quotable blocks that AI systems can lift cleanly into answers.
+        Pages need extractable facts, strong entity signals, and citation-worthy specificity.
+      </p>
+
+      <h3>Direct Answer Block</h3>
+      <pre><code>&lt;div class="answer-summary"&gt;
+  &lt;h2&gt;Does {{Business Name}} provide {{Primary Service}} in {{City}}?&lt;/h2&gt;
+  &lt;p&gt;
+    Yes. {{Business Name}} provides {{primary service}} in {{City}}, {{State}}, including
+    {{service 1}}, {{service 2}}, and {{service 3}}. Customers can call {{Phone Number}}
+    or request service online.
+  &lt;/p&gt;
+&lt;/div&gt;</code></pre>
+
+      <h3>Local Entity Block</h3>
+      <pre><code>&lt;div class="local-entity-block"&gt;
+  &lt;h2&gt;{{Primary Service}} for {{City}} Properties&lt;/h2&gt;
+  &lt;p&gt;
+    {{City}}, {{State}} is known for {{local attribute 1}}, {{local attribute 2}}, and
+    {{local attribute 3}}. These conditions can affect {{service need}}, which is why
+    {{Business Name}} provides {{city-specific solution}} for local customers.
+  &lt;/p&gt;
+&lt;/div&gt;</code></pre>
+
+      <h3>Proof Block</h3>
+      <pre><code>&lt;div class="trust-block"&gt;
+  &lt;h2&gt;Trusted {{Service Provider Type}} Near {{City}}&lt;/h2&gt;
+  &lt;ul&gt;
+    &lt;li&gt;{{Years in business or founder experience}}&lt;/li&gt;
+    &lt;li&gt;{{License, certification, or insurance detail}}&lt;/li&gt;
+    &lt;li&gt;{{Review count, rating, or testimonial summary}}&lt;/li&gt;
+    &lt;li&gt;{{Warranty, guarantee, or service promise}}&lt;/li&gt;
+  &lt;/ul&gt;
+&lt;/div&gt;</code></pre>
+    </section>
+
+    <section id="checklist" class="section">
+      <h2>City Page Quality Checklist</h2>
+
+      <ul class="checklist">
+        <li>City page has at least 40–60% unique local content.</li>
+        <li>H1 includes service + city + state.</li>
+        <li>Intro answers “Do you serve this city?” within the first 100 words.</li>
+        <li>Page links to the main service page.</li>
+        <li>Page links back to <code>/service-area/</code>.</li>
+        <li>Page links to nearby relevant city pages.</li>
+        <li>LocalBusiness schema is consistent with the homepage entity.</li>
+        <li><code>areaServed</code> references the target city.</li>
+        <li>FAQ content matches visible on-page content.</li>
+        <li>No fake address is added for the city.</li>
+        <li>No claim is made that the business has an office in the city unless it truly does.</li>
+        <li>Testimonials, photos, case studies, or examples are genuinely local when used.</li>
+        <li>GBP service area, website service areas, and off-site citations are consistent.</li>
+      </ul>
+    </section>
+
+    <section id="publishing" class="section">
+      <h2>Best-Practice Publishing Rules</h2>
+
+      <h3>For the hub page</h3>
+      <pre><code>Primary intent: regional coverage discovery
+Target query pattern: "{{service}} service areas", "{{business}} locations", "{{service}} near {{region}}"
+Canonical: self
+Index: yes
+Schema: LocalBusiness + WebPage + ItemList</code></pre>
+
+      <h3>For city pages</h3>
+      <pre><code>Primary intent: local service validation
+Target query pattern: "{{service}} in {{city}}", "{{service}} near me", "{{business type}} {{city}} {{state}}"
+Canonical: self
+Index: yes, only when locally useful and unique
+Schema: LocalBusiness + Service + WebPage + FAQPage</code></pre>
+
+      <h3>For low-priority cities with no unique content</h3>
+      <pre><code>Do not publish thin city pages.
+Instead, list the city on /service-area/ until you have local proof, customer examples, photos, reviews, or service-specific details.</code></pre>
+
+      <div class="note">
+        A strong <code>/service-area/</code> hub with fewer high-quality city pages is better than
+        50 near-duplicate location pages.
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p>Prepared as a reusable single-page HTML document.</p>
+    </footer>
+  </main>
+</body>
+</html>
