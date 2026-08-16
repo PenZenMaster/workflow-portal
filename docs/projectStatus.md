@@ -1,13 +1,94 @@
 ## Resume From
 
-Last session: 2026-08-15
-Branch: main | Version: v1.83.0 | DEPLOYED to cPanel, migration 0028 verified applied, "RankRocket Site Insights" card inserted into prod data.db (id 23). Post-deploy TD-16 check via SSH: single fresh portal.fullmetaljacketseo.com worker only (PID 3884361), no stale process. Live end-to-end functional test (real RANKROCKET_MCP_TOKEN + ANTHROPIC_API_KEY, an actual Run against a live site) NOT YET done this session - see NEXT SESSION item 1.
+Last session: 2026-08-16
+Branch: main | Version: v1.84.0 | Packaged and tagged (workflow-portal-v1.84.0.tar.gz) - NOT YET deployed. Live-verified end-to-end via a standalone script against production rankrocket-mcp + the real Anthropic API (see part 3 below); the app itself has never been clicked through in a browser this feature's entire two-session life, since it's login-gated and Claude never enters passwords - the user should do a real click-through after deploying.
 
 NEXT SESSION:
-1. Do a real end-to-end test of the new "RankRocket Site Insights" card in prod (or dev, with a token configured) - click Run, confirm a live, tool-backed answer comes back rather than a generic one. Local browser verification was skipped this session (user chose to package/deploy without it - see part 2 below); nothing has exercised the actual Anthropic MCP connector call path against a real rankrocket-mcp response yet.
-2. Decide whether to fix the fillPrompt <PASTE>-alignment bug found in the 2026-08-12 session on prod's "SEO Audit via Rank Rocket SEO Plugin" and "Ranking Audit and Improvement Suite" cards (WP Username/Password sit mid-array while the prompt skips their tokens, shifting every later field's autofilled value by one position when using the Launch button). Not fixed - flagged only, out of scope so far.
-3. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
-4. Phase 3 follow-ups, explicitly out of scope for this slice: write-tool access (rankrocket_*_write, action_execute/rollback), a clients-table -> site-key mapping (currently manual site-key text input only), retrofitting the three existing Perplexity-launch RankRocket cards to use this pattern instead.
+1. Deploy v1.84.0, then do a real browser click-through of "RankRocket Site Insights" - the underlying pipeline is proven working (script-level), but the actual UI has never been exercised.
+2. Post-deploy TD-16 check via SSH (standard ritual).
+3. Decide whether to fix the fillPrompt <PASTE>-alignment bug found in the 2026-08-12 session on prod's "SEO Audit via Rank Rocket SEO Plugin" and "Ranking Audit and Improvement Suite" cards (WP Username/Password sit mid-array while the prompt skips their tokens, shifting every later field's autofilled value by one position when using the Launch button). Not fixed - flagged only, out of scope so far.
+4. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
+5. Phase 3 follow-ups, explicitly out of scope for this slice: write-tool access (rankrocket_*_write, action_execute/rollback), a clients-table -> site-key mapping (currently manual site-key text input only), retrofitting the three existing Perplexity-launch RankRocket cards to use this pattern instead, and generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server (the interfaces already don't assume rankrocket-mcp specifically, but wiring a second server is deferred until there is one).
+
+Session 2026-08-16 (part 3): v1.84.0 - workflow-portal became its own MCP
+client, replacing the Phase-3-v1 approach (Anthropic's server-side MCP
+connector) after live production testing proved that approach doesn't
+work. Diagnosis: every "RankRocket Site Insights" run failed with
+"Authentication error while communicating with MCP server", even with a
+triple-verified-correct RANKROCKET_MCP_TOKEN and a full cPanel app
+restart. Root-caused by hand-crafting a direct POST /mcp JSON-RPC
+`initialize` call with the same token, which succeeded perfectly
+(real serverInfo/capabilities back) - proving the token and rankrocket-mcp
+itself were fine all along. Anthropic's MCP connector docs frame
+`authorization_token` specifically around OAuth ("API consumers are
+expected to handle the OAuth flow..."); rankrocket-mcp is a deliberately
+simple static-bearer server, not OAuth - the connector almost certainly
+expects OAuth-shaped negotiation rankrocket-mcp doesn't implement. A real
+beta-feature/server mismatch, not a config error - two full days of env-
+var/token troubleshooting across this and the prior session ultimately
+chased the wrong layer.
+User's explicit framing for the fix, given they plan to build more MCP
+servers: "which solution gives us the most robust repeatable pattern?"
+Decided: workflow-portal owns the MCP client itself rather than depending
+on Anthropic's connector working with every future server's auth model -
+a one-time investment that then works with any future MCP server
+speaking plain bearer auth, no OAuth compliance needed per server.
+Two dependency sub-decisions confirmed with the user before building:
+use the official `@modelcontextprotocol/sdk` for the MCP protocol client
+(Streamable HTTP transport correctness - session IDs, SSE parsing - is
+real surface area not worth hand-rolling), but hand-roll the Claude-side
+tool-call loop on raw fetch (kept consistent with every other adapter in
+this repo, which are all raw-fetch with no official SDK dependency; the
+tool loop itself is well-understood, low-risk to hand-roll unlike MCP's
+wire protocol).
+Shipped: `server/mcp/mcpClient.ts` (thin, testable wrapper around the
+SDK's Client + StreamableHTTPClientTransport - McpClientSource:
+listTools/callTool/close); `server/adapters/anthropicToolLoop.ts`
+(hand-rolled tool loop - parallel tool_use execution, a throwing
+executeTool caught and reported to Claude as an is_error tool_result
+rather than crashing the run, iteration cap, same retry/timeout
+precedent as anthropic.ts); `server/mcp/toolBridge.ts` (MCP-tool ->
+Anthropic-tool schema conversion, plus the explicit
+RANKROCKET_READONLY_TOOLS allowlist - since the connector's mcp_toolset
+allow/denylist is gone, workflow-portal now filters rankrocket-mcp's 17
+tools down to the 9 read-only ones itself, before Claude ever sees the
+list, tested to hold even if the server were to advertise a write tool).
+Reverted the connector-specific fields from `anthropic.ts`
+(mcp_servers/tools/beta header) - kept the independently-valid
+last-text-block-not-first-text-block extraction fix from that slice.
+`registry.ts`'s `getRankRocketMcpAdapter()` replaced with
+`getRankRocketMcpConfig()` (plain env-derived config, no AnthropicAdapter
+instance involved - the tool loop isn't a PlatformAdapter).
+`workflowPromptRun.ts` rewired to connect the MCP client, filter+convert
+its tools, and run the loop; the route contract
+(`POST /api/workflows/:id/run`) and client UI are unchanged by this
+pivot - no changes needed there.
+TDD throughout, RED confirmed before every new module (mcpClient,
+anthropicToolLoop, toolBridge, then the workflowPromptRun/route rewires).
+Full suite grew 1388 -> 1406 tests, all green; lint, typecheck, db:check
+clean.
+**Live-verified end-to-end for the first time across this feature's two
+sessions of work**: rather than fight browser-login automation again
+(this app is login-gated; Claude never enters passwords, even on
+request), verification was done via a standalone tsx script calling
+`runWorkflowPrompt()` directly against production rankrocket-mcp and the
+real Anthropic API, then deleted. A real question ("what's the plugin
+status and alt-text coverage for trevoraspiranti.com?") returned a
+complete, correctly-formatted, genuinely tool-backed answer - real
+plugin/WordPress/PHP versions, exact alt-text coverage counts (178
+images, 100% coverage), real installed snippet IDs - not a generic or
+hallucinated response. Confirms the whole pipeline (MCP connect -> list
+tools -> allowlist filter -> Claude tool selection -> tool execution ->
+result feedback -> final synthesis) works correctly end to end.
+Packaged (workflow-portal-v1.84.0.tar.gz), committed (503ff21) and
+pushed to main, tag v1.84.0 pushed. NOT YET deployed to cPanel - see
+NEXT SESSION item 1.
+Also this session, before the architecture pivot: shipped v1.83.1 (richer
+card description + example questions baked into the input label, matching
+this app's no-tooltip-component convention - hints go in label text) and
+recorded a new feedback memory (auto-memory, not this repo) after handing
+the user a Bash-syntax multi-line command that broke in their actual
+PowerShell terminal mid-debugging.
 
 Session 2026-08-15 (part 2): v1.83.0 - Phase 3 of the RankRocket MCP
 investigation (see rankrocket-mcp's docs/investigation-mcp-rationale.md)
