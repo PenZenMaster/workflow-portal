@@ -17,6 +17,7 @@ import { Ga4Service } from "./services/ga4";
 import { serveStatic } from "./static";
 import { createServer } from "node:http";
 import { configureSession } from "./auth";
+import { refreshRankRocketSitesCache } from "./mcp/sitesCache";
 import crypto from "node:crypto";
 import path from "node:path";
 
@@ -77,6 +78,16 @@ app.use((req, res, next) => {
 
 (async () => {
   await registerRoutes(httpServer, app);
+
+  // Fire-and-forget: populate the "RankRocket Site Insights" card's site
+  // dropdown cache. Never awaited so a slow/unreachable rankrocket-mcp
+  // never delays app boot; refreshRankRocketSitesCache() already catches
+  // and logs internally, so this can never leave an unhandled rejection.
+  void refreshRankRocketSitesCache().catch((err: unknown) => {
+    logger.warn("rankrocket sites cache initial refresh failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
 
   // Register job kinds then start the background runner.
   registerJobHandlers(jobRunner);

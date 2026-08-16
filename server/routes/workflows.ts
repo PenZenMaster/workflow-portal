@@ -25,6 +25,7 @@ import { insertWorkflowSchema, saveInputValuesSchema } from "@shared/schema";
 import { requireAuth } from "../auth";
 import { runWorkflowWithCsv, MAX_CSV_BYTES } from "../services/workflowFileRun";
 import { runWorkflowPrompt } from "../services/workflowPromptRun";
+import { getCachedRankRocketSites } from "../mcp/sitesCache";
 
 const runWithFileJsonSchema = z.object({
   csv: z.string(),
@@ -36,6 +37,13 @@ const runPromptJsonSchema = z.object({
 });
 
 export function registerWorkflowRoutes(app: Express): void {
+  // Not nested under /api/workflows/:id - "rankrocket-mcp" would otherwise
+  // collide with that route's numeric :id parsing. Populated at app boot
+  // by server/mcp/sitesCache.ts; this just reads the cache.
+  app.get("/api/rankrocket-mcp/sites", requireAuth, (_req, res) => {
+    res.json({ data: getCachedRankRocketSites() });
+  });
+
   app.get("/api/workflows", requireAuth, async (_req, res) => {
     const items = await storage.listWorkflows();
     res.json(items);

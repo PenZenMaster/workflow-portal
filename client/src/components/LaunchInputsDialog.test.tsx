@@ -417,3 +417,89 @@ describe("LaunchInputsDialog - template file attachment", () => {
     expect(screen.queryByText("template.html")).not.toBeInTheDocument();
   });
 });
+
+describe("LaunchInputsDialog - RankRocket MCP dropdowns", () => {
+  const RANKROCKET_WORKFLOW: Workflow = {
+    ...WORKFLOW,
+    id: 9,
+    name: "RankRocket Site Insights",
+    inputs: ["RankRocket MCP site key", "What do you want to know about this site?"],
+    optionalInputs: [],
+    prompt: "Site: <PASTE>. Question: <PASTE>.",
+    rankrocketMcpEnabled: true,
+  };
+
+  function mockSitesFetch(sites: string[]) {
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (method === "GET" && String(url).endsWith("/rankrocket-mcp/sites")) {
+        const body = { data: sites };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => body,
+          text: async () => JSON.stringify(body),
+        } as Response;
+      }
+      if (method === "GET" && String(url).endsWith("/input-values")) {
+        const body = { data: savedValuesResponse };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => body,
+          text: async () => JSON.stringify(body),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: {} }),
+        text: async () => "{}",
+      } as Response;
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  }
+
+  it("renders comboboxes (not text inputs) for the site key and question fields", async () => {
+    mockSitesFetch(["tristate-hvac", "trevoraspiranti"]);
+    renderDialog(RANKROCKET_WORKFLOW);
+
+    const siteTrigger = await screen.findByTestId("launch-input-0");
+    const questionTrigger = screen.getByTestId("launch-input-1");
+    expect(siteTrigger).toHaveAttribute("role", "combobox");
+    expect(questionTrigger).toHaveAttribute("role", "combobox");
+    expect(siteTrigger.tagName).not.toBe("INPUT");
+    expect(questionTrigger.tagName).not.toBe("INPUT");
+  });
+
+  it("enables the site select once the sites endpoint resolves with data", async () => {
+    mockSitesFetch(["tristate-hvac"]);
+    renderDialog(RANKROCKET_WORKFLOW);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("launch-input-0")).not.toBeDisabled();
+    });
+  });
+
+  it("keeps the site select disabled with a helpful placeholder when no sites are available", async () => {
+    mockSitesFetch([]);
+    renderDialog(RANKROCKET_WORKFLOW);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("launch-input-0")).toBeDisabled();
+    });
+    expect(screen.getByText(/No sites available/i)).toBeInTheDocument();
+  });
+
+  it("does not fetch the sites endpoint for a normal (non-RankRocket) workflow", () => {
+    renderDialog(WORKFLOW);
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).endsWith("/rankrocket-mcp/sites"))
+    ).toBe(false);
+  });
+
+  it("still renders plain text inputs for a normal (non-RankRocket) workflow", () => {
+    renderDialog(WORKFLOW);
+    expect(screen.getByTestId("launch-input-0").tagName).toBe("INPUT");
+  });
+});

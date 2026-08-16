@@ -19,7 +19,7 @@
 
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkflowCard } from "./WorkflowCard";
 import type { Workflow } from "@shared/schema";
@@ -264,10 +264,39 @@ describe("WorkflowCard - RankRocket MCP run", () => {
 
   it("POSTs JSON with the collected inputValues after the dialog is confirmed", async () => {
     const user = userEvent.setup();
+    // Index 0 renders as the RankRocket site-key dropdown (rankrocketMcpEnabled),
+    // so the sites endpoint must resolve before a value can be selected.
+    fetchMock = vi.fn(async (url: string) => {
+      if (String(url).endsWith("/rankrocket-mcp/sites")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: ["tristate-hvac"] }),
+          text: async () => "",
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            response: "Local pack rankings are strong across branded terms.",
+            modelVariant: "gpt-test",
+            latencyMs: 1200,
+          },
+        }),
+        text: async () => "",
+      } as Response;
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
     renderCard({ ...MCP_WORKFLOW, inputs: ["Site key"] });
 
     await user.click(screen.getByTestId("button-run-prompt-7"));
-    await user.type(await screen.findByTestId("launch-input-0"), "tristate-hvac");
+    const siteSelect = await screen.findByTestId("launch-input-0");
+    await waitFor(() => expect(siteSelect).not.toBeDisabled());
+    await user.click(siteSelect);
+    await user.click(await screen.findByText("tristate-hvac"));
     await user.click(screen.getByTestId("button-run-confirm"));
 
     expect(

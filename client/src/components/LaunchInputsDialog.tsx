@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { Workflow } from "@shared/schema";
+import { RANKROCKET_QUESTION_OPTIONS, type Workflow } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ExternalLink, ClipboardCheck, FileUp, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -50,6 +57,7 @@ export function LaunchInputsDialog({
   const [optionalValues, setOptionalValues] = useState<string[]>([]);
   const [launched, setLaunched] = useState<LaunchedState | null>(null);
   const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [rankrocketSites, setRankrocketSites] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -83,6 +91,26 @@ export function LaunchInputsDialog({
       cancelled = true;
     };
   }, [open, workflow.id, workflow.inputs, workflow.optionalInputs]);
+
+  // RankRocket Site Insights card only (rankrocketMcpEnabled) - repopulates
+  // the site-key dropdown from the server's boot-time cache each time the
+  // dialog opens, rather than typing a site key by hand.
+  useEffect(() => {
+    if (!open || !workflow.rankrocketMcpEnabled) return;
+    let cancelled = false;
+    fetch("/api/rankrocket-mcp/sites", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { data?: string[] } | null) => {
+        if (cancelled) return;
+        setRankrocketSites(Array.isArray(json?.data) ? json.data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setRankrocketSites([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, workflow.rankrocketMcpEnabled]);
 
   // Remember non-blank values for the next launch (fire-and-forget).
   const persistValues = () => {
@@ -263,13 +291,51 @@ export function LaunchInputsDialog({
           {workflow.inputs.map((label, i) => (
             <div key={i} className="space-y-1.5">
               <Label htmlFor={`launch-input-${i}`}>{label}</Label>
-              <Input
-                id={`launch-input-${i}`}
-                value={values[i] ?? ""}
-                onChange={(e) => setValue(i, e.target.value)}
-                placeholder={`Enter ${label.toLowerCase()}`}
-                data-testid={`launch-input-${i}`}
-              />
+              {workflow.rankrocketMcpEnabled && i === 0 ? (
+                <Select value={values[i] ?? ""} onValueChange={(v) => setValue(i, v)}>
+                  <SelectTrigger
+                    id={`launch-input-${i}`}
+                    data-testid={`launch-input-${i}`}
+                    disabled={rankrocketSites.length === 0}
+                  >
+                    <SelectValue
+                      placeholder={
+                        rankrocketSites.length === 0
+                          ? "No sites available - check RankRocket MCP configuration"
+                          : `Select ${label.toLowerCase()}`
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rankrocketSites.map((site) => (
+                      <SelectItem key={site} value={site}>
+                        {site}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : workflow.rankrocketMcpEnabled && i === 1 ? (
+                <Select value={values[i] ?? ""} onValueChange={(v) => setValue(i, v)}>
+                  <SelectTrigger id={`launch-input-${i}`} data-testid={`launch-input-${i}`}>
+                    <SelectValue placeholder={`Select ${label.toLowerCase()}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RANKROCKET_QUESTION_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id={`launch-input-${i}`}
+                  value={values[i] ?? ""}
+                  onChange={(e) => setValue(i, e.target.value)}
+                  placeholder={`Enter ${label.toLowerCase()}`}
+                  data-testid={`launch-input-${i}`}
+                />
+              )}
             </div>
           ))}
           {workflow.optionalInputs.map((label, i) => (
