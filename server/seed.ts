@@ -25,8 +25,6 @@ const SEED: SeedRow[] = [
       "Repeatable browser-rendered SEO audit: on-page, technical, local, schema, and off-page recommendations. Prompts for inputs, runs parallel browser scans, and delivers a prioritized fix list applied one at a time with rescan confirmation.",
     inputs: [
       "Website URL",
-      "WP Username",
-      "WP App Password",
       "GBP URL - Maps Share Link or None",
       "Business Type - GBP Primary Category or Business Type",
       "Location/Market - Service Area",
@@ -36,6 +34,8 @@ const SEED: SeedRow[] = [
       "SEO Plugin — (RankRocket SEO, RankMath, Yoast, HFCM, All-in-One SEO, none, etc.)",
       "Site Architecture - Standalone site (handles its own bookings/leads), Franchise/Parent-Child site (regional site that hands bookings off to a central parent domain), Multi-Location Site (one site covering multiple service areas with separate location pages)",
       "Report Branding - AMS, Rank Rocket, Other",
+      "WP Username",
+      "WP App Password",
     ],
     tags: ["seo", "audit", "browser-rendered", "skill", "v2.6"],
     prompt: `Use the "seo-site-audit" skill.
@@ -43,6 +43,7 @@ const SEED: SeedRow[] = [
 Website URL: <PASTE>
 GBP: <PASTE>
 Business type: <PASTE>
+Location/Market: <PASTE>
 SAB or exposed address: <PASTE>
 GBP Restrictions: <PASTE>
 CMS: <PASTE>
