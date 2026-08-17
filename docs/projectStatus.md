@@ -1,12 +1,45 @@
 ## Resume From
 
 Last session: 2026-08-17
-Branch: main | Version: v1.86.0 | DEPLOYED. Migration 0029 verified applied cleanly against prod data.db. User ran a smoke test: PASS. Post-deploy TD-16 check via SSH: single fresh worker only (PID 3938208, ~1.5min old), no stale process.
+Branch: main | Version: v1.87.0 | DEPLOYED. User ran a smoke test: PASS. Post-deploy TD-16 check via SSH: single fresh worker only (PID 295340, ~31s old), no stale process.
 
 NEXT SESSION:
-1. Epic 1 (issue #35) slice 5 - the standard adapter-contract test suite (parameterized, every enabled provider must pass), the last item on the original 5-slice roadmap. Slices 1-4 are now all shipped and deployed (1: v1.77.0, 2: v1.78.0, 3: v1.79.0, 4: v1.86.0).
-2. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
-3. Phase 3 follow-ups, explicitly out of scope so far (user declined to start any of these 2026-08-17, deferred to a future session): write-tool access (rankrocket_*_write, action_execute/rollback), a clients-table -> site-key mapping (site dropdown is live-synced to rankrocket-mcp's sites.json, but still no per-client auto-selection), retrofitting the three existing Perplexity-launch RankRocket cards to use this pattern instead, a third input for page/post-scoped read-only capabilities (heading hierarchy, schema graph, per-post SEO meta, Elementor layout, agentic-browsing - not reachable through this card's question dropdown yet, since it only lists site-wide capabilities), and generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server.
+1. Backlog work (user requested tech debt first, then backlog, 2026-08-17) - tech debt register is now fully closed (TD-23/TD-13/TD-12 all resolved this session, see below); pick up the open Backlog section items next (B-24, B-25, B-27, B-29, B-30, B-04, B-06, B-15 v2 medium priority; B-08, B-09, B-10, B-14, B-20 low priority).
+2. Epic 1 (issue #35) slice 5 - the standard adapter-contract test suite (parameterized, every enabled provider must pass), the last item on the original 5-slice roadmap. Slices 1-4 are now all shipped and deployed (1: v1.77.0, 2: v1.78.0, 3: v1.79.0, 4: v1.86.0).
+3. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
+4. Phase 3 follow-ups, explicitly out of scope so far (user declined to start any of these 2026-08-17, deferred to a future session): write-tool access (rankrocket_*_write, action_execute/rollback), a clients-table -> site-key mapping (site dropdown is live-synced to rankrocket-mcp's sites.json, but still no per-client auto-selection), retrofitting the three existing Perplexity-launch RankRocket cards to use this pattern instead, a third input for page/post-scoped read-only capabilities (heading hierarchy, schema graph, per-post SEO meta, Elementor layout, agentic-browsing - not reachable through this card's question dropdown yet, since it only lists site-wide capabilities), and generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server.
+
+Session 2026-08-17 (part 6): Tech Debt Register fully closed per user
+request ("eliminate the technical debt first, then tackle the backlog").
+TD-23 (Medium, human recommendation overrides don't survive a re-parse)
+FIXED as v1.86.1: parse-response now reads prior response_recommendations
+rows via a new recommendationStore.listByResponse call before the
+delete/recreate cycle, carries any non-null humanStatus forward onto the
+recreated row for the same brand (bulkCreate extended to accept optional
+humanStatus/humanUserId/humanAt on insert, preserving the override's
+original humanAt instead of restamping "now"). A brand no longer
+mentioned after re-parse has no new row to attach its override to -
+correct, not a regression. TD-13 (Low, skipLibCheck masks dep errors)
+investigated and closed with NO code change: flipping it to false
+surfaced ~60 errors, 100% inside node_modules (unused drizzle-orm
+mysql/pg/singlestore dialects this app never imports, a recharts/lodash
+types gap, vitest's own .d.ts) and zero in this project's own code -
+reverted, confirmed byte-identical via git status. TD-12 (Low, hardcoded
+seed data / no versioning) scoped against the real evidenced pain point
+(seedIfEmpty() only seeds an empty table, so prod catalog edits made
+directly in the admin UI have twice drifted seed.ts out of sync, each
+time requiring a hand-rolled reconciliation script - v1.80.1, v1.82.0) -
+FIXED as v1.87.0: new server/services/seedDiff.ts (pure
+diffSeedAgainstDb/generateSyncSql/generateSeedArrayLiteral) + `npm run
+seed:diff` CLI, connecting via the existing DATA_DB_PATH-driven db
+singleton so it works against dev or a downloaded prod copy with no SSH
+logic built in; apply modes only ever generate a reviewable seed-sync.sql
+or a SEED[] literal to paste in, never write to a db directly. Full
+suite 1420 -> 1450 tests across all three fixes, all green throughout;
+lint/typecheck/db:check clean at every step. Deployed to cPanel
+(v1.87.0, supersedes v1.86.1 since built from the same branch
+progression), smoke test PASS, post-deploy TD-16 check clean (single
+fresh worker, PID 295340).
 
 Session 2026-08-17 (part 5): four things landed this session.
 (a) TD-16 stale-worker check (carried over from 2026-08-16, not done that
