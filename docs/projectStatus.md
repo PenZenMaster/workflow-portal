@@ -1,13 +1,84 @@
 ## Resume From
 
-Last session: 2026-08-16
-Branch: main | Version: v1.85.0 | DEPLOYED. rankrocket-mcp v0.10.0 and workflow-portal v1.85.0 (which also carries v1.84.0's MCP-client pivot) were both deployed this session. User ran a portal smoke test: PASS, UI verified working in a real browser - the "RankRocket Site Insights" card's site/question dropdowns and the tool-loop pipeline are now confirmed live, not just script/unit-tested.
+Last session: 2026-08-17
+Branch: main | Version: v1.86.0 | DEPLOYED. Migration 0029 verified applied cleanly against prod data.db. User ran a smoke test: PASS. Post-deploy TD-16 check via SSH: single fresh worker only (PID 3938208, ~1.5min old), no stale process.
 
 NEXT SESSION:
-1. Post-deploy TD-16 check via SSH (standard ritual) - not yet confirmed done this session.
-2. Decide whether to fix the fillPrompt <PASTE>-alignment bug found in the 2026-08-12 session on prod's "SEO Audit via Rank Rocket SEO Plugin" and "Ranking Audit and Improvement Suite" cards (WP Username/Password sit mid-array while the prompt skips their tokens, shifting every later field's autofilled value by one position when using the Launch button). Not fixed - flagged only, out of scope so far.
-3. Continue Epic 1 (issue #35) with slice 4 (provider request ID + estimated cost) per the confirmed 5-slice roadmap.
-4. Phase 3 follow-ups, explicitly out of scope for this slice: write-tool access (rankrocket_*_write, action_execute/rollback), a clients-table -> site-key mapping (site dropdown is now live-synced to rankrocket-mcp's sites.json, but still no per-client auto-selection), retrofitting the three existing Perplexity-launch RankRocket cards to use this pattern instead, a third input for page/post-scoped read-only capabilities (heading hierarchy, schema graph, per-post SEO meta, Elementor layout, agentic-browsing - not reachable through this card's question dropdown yet, since it only lists site-wide capabilities), and generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server.
+1. Epic 1 (issue #35) slice 5 - the standard adapter-contract test suite (parameterized, every enabled provider must pass), the last item on the original 5-slice roadmap. Slices 1-4 are now all shipped and deployed (1: v1.77.0, 2: v1.78.0, 3: v1.79.0, 4: v1.86.0).
+2. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
+3. Phase 3 follow-ups, explicitly out of scope so far (user declined to start any of these 2026-08-17, deferred to a future session): write-tool access (rankrocket_*_write, action_execute/rollback), a clients-table -> site-key mapping (site dropdown is live-synced to rankrocket-mcp's sites.json, but still no per-client auto-selection), retrofitting the three existing Perplexity-launch RankRocket cards to use this pattern instead, a third input for page/post-scoped read-only capabilities (heading hierarchy, schema graph, per-post SEO meta, Elementor layout, agentic-browsing - not reachable through this card's question dropdown yet, since it only lists site-wide capabilities), and generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server.
+
+Session 2026-08-17 (part 5): four things landed this session.
+(a) TD-16 stale-worker check (carried over from 2026-08-16, not done that
+session): found duplicate lsnode workers on BOTH portal and mcp
+subdomains (each ~22h old, alongside a fresher restart) - killed the two
+stale PIDs, confirmed single fresh worker on each afterward. The
+self-eviction fix (v1.76.0) only fires on a package.json version
+mismatch, so a bare process restart with no new deploy in between
+doesn't trigger it - this looks like a recurring gap in that fix, not a
+one-off.
+(b) fillPrompt <PASTE>-alignment bug (carried over from 2026-08-12) -
+investigated properly this time (prior checkpoints had only described
+it, not traced the actual values-array mechanics) and found the real
+scope differs from what was recorded: "Ranking Audit and Improvement
+Suite" (id 20) was NOT actually affected - checked prod directly, its
+<PASTE> tokens already align 1:1 with its inputs array. Only "SEO Audit
+via Rank Rocket SEO Plugin" (id 1) was broken, and worse than described:
+besides WP Username/Password having no <PASTE> token (intentional,
+credential safety), "Location/Market - Service Area" also had no
+<PASTE> token anywhere in the template (a genuine gap, not deliberate) -
+together these compounded so every field after "Business type" got the
+wrong value and the last 3 fields were dropped from the prompt entirely.
+Fixed both (reordered WP fields to the end + added the missing
+Location/Market line) in dev data.db, prod data.db (direct SQL over
+SSH), and server/seed.ts. Shipped as v1.85.1, data-only - not deployed
+via cPanel (nothing in dist/ depends on this data), just packaged/
+tagged per the standing per-commit convention.
+(c) While researching Epic 1 slice 4's cost-estimate pricing (see below),
+found two live production bugs unrelated to the slice: gemini.ts's
+default model gemini-2.0-flash was shut down by Google 2026-06-01, and
+deepseek.ts's default model deepseek-chat was hard-retired by DeepSeek
+2026-07-24 with no redirect - both adapters have been silently failing
+every call for weeks/months, invisible because failed responses are
+excluded from metric denominators rather than counted as zero. Fixed:
+gemini-2.0-flash -> gemini-3.5-flash (Google's documented migration
+target), deepseek-chat -> deepseek-v4-flash (DeepSeek's documented
+replacement, non-thinking mode). No local or prod API key available to
+live-verify against the real endpoints without exposing secrets
+in-session - grounded in each provider's own current docs instead.
+Shipped as v1.85.2 (later superseded/carried by v1.86.0's deploy).
+(d) Epic 1 (issue #35) slice 4 SHIPPED as v1.86.0: provider request ID +
+estimated cost, following the slice-2 plumbing pattern exactly
+(RawResponse -> adapter -> migration -> responseStore -> job handler,
+no route change needed). New RawResponse.providerRequestId, set from
+each provider's own response id (data.id for OpenAI-style/Anthropic/
+Perplexity/the RankRocket-MCP tool loop); null for Gemini, whose
+generateContent response has no such field at all. New
+server/services/costEstimate.ts (estimateCostUsd) against a static
+$/1M-token pricing table sourced from each provider's official pricing
+page today (2026-08-17) - explicitly an estimate using published list
+price, not a billed-cost reconciliation (ignores caching/batch
+discounts, DeepSeek's peak/off-peak split collapsed to off-peak, Groq's
+rate is third-party-tracker consensus since its own pricing page is
+JS-rendered and couldn't be fetched directly). New
+responses_raw.provider_request_id/estimated_cost_usd columns (migration
+0029, generated via db:generate rather than hand-written, to keep the
+drizzle journal in sync). Data-only slice, no client UI change. TDD
+throughout, RED confirmed (10 failing assertions plus costEstimate.test.ts
+failing to load entirely) before implementation. Full suite 1420 -> 1433
+tests, all green; lint, typecheck, db:check clean.
+docs/system-documentation.md gained a new "Provider Request ID and
+Estimated Cost" section and had a stale "estimated cost is a later
+slice" note corrected in the Token Usage section.
+Also closed a documentation-only gap found while scoping this session:
+Epic 1 slice 3 (distinct timeout status) was actually shipped back in
+v1.79.0 (2026-08-12) but never called out by name as "slice 3" in any
+checkpoint entry here, which made the roadmap look like it had skipped
+straight from slice 2 to slice 4 - confirmed via git blame + existing
+passing tests that it's genuinely done, no code changes needed, just
+noting it here so the roadmap reads correctly.
+User declined to start any of the five Phase 3 follow-up threads (item
+3, NEXT SESSION above) this session - left queued.
 
 Session 2026-08-16 (part 4): v1.85.0 - dropdown inputs for "RankRocket
 Site Insights", a two-repo slice built on top of part 3's MCP-client
