@@ -3471,7 +3471,31 @@ Confirmed decisions:
   docs/system-documentation.md (and the workflow methodology docs) inside
   the portal - a /help route with rendered markdown, section navigation,
   and a Help link in the top nav - so operators don't need repo access to
-  read setup and troubleshooting guides.
+  read setup and troubleshooting guides. **COMPLETE (v1.88.0)**. New
+  `GET /api/help/system-documentation` (server/routes/help.ts,
+  requireAuth, any role - reads the file from disk, no storage layer
+  involved) + new `/help` page (client/src/pages/Help.tsx) rendering it
+  with react-markdown + remark-gfm (new deps, user-approved - the doc has
+  71 lines of GFM tables base react-markdown can't render). Section nav
+  is built from the doc's own ##/### headings via a shared slugify
+  helper used both to extract the nav list and to assign matching anchor
+  ids on the rendered headings, so there's no separately maintained nav
+  list to drift out of sync. Kept authenticated (unlike the public
+  /guides pages) since the doc has internal ops detail (SSH paths,
+  migration mechanics). Help link added to Home.tsx's header nav,
+  same pattern as the existing Clients/AI Visibility/What We Do links.
+  Only workflow methodology docs NOT covered: this slice surfaces
+  system-documentation.md only, per the concrete scope confirmed with
+  the user - other docs (e.g. ranking-audit-ai-run-methodology.md) were
+  not requested and remain repo-only. TDD throughout (10 new tests: 3
+  route, 4 Help.tsx, 1 Home.tsx nav link, plus 2 covering the GFM table
+  and duplicate-heading-slug edge cases). User visually QA'd the live
+  dev-server page (had to reset dev's data.db first - a db:push vs.
+  migrate() tracking desync unrelated to this feature, known issue,
+  fixed via the documented delete-and-reseed workaround): confirmed
+  working, slow initial load was just Vite's first-request dev-mode
+  compile. Full suite 1458 -> 1466 tests, all green; lint, typecheck
+  clean.
 - B-26 Feature: Mentions view is too long (user request 2026-07-07).
   **(a) collapse + (b) pagination COMPLETE (v1.30.0)** — GET
   /api/clients/:id/mentions takes limit/offset (newest first, returns

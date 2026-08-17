@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Plus, Moon, Sun, Lock, LogOut, User, Settings, BarChart2, Users, Activity, Cpu, Building2, BookOpen } from "lucide-react";
+import { Search, Plus, Moon, Sun, Lock, LogOut, User, Settings, BarChart2, Users, Activity, Cpu, Building2, BookOpen, HelpCircle } from "lucide-react";
 import { Link } from "wouter";
 import { Logo } from "@/components/Logo";
 import { WorkflowCard } from "@/components/WorkflowCard";
@@ -160,6 +160,15 @@ export default function Home() {
             <BookOpen className="h-4 w-4" />
             What We Do
           </a>
+
+          <Link
+            href="/help"
+            className="hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mr-2"
+            title="Help"
+          >
+            <HelpCircle className="h-4 w-4" />
+            Help
+          </Link>
 
           {status?.user?.role === "super_admin" && (
             <Link

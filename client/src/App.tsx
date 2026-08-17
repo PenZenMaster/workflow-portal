@@ -26,6 +26,7 @@ import OAuthPopup from "@/pages/OAuthPopup";
 import Users from "@/pages/admin/Users";
 import Jobs from "@/pages/admin/Jobs";
 import Platforms from "@/pages/admin/Platforms";
+import Help from "@/pages/Help";
 import { Skeleton } from "@/components/ui/skeleton";
 
 class ErrorBoundary extends Component<
@@ -67,6 +68,7 @@ function AppRouter() {
       <Route path="/admin/users" component={Users} />
       <Route path="/admin/jobs" component={Jobs} />
       <Route path="/admin/platforms" component={Platforms} />
+      <Route path="/help" component={Help} />
       <Route path="/ai/clients/:id/settings/integrations" component={Integrations} />
       <Route path="/ai/clients/:id/sentiment/review" component={ReviewQueue} />
       <Route path="/ai/clients/:id/reports" component={Reports} />

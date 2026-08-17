@@ -60,4 +60,12 @@ describe("Home — top nav", () => {
     const link = await screen.findByRole("link", { name: /^What We Do$/i });
     expect(link).toHaveAttribute("href", "/guides/index.html");
   });
+
+  // B-25
+  it("shows a Help link to /help", async () => {
+    renderHome();
+
+    const link = await screen.findByRole("link", { name: /^Help$/i });
+    expect(link).toHaveAttribute("href", "/help");
+  });
 });
