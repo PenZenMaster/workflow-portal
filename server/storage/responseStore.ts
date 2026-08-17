@@ -48,6 +48,8 @@ function hydrate(row: Row): ResponseRaw {
     outputTokens: row.outputTokens,
     parseStatus: row.parseStatus as ParseStatus | null,
     parsedAt: row.parsedAt,
+    providerRequestId: row.providerRequestId,
+    estimatedCostUsd: row.estimatedCostUsd,
   };
 }
 
@@ -100,6 +102,8 @@ export interface IResponseStore {
       errorMessage?: string | null;
       inputTokens?: number | null;
       outputTokens?: number | null;
+      providerRequestId?: string | null;
+      estimatedCostUsd?: number | null;
     }
   ): Promise<void>;
   updateParseStatus(
@@ -187,6 +191,8 @@ export class ResponseStore implements IResponseStore {
       errorMessage?: string | null;
       inputTokens?: number | null;
       outputTokens?: number | null;
+      providerRequestId?: string | null;
+      estimatedCostUsd?: number | null;
     }
   ): Promise<void> {
     this._db
@@ -203,6 +209,8 @@ export class ResponseStore implements IResponseStore {
         errorMessage: result.errorMessage ?? null,
         inputTokens: result.inputTokens ?? null,
         outputTokens: result.outputTokens ?? null,
+        providerRequestId: result.providerRequestId ?? null,
+        estimatedCostUsd: result.estimatedCostUsd ?? null,
       })
       .where(eq(responsesRaw.id, id))
       .run();

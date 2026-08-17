@@ -134,6 +134,38 @@ describe("ResponseStore", () => {
     });
   });
 
+  // issue #35 slice 4: provider request id + estimated cost, captured
+  // alongside the existing result fields.
+  describe("providerRequestId / estimatedCostUsd", () => {
+    it("stores and retrieves both fields", async () => {
+      const run = await runStore.create({
+        clientId: 1, collectionId: 10, batchId: "batch-i", totalPrompts: 1, triggeredBy: "manual",
+      });
+      const resp = await store.create({ runId: run.id, promptId: 700, platformId: 1, queryText: "q" });
+      await store.updateResult(resp.id, {
+        status: "complete",
+        providerRequestId: "chatcmpl-abc123",
+        estimatedCostUsd: 0.0123,
+      });
+
+      const fetched = await store.get(resp.id);
+      expect(fetched?.providerRequestId).toBe("chatcmpl-abc123");
+      expect(fetched?.estimatedCostUsd).toBeCloseTo(0.0123, 6);
+    });
+
+    it("defaults both to null when not provided (e.g. a response that failed before an adapter call)", async () => {
+      const run = await runStore.create({
+        clientId: 1, collectionId: 10, batchId: "batch-j", totalPrompts: 1, triggeredBy: "manual",
+      });
+      const resp = await store.create({ runId: run.id, promptId: 701, platformId: 1, queryText: "q" });
+      await store.updateResult(resp.id, { status: "failed", errorMessage: "no adapter configured" });
+
+      const fetched = await store.get(resp.id);
+      expect(fetched?.providerRequestId).toBeNull();
+      expect(fetched?.estimatedCostUsd).toBeNull();
+    });
+  });
+
   // issue #35 slice 3: a timeout is a distinct status from "failed", but
   // retry-failed must still pick up timed-out responses - they are just as
   // eligible for a retry as any other non-completion.

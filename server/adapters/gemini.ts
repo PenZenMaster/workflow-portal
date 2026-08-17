@@ -75,6 +75,8 @@ export class GeminiAdapter implements PlatformAdapter {
             latencyMs: Date.now() - startMs,
             rawPayload: data,
             usage: extractGeminiUsage(data.usageMetadata),
+            // generateContent's response body has no request-id field.
+            providerRequestId: null,
           };
         }
 

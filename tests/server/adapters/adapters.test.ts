@@ -271,6 +271,14 @@ describe("OpenAIAdapter", () => {
     const r = await new OpenAIAdapter("sk-test", { retryDelayMs: 0 }).run("p");
     expect(r.usage).toBeNull();
   });
+
+  // issue #35 slice 4: the provider's own response id, so a support/billing
+  // dispute can be traced back to the exact call OpenAI's logs recorded.
+  it("captures the provider's response id", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: OPENAI_BODY }]));
+    const r = await new OpenAIAdapter("sk-test", { retryDelayMs: 0 }).run("p");
+    expect(r.providerRequestId).toBe("chatcmpl-test");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -309,6 +317,13 @@ describe("AnthropicAdapter", () => {
     vi.stubGlobal("fetch", mockFetch([{ status: 200, body: ANTHROPIC_BODY }]));
     const r = await new AnthropicAdapter("sk-ant-test", { retryDelayMs: 0 }).run("p");
     expect(r.usage).toEqual({ inputTokens: 42, outputTokens: 117 });
+  });
+
+  // issue #35 slice 4: the provider's own response id.
+  it("captures the provider's response id", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: ANTHROPIC_BODY }]));
+    const r = await new AnthropicAdapter("sk-ant-test", { retryDelayMs: 0 }).run("p");
+    expect(r.providerRequestId).toBe("msg_test");
   });
 
   it("selects the LAST text block, not the first, when the response has multiple (e.g. a tool-use preamble)", async () => {
@@ -364,6 +379,15 @@ describe("GeminiAdapter", () => {
     const r = await new GeminiAdapter("AIza-test", { retryDelayMs: 0 }).run("p");
     expect(r.usage).toEqual({ inputTokens: 42, outputTokens: 117 });
   });
+
+  // issue #35 slice 4: generateContent's response body has no request-id
+  // field at all (unlike the OpenAI-compatible and Anthropic APIs) - null
+  // is the correct, honest value here, not a missed extraction.
+  it("has no provider request id (generateContent's response body doesn't include one)", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: GEMINI_BODY }]));
+    const r = await new GeminiAdapter("AIza-test", { retryDelayMs: 0 }).run("p");
+    expect(r.providerRequestId).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -375,6 +399,7 @@ describe("GroqAdapter (Llama via Groq)", () => {
     expect(a.id).toBe("groq");
     expect(r.modelVariant).toBe("llama-3.3-70b-versatile");
     expect(r.requestedModel).toBe("llama-3.3-70b-versatile");
+    expect(r.providerRequestId).toBe("chatcmpl-test");
   });
 
   it("throws when API key is empty", async () => {
@@ -391,6 +416,7 @@ describe("MistralAdapter", () => {
     expect(a.id).toBe("mistral");
     expect(r.modelVariant).toBe("mistral-large-latest");
     expect(r.requestedModel).toBe("mistral-large-latest");
+    expect(r.providerRequestId).toBe("chatcmpl-test");
   });
 
   it("throws when API key is empty", async () => {
@@ -407,6 +433,7 @@ describe("DeepSeekAdapter", () => {
     expect(a.id).toBe("deepseek");
     expect(r.modelVariant).toBe("deepseek-v4-flash");
     expect(r.requestedModel).toBe("deepseek-v4-flash");
+    expect(r.providerRequestId).toBe("chatcmpl-test");
   });
 
   it("throws when API key is empty", async () => {

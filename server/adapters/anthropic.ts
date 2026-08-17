@@ -8,6 +8,7 @@ const DEFAULT_MODEL = "claude-opus-4-5";
 const MAX_RETRIES = 3;
 
 interface AnthropicResponse {
+  id?: string;
   model: string;
   content: Array<{ type: string; text: string }>;
   usage?: { input_tokens?: number; output_tokens?: number };
@@ -86,6 +87,7 @@ export class AnthropicAdapter implements PlatformAdapter {
             latencyMs: Date.now() - startMs,
             rawPayload: data,
             usage: extractAnthropicUsage(data.usage),
+            providerRequestId: data.id ?? null,
           };
         }
 

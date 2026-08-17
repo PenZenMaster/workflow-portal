@@ -279,7 +279,9 @@ export const SCHEMA_SQL = `
     input_tokens INTEGER,
     output_tokens INTEGER,
     parse_status TEXT,
-    parsed_at INTEGER
+    parsed_at INTEGER,
+    provider_request_id TEXT,
+    estimated_cost_usd REAL
   );
   CREATE TABLE IF NOT EXISTS measurement_run_manifests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

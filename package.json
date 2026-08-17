@@ -1,6 +1,6 @@
 {
   "name": "workflow-portal",
-  "version": "1.85.2",
+  "version": "1.86.0",
   "license": "MIT",
   "type": "module",
   "engines": {

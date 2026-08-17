@@ -126,6 +126,7 @@ export class PerplexityAdapter implements PlatformAdapter {
             latencyMs: Date.now() - startMs,
             rawPayload: data,
             usage: extractOpenAiUsage(data.usage),
+            providerRequestId: data.id ?? null,
           };
         }
 

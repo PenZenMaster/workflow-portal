@@ -45,6 +45,7 @@ interface AnthropicContentBlock {
 }
 
 interface AnthropicMessage {
+  id?: string;
   model: string;
   content: AnthropicContentBlock[];
   stop_reason: string;
@@ -182,5 +183,6 @@ export async function runAnthropicWithTools(
       typeof last?.usage?.input_tokens === "number" && typeof last?.usage?.output_tokens === "number"
         ? { inputTokens: last.usage.input_tokens, outputTokens: last.usage.output_tokens }
         : null,
+    providerRequestId: last?.id ?? null,
   };
 }

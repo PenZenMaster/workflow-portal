@@ -188,6 +188,41 @@ describe("prompt-run handler", () => {
     );
   });
 
+  // issue #35 slice 4: providerRequestId passes through verbatim, and
+  // estimatedCostUsd is derived from the platform slug + requested model +
+  // usage via the cost-estimate pricing table (openai/gpt-4o: $2.50/$10.00
+  // per 1M tokens as of 2026-08-17).
+  it("persists providerRequestId and a computed estimatedCostUsd from the adapter result", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 204, runId: 99, platformId: 1, queryText: "Best SEO agency", geo: null, locale: null,
+    });
+    mockPlatformStore.get.mockResolvedValue({ id: 1, slug: "openai" });
+    mockGetAdapter.mockReturnValue({
+      id: "openai",
+      run: vi.fn().mockResolvedValue({
+        text: "Acme SEO is the top agency.",
+        summaryBlock: null,
+        citations: [],
+        modelVariant: "gpt-4o",
+        requestedModel: "gpt-4o",
+        providerRequestId: "chatcmpl-abc123",
+        latencyMs: 1000,
+        rawPayload: {},
+        usage: { inputTokens: 1_000_000, outputTokens: 1_000_000 },
+      }),
+    });
+    mockRunStore.get.mockResolvedValue({ id: 99, completedPrompts: 1, failedPrompts: 0, totalPrompts: 2 });
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+    await handlers.get("prompt-run")!({ responseId: 204 }, 1);
+
+    expect(mockResponseStore.updateResult).toHaveBeenCalledWith(
+      204,
+      expect.objectContaining({ providerRequestId: "chatcmpl-abc123", estimatedCostUsd: 12.5 })
+    );
+  });
+
   // issue #35 slice 3: a timeout must record status "timeout", distinct
   // from every other failure reason - the handler tells them apart by
   // error type (AdapterTimeoutError), not by string-matching the message.

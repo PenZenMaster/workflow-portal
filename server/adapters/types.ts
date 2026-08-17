@@ -70,6 +70,11 @@ export interface RawResponse {
   rawPayload: unknown;
   // null when the provider did not return a usage block
   usage: TokenUsage | null;
+  // issue #35 slice 4: the provider's own response/request id, for tracing
+  // a specific call back through the provider's own logs or a billing
+  // dispute. Null when the provider's response body has no such field
+  // (e.g. Gemini's generateContent), not a missed extraction.
+  providerRequestId: string | null;
 }
 
 export interface RunOptions {

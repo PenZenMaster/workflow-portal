@@ -47,6 +47,14 @@ describe("PerplexityAdapter", () => {
     expect(result.latencyMs).toBeTypeOf("number");
   });
 
+  // issue #35 slice 4: the provider's own response id.
+  it("captures the provider's response id", async () => {
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: MOCK_SUCCESS_RESPONSE }]));
+    const adapter = new PerplexityAdapter("test-key");
+    const result = await adapter.run("Best SEO agency in Seattle");
+    expect(result.providerRequestId).toBe("test-id");
+  });
+
   // issue #35 slice 2: requestedModel is the model this adapter instance
   // was configured to call, captured independent of whatever the provider
   // echoes back in its response.

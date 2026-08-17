@@ -54,6 +54,7 @@ import {
 } from "../storage";
 import { getAdapter } from "../adapters/registry";
 import { AdapterTimeoutError } from "../adapters/types";
+import { estimateCostUsd } from "../services/costEstimate";
 import { parseResponse, PARSER_VERSION } from "../services/parser";
 import { classifyRecommendation, RECOMMENDATION_CLASSIFIER_VERSION } from "../services/recommendation";
 import { classifyCitationSource, isTrustedSourceClass, type CitationOwnerKind } from "../services/sourceClassifier";
@@ -124,6 +125,8 @@ export function registerJobHandlers(runner: JobRunner): void {
             rawPayload: result.rawPayload,
             inputTokens: result.usage?.inputTokens ?? null,
             outputTokens: result.usage?.outputTokens ?? null,
+            providerRequestId: result.providerRequestId,
+            estimatedCostUsd: estimateCostUsd(platform.slug, result.requestedModel, result.usage),
           });
           await runStore.incrementCompleted(response.runId);
           // Chain: parse the response for mentions, citations, and metrics.

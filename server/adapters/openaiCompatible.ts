@@ -84,6 +84,7 @@ interface OpenAICompatibleOptions {
 }
 
 interface OpenAIResponse {
+  id?: string;
   model: string;
   choices: Array<{ message: { content: string } }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number };
@@ -165,6 +166,7 @@ export class OpenAICompatibleAdapter implements PlatformAdapter {
             latencyMs: Date.now() - startMs,
             rawPayload: data,
             usage: extractOpenAiUsage(data.usage),
+            providerRequestId: data.id ?? null,
           };
         }
 

@@ -203,8 +203,9 @@ per-run totals ("Tokens: N in / M out"). Per-client aggregation
 per-platform response counts and input/output token sums for the period
 (analyst roles and up — spend data is internal ops and never client
 facing); ClientDetail shows it as the Token Usage section, hidden for
-client_viewer sessions. Estimated cost is a later slice of GitHub issue
-#2; the budget guard shipped in v1.50.0 (below).
+client_viewer sessions. Estimated cost per response shipped in v1.86.0
+(issue #35 Epic 1 slice 4, below); the budget guard shipped in v1.50.0
+(below).
 
 **Timeout handling (v1.49.0, issue #2 F3):** a request that hits the
 30s timeout (overridable via `LLM_TIMEOUT_MS`) is no longer retried —
@@ -289,6 +290,36 @@ fields to flag a genuine mismatch, and wiring that comparison into
 `computeMeasurementHealth`'s deferred model-consistency check
 (issue #30) — this slice only adds the data; using it for a health
 signal is separate future work if picked back up.
+
+#### Provider Request ID and Estimated Cost (added v1.86.0, issue #35 Epic 1 slice 4)
+
+Two new nullable `responses_raw` columns, both set by the `prompt-run` job
+handler on a successful adapter call, `null` for responses that failed
+before reaching an adapter:
+
+- `provider_request_id` (`RawResponse.providerRequestId`) — the
+  provider's own id for that specific call (`data.id` for OpenAI-style/
+  Anthropic/Perplexity), for tracing a call back through the provider's
+  own logs or a billing dispute. Gemini's `generateContent` response body
+  has no such field at all — `null` there is a real "not applicable," not
+  a missed extraction, same precedent as slice 1's capability flags.
+- `estimated_cost_usd` — computed by `server/services/costEstimate.ts`
+  (`estimateCostUsd(platformSlug, requestedModel, usage)`) against a
+  static table of published $/1M-token input/output rates, sourced from
+  each provider's official pricing page as of 2026-08-17 (Groq's rate is
+  third-party-tracker consensus — its own pricing page is JS-rendered and
+  couldn't be fetched directly; DeepSeek uses its off-peak rate as the
+  baseline, ignoring the peak-hour surcharge). **This is an estimate, not
+  a billed-cost reconciliation** — it ignores prompt caching, batch
+  discounts, and any negotiated rate, and needs manual upkeep whenever a
+  provider changes pricing or an adapter's default/utility model changes.
+  `null` when the model has no pricing-table entry (an unpriced or
+  not-yet-added model) rather than a guessed figure.
+
+Data-only slice: neither field is surfaced in any client UI yet, matching
+slice 2's precedent — both are available via the existing
+`GET /api/runs/:id` hydrated response objects with no route change
+needed.
 
 #### Canonical-Name Mention Matching (added v1.41.0, PARSER_VERSION 1.1)
 

@@ -1209,6 +1209,15 @@ export const responsesRaw = sqliteTable("responses_raw", {
   // (parse-response never ran, or is still queued/retrying), not "failed".
   parseStatus: text("parse_status"),
   parsedAt: integer("parsed_at"),
+  // issue #35 slice 4: the provider's own response id, null when the
+  // provider's response body has none (e.g. Gemini) or the row never
+  // reached an adapter call.
+  providerRequestId: text("provider_request_id"),
+  // issue #35 slice 4: estimated USD cost from a static published-price
+  // table (server/services/costEstimate.ts) - null when usage or a
+  // pricing entry for the model is unavailable. Not a billed-cost
+  // reconciliation.
+  estimatedCostUsd: real("estimated_cost_usd"),
 });
 
 export const PARSE_STATUSES = ["parsed", "failed"] as const;
@@ -1293,6 +1302,8 @@ export type ResponseRaw = {
   outputTokens: number | null;
   parseStatus: ParseStatus | null;
   parsedAt: number | null;
+  providerRequestId: string | null;
+  estimatedCostUsd: number | null;
 };
 
 export type RunSchedule = {
