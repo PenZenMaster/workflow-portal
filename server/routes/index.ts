@@ -17,7 +17,7 @@
 import type { Express } from "express";
 import type { Server } from "node:http";
 import { seedIfEmpty } from "../seed";
-import { platformStore, promptMethodologyStore, sourceDomainStore } from "../storage";
+import { platformStore, promptMethodologyStore, sourceDomainStore, rankrocketQuestionOptionStore } from "../storage";
 import { registerAuthRoutes } from "./auth";
 import { registerWorkflowRoutes } from "./workflows";
 import { registerClientRoutes } from "./clients";
@@ -36,6 +36,7 @@ import { registerSourceDomainRoutes } from "./sourceDomains";
 import { registerRecommendationRoutes } from "./recommendations";
 import { registerBrandContextRoutes } from "./brandContext";
 import { registerHelpRoutes } from "./help";
+import { registerRankrocketAdminRoutes } from "./rankrocketAdmin";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -47,6 +48,7 @@ export async function registerRoutes(
   await platformStore.seedDefaults();
   await promptMethodologyStore.seedDefaults();
   await sourceDomainStore.seedDefaults();
+  await rankrocketQuestionOptionStore.seedDefaults();
 
   registerAuthRoutes(app);
   registerWorkflowRoutes(app);
@@ -66,6 +68,7 @@ export async function registerRoutes(
   registerRecommendationRoutes(app);
   registerBrandContextRoutes(app);
   registerHelpRoutes(app);
+  registerRankrocketAdminRoutes(app);
 
   return httpServer;
 }

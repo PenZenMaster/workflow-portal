@@ -388,6 +388,16 @@ export const platforms = sqliteTable("platforms", {
   config: text("config").notNull().default("{}"),   // JSON
 });
 
+// RankRocket Site Insights card admin CRUD, Part C: the "What do you
+// want to know about this site?" dropdown options, previously a
+// hardcoded RANKROCKET_QUESTION_OPTIONS const array. sortOrder controls
+// dropdown display order (lower first).
+export const rankrocketQuestionOptions = sqliteTable("rankrocket_question_options", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  label: text("label").notNull().unique(),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
 export const promptCollections = sqliteTable("prompt_collections", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   clientId: integer("client_id").notNull(),
@@ -613,6 +623,24 @@ export const updatePlatformSchema = z.object({
 
 export type InsertPlatform = z.infer<typeof insertPlatformSchema>;
 export type UpdatePlatform = z.infer<typeof updatePlatformSchema>;
+
+export const insertRankrocketQuestionOptionSchema = z.object({
+  label: z.string().min(1, "Label is required").max(500),
+});
+
+export const updateRankrocketQuestionOptionSchema = z.object({
+  label: z.string().min(1, "Label is required").max(500).optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+export type InsertRankrocketQuestionOption = z.infer<typeof insertRankrocketQuestionOptionSchema>;
+export type UpdateRankrocketQuestionOption = z.infer<typeof updateRankrocketQuestionOptionSchema>;
+
+export type RankrocketQuestionOption = {
+  id: number;
+  label: string;
+  sortOrder: number;
+};
 
 export type PromptCollection = {
   id: number;
@@ -1427,19 +1455,3 @@ export const CATEGORIES = [
   "Other",
 ] as const;
 
-// RankRocket Site Insights card (Phase 3): fixed dropdown options, one
-// per site-wide read-only capability that needs no extra "which page"
-// parameter. Page-scoped capabilities (heading hierarchy, schema graph,
-// per-post SEO meta, Elementor layout, agentic-browsing) are
-// deliberately not reachable through this card yet - no third input
-// exists for a page/post id.
-export const RANKROCKET_QUESTION_OPTIONS = [
-  "Plugin, WordPress, and RankMath status & capabilities",
-  "Broken links across the site",
-  "Image alt-text coverage across the site",
-  "llms.txt drift / diff check",
-  "Current redirect rules",
-  "Installed text snippets",
-  "Performance/cache dequeue and defer rules",
-  "Image list and missing-alt count",
-] as const;

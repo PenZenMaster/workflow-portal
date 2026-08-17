@@ -1560,6 +1560,15 @@ The original portal feature. The workflow catalog stores repeatable agency proce
 
 Workflows are created and managed by Agency Admins. They are visible to all authenticated users. Use the search bar to filter by name, description, input, or tag.
 
+**RankRocket Site Insights card configuration (added v1.90.0):** the "What
+do you want to know about this site?" dropdown on the RankRocket Site
+Insights card is admin-CRUD-able from **RankRocket Site Insights**
+(top navigation, visible to Super Admin/Agency Admin only) instead of a
+hardcoded list — add, rename, or remove question options there and the
+card's dropdown picks up the change on its next open, no code deploy
+needed. The site-key dropdown remains sourced from rankrocket-mcp's live
+site registry as before.
+
 ---
 
 *Workflow Portal — Internal Agency Documentation*

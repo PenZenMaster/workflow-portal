@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { RANKROCKET_QUESTION_OPTIONS, type Workflow } from "@shared/schema";
+import type { Workflow, RankrocketQuestionOption } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -58,6 +58,7 @@ export function LaunchInputsDialog({
   const [launched, setLaunched] = useState<LaunchedState | null>(null);
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [rankrocketSites, setRankrocketSites] = useState<string[]>([]);
+  const [rankrocketQuestionOptions, setRankrocketQuestionOptions] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -106,6 +107,30 @@ export function LaunchInputsDialog({
       })
       .catch(() => {
         if (!cancelled) setRankrocketSites([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, workflow.rankrocketMcpEnabled]);
+
+  // RankRocket Site Insights admin CRUD, Part C: the question dropdown's
+  // options are now portal-CRUD-able (rankrocket_question_options table)
+  // instead of a hardcoded RANKROCKET_QUESTION_OPTIONS const array -
+  // refetched each time the dialog opens, same pattern as the site-key
+  // dropdown above.
+  useEffect(() => {
+    if (!open || !workflow.rankrocketMcpEnabled) return;
+    let cancelled = false;
+    fetch("/api/rankrocket-question-options", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { data?: RankrocketQuestionOption[] } | null) => {
+        if (cancelled) return;
+        setRankrocketQuestionOptions(
+          Array.isArray(json?.data) ? json.data.map((o) => o.label) : []
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setRankrocketQuestionOptions([]);
       });
     return () => {
       cancelled = true;
@@ -320,7 +345,7 @@ export function LaunchInputsDialog({
                     <SelectValue placeholder={`Select ${label.toLowerCase()}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    {RANKROCKET_QUESTION_OPTIONS.map((option) => (
+                    {rankrocketQuestionOptions.map((option) => (
                       <SelectItem key={option} value={option}>
                         {option}
                       </SelectItem>

@@ -7,26 +7,32 @@ import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import Home from "./Home";
 
-const AUTH_STATUS = {
-  needsSetup: false,
-  authenticated: true,
-  user: { id: 1, username: "admin", email: null, role: "analyst" as const },
-  config: {
-    perplexityConfigured: true,
-    googleOAuthConfigured: false,
-    configuredPlatforms: ["perplexity"],
-  },
-};
+function authStatus(role: "analyst" | "agency_admin" = "analyst") {
+  return {
+    needsSetup: false,
+    authenticated: true,
+    user: { id: 1, username: "admin", email: null, role },
+    config: {
+      perplexityConfigured: true,
+      googleOAuthConfigured: false,
+      configuredPlatforms: ["perplexity"],
+    },
+  };
+}
 
-const API_RESPONSES: Record<string, unknown> = {
-  "/api/auth/status": AUTH_STATUS,
-  "/api/workflows": [],
-};
+let currentRole: "analyst" | "agency_admin" = "analyst";
 
 beforeEach(() => {
+  currentRole = "analyst";
   const fetchMock = vi.fn(async (url: string) => {
-    const body = API_RESPONSES[url] ?? { data: null };
-    return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
+    if (url === "/api/auth/status") {
+      const body = authStatus(currentRole);
+      return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
+    }
+    if (url === "/api/workflows") {
+      return { ok: true, status: 200, json: async () => [], text: async () => "[]" } as Response;
+    }
+    return { ok: true, status: 200, json: async () => ({ data: null }), text: async () => "" } as Response;
   });
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -67,5 +73,21 @@ describe("Home — top nav", () => {
 
     const link = await screen.findByRole("link", { name: /^Help$/i });
     expect(link).toHaveAttribute("href", "/help");
+  });
+
+  // RankRocket Site Insights admin CRUD
+  it("shows a RankRocket Site Insights admin link to /admin/rankrocket-site-insights for agency_admin", async () => {
+    currentRole = "agency_admin";
+    renderHome();
+
+    const link = await screen.findByRole("link", { name: /RankRocket Site Insights/i });
+    expect(link).toHaveAttribute("href", "/admin/rankrocket-site-insights");
+  });
+
+  it("does not show the RankRocket Site Insights admin link for a non-admin role", async () => {
+    renderHome();
+    await screen.findByRole("link", { name: /^Clients$/i });
+
+    expect(screen.queryByRole("link", { name: /RankRocket Site Insights/i })).not.toBeInTheDocument();
   });
 });

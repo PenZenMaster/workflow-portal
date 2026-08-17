@@ -10,6 +10,7 @@ import { AliasStore } from "./storage/aliasStore";
 import { CompetitorStore } from "./storage/competitorStore";
 import { ClientUserStore } from "./storage/clientUserStore";
 import { PlatformStore } from "./storage/platformStore";
+import { RankrocketQuestionOptionStore } from "./storage/rankrocketQuestionOptionStore";
 import { PromptCollectionStore } from "./storage/promptCollectionStore";
 import { PromptStore } from "./storage/promptStore";
 import { PromptMethodologyStore } from "./storage/promptMethodologyStore";
@@ -41,6 +42,7 @@ export type { IAliasStore } from "./storage/aliasStore";
 export type { ICompetitorStore } from "./storage/competitorStore";
 export type { IClientUserStore } from "./storage/clientUserStore";
 export type { IPlatformStore } from "./storage/platformStore";
+export type { IRankrocketQuestionOptionStore } from "./storage/rankrocketQuestionOptionStore";
 export type { IPromptCollectionStore } from "./storage/promptCollectionStore";
 export type { IPromptStore } from "./storage/promptStore";
 export type { IRunStore } from "./storage/runStore";
@@ -63,6 +65,7 @@ export { AliasStore } from "./storage/aliasStore";
 export { CompetitorStore } from "./storage/competitorStore";
 export { ClientUserStore } from "./storage/clientUserStore";
 export { PlatformStore } from "./storage/platformStore";
+export { RankrocketQuestionOptionStore } from "./storage/rankrocketQuestionOptionStore";
 export { PromptCollectionStore } from "./storage/promptCollectionStore";
 export { PromptStore } from "./storage/promptStore";
 export { RunStore } from "./storage/runStore";
@@ -181,6 +184,11 @@ export const SCHEMA_SQL = `
     display_name TEXT NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
     config TEXT NOT NULL DEFAULT '{}'
+  );
+  CREATE TABLE IF NOT EXISTS rankrocket_question_options (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL UNIQUE,
+    sort_order INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE IF NOT EXISTS prompt_collections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -544,6 +552,7 @@ export const aliasStore = new AliasStore(db);
 export const competitorStore = new CompetitorStore(db);
 export const clientUserStore = new ClientUserStore(db);
 export const platformStore = new PlatformStore(db);
+export const rankrocketQuestionOptionStore = new RankrocketQuestionOptionStore(db);
 export const promptCollectionStore = new PromptCollectionStore(db);
 export const promptStore = new PromptStore(db);
 export const promptMethodologyStore = new PromptMethodologyStore(db);

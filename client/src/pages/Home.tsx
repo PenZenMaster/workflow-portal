@@ -203,6 +203,17 @@ export default function Home() {
             </Link>
           )}
 
+          {(status?.user?.role === "super_admin" || status?.user?.role === "agency_admin") && (
+            <Link
+              href="/admin/rankrocket-site-insights"
+              className="hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mr-2"
+              title="RankRocket Site Insights settings"
+            >
+              <Settings className="h-4 w-4" />
+              RankRocket Site Insights
+            </Link>
+          )}
+
           {status?.user && (
             <div
               className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground mr-1"

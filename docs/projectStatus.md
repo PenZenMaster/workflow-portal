@@ -1,13 +1,76 @@
 ## Resume From
 
 Last session: 2026-08-17
-Branch: main | Version: v1.87.0 | DEPLOYED. User ran a smoke test: PASS. Post-deploy TD-16 check via SSH: single fresh worker only (PID 295340, ~31s old), no stale process.
+Branch: main | Version: v1.90.0 | NOT YET DEPLOYED (v1.87.0 is the last version confirmed live). v1.90.0 has a schema migration (0030, rankrocket_question_options) - verify it applies cleanly against prod data.db via direct SQL immediately after deploying, before smoke-testing.
 
 NEXT SESSION:
-1. Backlog work (user requested tech debt first, then backlog, 2026-08-17) - tech debt register is now fully closed (TD-23/TD-13/TD-12 all resolved this session, see below); pick up the open Backlog section items next (B-24, B-25, B-27, B-29, B-30, B-04, B-06, B-15 v2 medium priority; B-08, B-09, B-10, B-14, B-20 low priority).
-2. Epic 1 (issue #35) slice 5 - the standard adapter-contract test suite (parameterized, every enabled provider must pass), the last item on the original 5-slice roadmap. Slices 1-4 are now all shipped and deployed (1: v1.77.0, 2: v1.78.0, 3: v1.79.0, 4: v1.86.0).
-3. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
-4. Phase 3 follow-ups, explicitly out of scope so far (user declined to start any of these 2026-08-17, deferred to a future session): write-tool access (rankrocket_*_write, action_execute/rollback), a clients-table -> site-key mapping (site dropdown is live-synced to rankrocket-mcp's sites.json, but still no per-client auto-selection), retrofitting the three existing Perplexity-launch RankRocket cards to use this pattern instead, a third input for page/post-scoped read-only capabilities (heading hierarchy, schema graph, per-post SEO meta, Elementor layout, agentic-browsing - not reachable through this card's question dropdown yet, since it only lists site-wide capabilities), and generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server.
+1. Deploy v1.90.0, verify migration 0030 applied cleanly, smoke test, TD-16 check.
+2. RankRocket Site Insights admin CRUD, Part B (site credentials) - the larger, cross-repo half of the feature started this session. Part C (question options) shipped as v1.90.0; Part A (rankrocket-mcp write tools)/B (portal admin routes)/D (Sites section on the same admin page) are NOT started. Full design already scoped and approved - see this session's plan file if still available, or re-derive from Part C's shipped code (server/routes/rankrocketAdmin.ts, server/storage/rankrocketQuestionOptionStore.ts, client/src/pages/admin/RankRocketSiteInsights.tsx) as the established pattern to extend. Key constraints already decided: never expose the site-write MCP tool to Claude's own tool selection (workflow-portal's server calls it directly, same precedent as rankrocket_sites/sitesCache.ts); workflow-portal never persists the WP Application Password at rest (pass-through only); reuse the existing single RANKROCKET_MCP_TOKEN bearer rather than a new secret; never log the appPassword.
+3. Remaining backlog items: B-24 (tooltips), B-27 (source-domain registry admin UI), B-06 (session store expiry review), B-15 v2 (onboarding wizard) medium priority; B-09 (Windows dev server), B-10 (replace better-sqlite3-session-store), B-14 (version in footer), B-20 (GBP snapshot, externally blocked) low priority.
+4. Epic 1 (issue #35) slice 5 - the standard adapter-contract test suite (parameterized, every enabled provider must pass), the last item on the original 5-slice roadmap. Slices 1-4 are now all shipped and deployed (1: v1.77.0, 2: v1.78.0, 3: v1.79.0, 4: v1.86.0).
+5. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
+6. Remaining Phase 3 RankRocket MCP follow-ups (distinct from item 2 above): retrofitting the three existing Perplexity-launch RankRocket cards to use the MCP-client pattern, a third input for page/post-scoped read-only capabilities, generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server.
+7. Dev note: `npm run db:push` was used mid-session to apply migration 0030 directly to dev's data.db - if the dev server fails to boot next session with "duplicate column name" or similar, this is the known db:push-vs-migrate()-tracking desync (documented fix: delete dev data.db + sessions.db, let a fresh boot reseed and remigrate cleanly).
+
+Session 2026-08-17 (part 7): v1.90.0 - RankRocket Site Insights admin
+CRUD, Part C (question options only) shipped. New feature request mid-
+session: let the "RankRocket Site Insights" card's site-key and question
+dropdowns be portal-CRUD-able instead of externally/hardcoded-sourced.
+Scoped via EnterPlanMode before any code: investigated rankrocket-mcp's
+actual site registry first (E:\projects\rankrocket-mcp\src\config\
+sites.ts) and found each "site key" holds real WordPress credentials
+(baseUrl, authUser, a live Application Password) in a gitignored local
+file with zero write API today - explicitly hand-edit-only by that
+repo's own design docs, with workflow-portal integration for site
+*management* on record as deferred specifically because of that risk.
+Presented this to the user as a real fork (portal-side display layer
+only vs. full remote credential CRUD vs. question-options-only) - user
+chose full remote credential CRUD (the largest, cross-repo option).
+Plan locked in several safety decisions before building: the future
+site-write MCP tool must never be exposed to Claude's own tool
+selection (same precedent as rankrocket_sites/sitesCache.ts - called
+only by workflow-portal's own server, triggered by an authenticated
+admin's form submission); workflow-portal must never persist the WP
+Application Password at rest (pass-through only, editing means
+re-entering all three fields since the password can't be redisplayed);
+reuse the existing single RANKROCKET_MCP_TOKEN bearer rather than a new
+secret (conscious tradeoff, stated explicitly); one combined admin page
+for both Sites and Question Options. Suggested build order: ship the
+small, fully portal-internal question-options half first, the larger
+cross-repo credential half as its own separately-reviewable slice.
+Part C shipped this session: RANKROCKET_QUESTION_OPTIONS (the old
+hardcoded 8-entry const array in shared/schema.ts) replaced by a new
+rankrocket_question_options table (migration 0030) + RankrocketQuestion
+OptionStore (list/create/update/delete, direct structural clone of
+platformStore.ts) + server/routes/rankrocketAdmin.ts (GET any
+authenticated role, POST/PATCH/DELETE ADMIN_ROLES, direct clone of the
+/api/platforms route pattern) + a new admin page
+client/src/pages/admin/RankRocketSiteInsights.tsx (list/inline-edit/
+delete/add, cloned from Platforms.tsx's CRUD pattern + PromptCollections
+.tsx's inline-edit-by-id pattern), reachable via a new Home.tsx nav link
+gated to super_admin/agency_admin. LaunchInputsDialog.tsx's question
+dropdown now fetches /api/rankrocket-question-options on open instead of
+importing the static array - same fetch-on-open pattern already used for
+the site-key dropdown one useEffect above it. Seed data preserves the
+original 8 options on first boot (INSERT OR IGNORE-if-empty, same
+precedent as platformStore.seedDefaults()).
+TDD throughout: 9 storage tests, 14 route tests, 4 admin-page tests, plus
+extended LaunchInputsDialog.test.tsx (2 new) and Home.test.tsx (2 new,
+required refactoring its auth-status fixture to support a per-test role
+override). RED confirmed before every implementation step. One real
+typecheck gap found and fixed along the way (same downlevelIteration
+Map/Array.entries() issue as costEstimate.ts and seedDiff.ts earlier this
+session - switched to .forEach()); one test-infra gap found and fixed
+(tests/server/routes.test.ts's storage mock didn't include the new
+store, breaking 23 unrelated tests via the same registerRoutes() boot
+crash pattern already seen twice before with promptMethodologyStore/
+sourceDomainStore). Full suite 1469 -> 1500 tests, all green; lint,
+typecheck, db:check clean.
+docs/system-documentation.md's Section 4 (Workflow Catalog) gained a note
+on the new admin page.
+Committed, pushed, packaged, tagged v1.90.0 - NOT YET deployed (see
+NEXT SESSION item 1). Part A/B/D (site credentials) are fully scoped but
+entirely unbuilt - see NEXT SESSION item 2.
 
 Session 2026-08-17 (part 6): Tech Debt Register fully closed per user
 request ("eliminate the technical debt first, then tackle the backlog").

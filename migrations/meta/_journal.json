@@ -211,6 +211,13 @@
       "when": 1786993818298,
       "tag": "0029_aromatic_dark_phoenix",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1787010872485,
+      "tag": "0030_tired_the_renegades",
+      "breakpoints": true
     }
   ]
 }

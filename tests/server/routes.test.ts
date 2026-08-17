@@ -27,6 +27,8 @@ vi.mock("../../server/storage", () => ({
   promptMethodologyStore: { seedDefaults: vi.fn().mockResolvedValue(undefined) },
   // v1.34.0: sourceDomainStore.seedDefaults() is called there too.
   sourceDomainStore: { seedDefaults: vi.fn().mockResolvedValue(undefined) },
+  // RankRocket Site Insights admin CRUD: rankrocketQuestionOptionStore.seedDefaults() is called there too.
+  rankrocketQuestionOptionStore: { seedDefaults: vi.fn().mockResolvedValue(undefined) },
 }));
 vi.mock("../../server/seed", () => ({ seedIfEmpty: vi.fn() }));
 

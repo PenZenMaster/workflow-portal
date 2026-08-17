@@ -429,11 +429,20 @@ describe("LaunchInputsDialog - RankRocket MCP dropdowns", () => {
     rankrocketMcpEnabled: true,
   };
 
-  function mockSitesFetch(sites: string[]) {
+  function mockSitesFetch(sites: string[], questionOptions: string[] = []) {
     fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET";
       if (method === "GET" && String(url).endsWith("/rankrocket-mcp/sites")) {
         const body = { data: sites };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => body,
+          text: async () => JSON.stringify(body),
+        } as Response;
+      }
+      if (method === "GET" && String(url).endsWith("/rankrocket-question-options")) {
+        const body = { data: questionOptions.map((label, i) => ({ id: i + 1, label, sortOrder: i })) };
         return {
           ok: true,
           status: 200,
@@ -501,5 +510,26 @@ describe("LaunchInputsDialog - RankRocket MCP dropdowns", () => {
   it("still renders plain text inputs for a normal (non-RankRocket) workflow", () => {
     renderDialog(WORKFLOW);
     expect(screen.getByTestId("launch-input-0").tagName).toBe("INPUT");
+  });
+
+  // RankRocket Site Insights admin CRUD, Part C: question options are now
+  // fetched from the portal's own API instead of imported from a hardcoded
+  // RANKROCKET_QUESTION_OPTIONS const array.
+  it("fetches question options from the portal API rather than a hardcoded list", async () => {
+    mockSitesFetch(["tristate-hvac"], ["Broken links across the site"]);
+    renderDialog(RANKROCKET_WORKFLOW);
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url]) => String(url).endsWith("/rankrocket-question-options"))
+      ).toBe(true)
+    );
+  });
+
+  it("does not fetch question options for a normal (non-RankRocket) workflow", () => {
+    renderDialog(WORKFLOW);
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).endsWith("/rankrocket-question-options"))
+    ).toBe(false);
   });
 });
