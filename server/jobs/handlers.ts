@@ -272,7 +272,18 @@ export function registerJobHandlers(runner: JobRunner): void {
 
         // Chain downstream jobs.
         runner.enqueue("sentiment-classify", { responseId });
-        runner.enqueue("aggregate-snapshot-daily", { clientId: run.clientId });
+        // B-29: aggregate-snapshot-daily recomputes the same client-wide
+        // rollup regardless of which response triggered it - a bulk
+        // re-parse used to chain one identical enqueue per response (870
+        // observed on one batch). Skip when one is already queued or
+        // running for this client rather than piling on duplicates.
+        const aggregateAlreadyPending = await jobStore.existsQueuedOrRunning(
+          "aggregate-snapshot-daily",
+          { clientId: run.clientId }
+        );
+        if (!aggregateAlreadyPending) {
+          runner.enqueue("aggregate-snapshot-daily", { clientId: run.clientId });
+        }
 
         logger.info("parse-response: complete", {
           responseId,

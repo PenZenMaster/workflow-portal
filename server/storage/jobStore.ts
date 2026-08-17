@@ -55,6 +55,7 @@ export interface IJobStore {
     responseIds: number[],
     sinceTs: number
   ): Promise<Job[]>;
+  existsQueuedOrRunning(kind: string, payloadMatch: Record<string, unknown>): Promise<boolean>;
   get(id: number): Promise<Job | undefined>;
   requeue(id: number): Promise<Job | undefined>;
   cancel(id: number): Promise<Job | undefined>;
@@ -176,6 +177,30 @@ export class JobStore implements IJobStore {
         }
       })
       .map(hydrate);
+  }
+
+  // B-29: a seedRecurring-style dedupe guard, but scoped by a payload
+  // field match rather than kind alone - seedRecurring's "any job of
+  // this kind" check is too coarse here (e.g. aggregate-snapshot-daily
+  // is enqueued per client, so a job in flight for client A must not
+  // block enqueuing one for client B). Not race-free under concurrent
+  // ticks (check-then-insert, same tolerance as seedRecurring) - the
+  // goal is collapsing hundreds of redundant same-client recomputations
+  // down to one in flight, not a hard uniqueness guarantee.
+  async existsQueuedOrRunning(kind: string, payloadMatch: Record<string, unknown>): Promise<boolean> {
+    const rows = this._db
+      .select({ payload: jobs.payload })
+      .from(jobs)
+      .where(and(eq(jobs.kind, kind), inArray(jobs.status, ["queued", "running"])))
+      .all();
+    return rows.some((row) => {
+      try {
+        const payload = JSON.parse(row.payload) as Record<string, unknown>;
+        return Object.entries(payloadMatch).every(([key, value]) => payload[key] === value);
+      } catch {
+        return false;
+      }
+    });
   }
 
   async get(id: number): Promise<Job | undefined> {

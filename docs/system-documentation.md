@@ -179,7 +179,11 @@ When a run is triggered:
 7. The **aggregate-snapshot-daily** job recomputes lifetime cumulative totals (citation count,
    mention count, all-brand mentions, client-brand mentions, visibility score sum, response
    count) from every completed response and stores them in `metric_snapshots_daily` as of
-   today's date.
+   today's date. Chained once per parsed response, but only actually enqueued when no
+   queued/running job of that kind already exists for the same client (B-29, fixed v1.87.1) —
+   a bulk re-parse's N responses all trigger the same identical client-wide recomputation, so
+   enqueuing N copies just re-did the same work redundantly (870 duplicate jobs observed on
+   one batch) rather than corrupting anything.
    Overview/trend reports for a given period (30d/90d/365d) derive their totals as the
    **delta** between the latest snapshot at or before the period end and the latest
    snapshot before the period start — not a sum of every snapshot row in the period

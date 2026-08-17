@@ -75,7 +75,7 @@ const {
   mockSourceDomainStore: { getMapForDomains: vi.fn() },
   mockManifestStore: { create: vi.fn(), getByRunId: vi.fn() },
   mockPromptCollectionStore: { get: vi.fn() },
-  mockJobStore: { get: vi.fn(), groomTerminal: vi.fn() },
+  mockJobStore: { get: vi.fn(), groomTerminal: vi.fn(), existsQueuedOrRunning: vi.fn() },
 }));
 
 const mockGetAdapter = vi.hoisted(() => vi.fn());
@@ -566,6 +566,10 @@ describe("parse-response handler", () => {
     // every pre-existing test that doesn't care about overrides is
     // unaffected.
     mockRecommendationStore.listByResponse.mockResolvedValue([]);
+    // B-29: default to "nothing in flight" so every pre-existing test
+    // that doesn't care about the dedupe guard still sees the chained
+    // aggregate-snapshot-daily enqueue happen as before.
+    mockJobStore.existsQueuedOrRunning.mockResolvedValue(false);
   });
 
   it("classifies and stores a recommendation per mentioned brand, clearing old rows first", async () => {
@@ -721,6 +725,62 @@ describe("parse-response handler", () => {
     // called at all (matches the existing "no tracked brand mentioned"
     // behavior).
     expect(mockRecommendationStore.bulkCreate).not.toHaveBeenCalled();
+  });
+
+  // B-29: an N-response re-parse used to enqueue N identical
+  // aggregate-snapshot-daily jobs for the same client (870 observed on
+  // one batch) - the handler now checks for one already queued/running
+  // before enqueuing another.
+  it("chains aggregate-snapshot-daily when none is already queued or running for this client", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 42,
+      runId: 9,
+      responseText: "Top plumbers in Seattle:\n1. Acme Plumbing - reliable emergency service",
+      rawPayload: { citations: [] },
+    });
+    mockRunStore.get.mockResolvedValue({ id: 9, clientId: 10 });
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: "acme.com", createdAt: Date.now() },
+    ]);
+    mockAliasStore.listByBrand.mockResolvedValue([
+      { id: 1, brandId: 1, aliasText: "Acme Plumbing", matchType: "exact", language: null },
+    ]);
+    mockJobStore.existsQueuedOrRunning.mockResolvedValue(false);
+
+    const { runner, handlers, enqueue } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("parse-response")!({ responseId: 42 }, 1);
+
+    expect(mockJobStore.existsQueuedOrRunning).toHaveBeenCalledWith("aggregate-snapshot-daily", { clientId: 10 });
+    expect(enqueue).toHaveBeenCalledWith("aggregate-snapshot-daily", { clientId: 10 });
+  });
+
+  it("skips chaining aggregate-snapshot-daily when one is already queued or running for this client", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 42,
+      runId: 9,
+      responseText: "Top plumbers in Seattle:\n1. Acme Plumbing - reliable emergency service",
+      rawPayload: { citations: [] },
+    });
+    mockRunStore.get.mockResolvedValue({ id: 9, clientId: 10 });
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: "acme.com", createdAt: Date.now() },
+    ]);
+    mockAliasStore.listByBrand.mockResolvedValue([
+      { id: 1, brandId: 1, aliasText: "Acme Plumbing", matchType: "exact", language: null },
+    ]);
+    mockJobStore.existsQueuedOrRunning.mockResolvedValue(true);
+
+    const { runner, handlers, enqueue } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("parse-response")!({ responseId: 42 }, 1);
+
+    expect(enqueue).not.toHaveBeenCalledWith("aggregate-snapshot-daily", { clientId: 10 });
+    // sentiment-classify is per-response, not client-wide, and must still
+    // chain regardless of the aggregate-snapshot-daily dedupe.
+    expect(enqueue).toHaveBeenCalledWith("sentiment-classify", { responseId: 42 });
   });
 
   it("stamps each citation with a source class: brand ownership beats registry, registry beats unknown", async () => {

@@ -241,4 +241,60 @@ describe("JobStore", () => {
     const result = await store.listByKindAndResponseIds("parse-response", [1, 2], since);
     expect(result.map((j) => j.id).sort()).toEqual([idA, idB].sort());
   });
+
+  // B-29: parse-response chains one aggregate-snapshot-daily job per
+  // response, so an N-response re-parse enqueued N identical same-day
+  // recomputations for the same client (870 observed on one batch).
+  // existsQueuedOrRunning is the seedRecurring-style guard that lets the
+  // handler skip the enqueue when one is already in flight.
+  describe("existsQueuedOrRunning", () => {
+    it("returns true when a queued job of that kind matches every given payload field", async () => {
+      insertJob(sqlite, {
+        kind: "aggregate-snapshot-daily",
+        status: "queued",
+        payload: JSON.stringify({ clientId: 10 }),
+      });
+      expect(await store.existsQueuedOrRunning("aggregate-snapshot-daily", { clientId: 10 })).toBe(true);
+    });
+
+    it("returns true for a running (not just queued) match", async () => {
+      insertJob(sqlite, {
+        kind: "aggregate-snapshot-daily",
+        status: "running",
+        payload: JSON.stringify({ clientId: 10 }),
+      });
+      expect(await store.existsQueuedOrRunning("aggregate-snapshot-daily", { clientId: 10 })).toBe(true);
+    });
+
+    it("returns false when the only match is terminal (done/failed/cancelled)", async () => {
+      insertJob(sqlite, {
+        kind: "aggregate-snapshot-daily",
+        status: "done",
+        payload: JSON.stringify({ clientId: 10 }),
+      });
+      expect(await store.existsQueuedOrRunning("aggregate-snapshot-daily", { clientId: 10 })).toBe(false);
+    });
+
+    it("returns false when the kind matches but the payload field does not (different client)", async () => {
+      insertJob(sqlite, {
+        kind: "aggregate-snapshot-daily",
+        status: "queued",
+        payload: JSON.stringify({ clientId: 99 }),
+      });
+      expect(await store.existsQueuedOrRunning("aggregate-snapshot-daily", { clientId: 10 })).toBe(false);
+    });
+
+    it("returns false when the payload matches but the kind does not", async () => {
+      insertJob(sqlite, {
+        kind: "some-other-job",
+        status: "queued",
+        payload: JSON.stringify({ clientId: 10 }),
+      });
+      expect(await store.existsQueuedOrRunning("aggregate-snapshot-daily", { clientId: 10 })).toBe(false);
+    });
+
+    it("returns false when nothing of that kind exists at all", async () => {
+      expect(await store.existsQueuedOrRunning("aggregate-snapshot-daily", { clientId: 10 })).toBe(false);
+    });
+  });
 });

@@ -3499,11 +3499,21 @@ Confirmed decisions:
 - B-29 Efficiency: parse-response chains a per-response
   aggregate-snapshot-daily job, so an N-response re-parse enqueues N
   identical same-day aggregate recomputations (870 observed on the
-  2026-07-15 batch, ~40% of chained job volume). Add a
-  seedRecurring-style dedupe guard (skip enqueue when one is already
-  queued for the same client+date). Same question applies to
-  sentiment-classify chaining (per-response is correct there, but
-  verify).
+  2026-07-15 batch, ~40% of chained job volume). **FIXED in v1.87.1**:
+  new JobStore.existsQueuedOrRunning(kind, payloadMatch) - a
+  seedRecurring-style guard, but scoped by a payload field match rather
+  than kind alone (seedRecurring's "any job of this kind" check is too
+  coarse here - a job in flight for client A must not block client B).
+  parse-response now checks it before enqueuing aggregate-snapshot-daily,
+  skipping when one is already queued/running for the same clientId. Not
+  race-free under concurrent ticks (check-then-insert, same tolerance as
+  seedRecurring) - collapses hundreds of redundant recomputations down to
+  one in flight, not a hard uniqueness guarantee. sentiment-classify
+  chaining verified correct as-is (genuinely per-response - deletes/
+  recreates sentiment rows scoped to that response's own mentions/text,
+  no cross-response redundancy to dedupe). TDD throughout (11 new tests:
+  6 JobStore, 2 handler-behavior, both directions). Full suite 1450 ->
+  1458 tests, all green.
 - B-30 Feature (logged 2026-07-23): standardize the 3m/6m/12m period-toggle
   buttons across every monthly-aggregated chart. The pattern already exists
   on ClientDetail's "Sessions by AI Source — Monthly" chart (AI Traffic
@@ -3511,7 +3521,13 @@ Confirmed decisions:
   whose x-axis is Month and whose data is aggregated by month should get
   the same 3/6/12-month toggle for consistency. Audit other chart sections
   (Mention Rate trend, etc.) for month-axis charts currently missing it.
-- B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy)
+- B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy) -
+  **CLOSED 2026-08-17**, resolved by TD-12 (`npm run seed:diff`,
+  server/services/seedDiff.ts) - and the "without full redeploy" premise
+  was already true before that: adding/updating a workflow row has never
+  required a code deploy (a direct SQL insert or the admin UI always
+  worked against the live db independent of any deploy); the real
+  problem was seed.ts drifting out of sync, which seed:diff now solves.
 - B-06 Session store: session expiry cleanup configuration review
 - B-15 v1 DONE (v1.15.0): Client Run-Readiness badges on /ai/clients (Ready /
   Setup incomplete with itemized issues) catch the missing-competitors gap that
@@ -3522,7 +3538,11 @@ Confirmed decisions:
   collection), per the 6 manual setup steps in Section 1B.
 
 ### Low Priority
-- B-08 skipLibCheck: false in tsconfig
+- B-08 skipLibCheck: false in tsconfig - **CLOSED 2026-08-17**, duplicate
+  of TD-13 (see Tech Debt Register) - investigated, flipping it surfaces
+  ~60 errors 100% inside node_modules (unused drizzle-orm dialects,
+  recharts/lodash types gap, vitest's own .d.ts), zero in this project's
+  own code. Reverted, no code change.
 - B-09 Local dev server fix for Windows (remaining socket/network issues)
 - B-10 Evaluate replacing better-sqlite3-session-store (deprecated)
 - B-14 Display the app version number (from package.json) in the footer of every page —
