@@ -45,6 +45,13 @@ function hydrate(row: Row): ResponseRecommendation {
 type RecommendationInput = Omit<ResponseRecommendation, "id" | "humanStatus" | "humanUserId" | "humanAt"> & {
   evidenceExcerpt?: string | null;
   rank?: number | null;
+  // TD-23: lets a caller (the parse-response handler) carry a
+  // pre-existing human override straight through on insert, rather than
+  // a separate UPDATE after bulkCreate - preserves the override's
+  // original humanAt instead of restamping "now" on every re-parse.
+  humanStatus?: RecommendationStatus | null;
+  humanUserId?: number | null;
+  humanAt?: number | null;
 };
 
 export interface IRecommendationStore {
@@ -108,6 +115,9 @@ export class RecommendationStore implements IRecommendationStore {
           confidence: item.confidence,
           evidenceExcerpt: item.evidenceExcerpt ?? null,
           classifierVersion: item.classifierVersion,
+          humanStatus: item.humanStatus ?? null,
+          humanUserId: item.humanUserId ?? null,
+          humanAt: item.humanAt ?? null,
         })
         .returning()
         .get();

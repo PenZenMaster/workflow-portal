@@ -752,8 +752,12 @@ recommend" = strongly_recommended, "recommend" = recommended, "avoid" /
 precedence over all positive signals). Each row records rank, confidence,
 the winning evidence excerpt, and `classifier_version` (currently
 `rules-1.0`) so results are reproducible. Rows are deleted and recreated
-on re-parse. An analyst override (`human_status`) is retained alongside
-the machine result, never replacing it.
+on re-parse; a pre-existing analyst override (`human_status`) is read
+before the delete and carried forward onto the recreated row for the
+same brand (TD-23, fixed v1.86.1) — it only fails to carry forward if
+the brand is no longer mentioned in that response after re-parsing, in
+which case there is no new row to attach it to. An analyst override is
+retained alongside the machine result, never replacing it.
 
 **What it means to the client:** being mentioned is not the same as being
 recommended. This classification feeds the upcoming Recommendation Rate
@@ -769,9 +773,11 @@ an override via `PATCH /api/response-recommendations/:id`
 status is always retained alongside the override (FR-11); metrics use
 the override (`COALESCE(human_status, status)`), so corrections flow
 into the non-branded recommendation rate and Recommendation SoV on the
-next aggregate. Overrides survive re-parses only if the response is not
-re-parsed (re-parsing deletes and recreates recommendation rows) —
-re-parse a run only when parser/brand changes require it.
+next aggregate. Overrides survive re-parses (TD-23, fixed v1.86.1) as
+long as the overridden brand is still mentioned in the re-parsed
+response — re-parsing deletes and recreates recommendation rows, but the
+prior override is read first and carried onto the new row for the same
+brand.
 
 **Fixes:** v1.33.2 (TD-20) — numbered-list rank detection previously
 required the list number to sit directly before the brand name with only

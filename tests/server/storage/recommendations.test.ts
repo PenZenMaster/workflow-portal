@@ -104,6 +104,36 @@ describe("RecommendationStore", () => {
     expect(await store.setHumanStatus(9999, "recommended", 7)).toBeUndefined();
   });
 
+  // TD-23: bulkCreate can carry a pre-existing human override straight
+  // through on insert, so the parse-response handler can restore an
+  // override onto a freshly recreated row without a second UPDATE call
+  // (and without stamping a new humanAt on every re-parse).
+  it("bulkCreate persists a carried-over human override when provided", async () => {
+    const responseId = await seedResponse(1);
+    const [rec] = await store.bulkCreate([
+      { ...SAMPLE, responseId, humanStatus: "listed_option", humanUserId: 7, humanAt: 1700000000000 },
+    ]);
+
+    expect(rec.status).toBe("first_choice"); // machine result unaffected
+    expect(rec.humanStatus).toBe("listed_option");
+    expect(rec.humanUserId).toBe(7);
+    expect(rec.humanAt).toBe(1700000000000);
+
+    const fetched = await store.listByResponse(responseId);
+    expect(fetched[0].humanStatus).toBe("listed_option");
+    expect(fetched[0].humanUserId).toBe(7);
+    expect(fetched[0].humanAt).toBe(1700000000000);
+  });
+
+  it("bulkCreate defaults the override fields to null when not provided", async () => {
+    const responseId = await seedResponse(1);
+    const [rec] = await store.bulkCreate([{ ...SAMPLE, responseId }]);
+
+    expect(rec.humanStatus).toBeNull();
+    expect(rec.humanUserId).toBeNull();
+    expect(rec.humanAt).toBeNull();
+  });
+
   it("listByClient returns only recommendations belonging to that client's runs", async () => {
     const responseA = await seedResponse(1);
     const responseB = await seedResponse(2);

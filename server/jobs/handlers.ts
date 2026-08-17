@@ -193,6 +193,17 @@ export function registerJobHandlers(runner: JobRunner): void {
         const citationUrls: Array<{ url: string; position: number }> =
           (rawPayload?.citations ?? []).map((url, idx) => ({ url, position: idx + 1 }));
 
+        // TD-23: read prior human overrides (keyed by brandId) before
+        // wiping the rows below, so a re-parse can carry an analyst's
+        // override forward onto the recreated row for the same brand
+        // instead of silently discarding it.
+        const priorRecommendations = await recommendationStore.listByResponse(responseId);
+        const priorOverridesByBrand = new Map(
+          priorRecommendations
+            .filter((r) => r.humanStatus !== null)
+            .map((r) => [r.brandId, { humanStatus: r.humanStatus, humanUserId: r.humanUserId, humanAt: r.humanAt }])
+        );
+
         // Clear old parse results (for re-runs).
         await mentionStore.deleteByResponse(responseId);
         await citationStore.deleteByResponse(responseId);
@@ -243,6 +254,7 @@ export function registerJobHandlers(runner: JobRunner): void {
           const classification = classifyRecommendation(
             mentions.filter((m) => m.brandId === brandId)
           );
+          const priorOverride = priorOverridesByBrand.get(brandId);
           return {
             responseId,
             brandId,
@@ -251,6 +263,7 @@ export function registerJobHandlers(runner: JobRunner): void {
             confidence: classification.confidence,
             evidenceExcerpt: classification.evidenceExcerpt,
             classifierVersion: RECOMMENDATION_CLASSIFIER_VERSION,
+            ...(priorOverride ?? {}),
           };
         });
         if (recommendationRows.length > 0) {

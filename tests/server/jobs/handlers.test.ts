@@ -71,7 +71,7 @@ const {
   mockAliasStore: { listByBrand: vi.fn() },
   mockClientStore: { get: vi.fn() },
   mockPromptMethodologyStore: { getActive: vi.fn() },
-  mockRecommendationStore: { deleteByResponse: vi.fn(), bulkCreate: vi.fn() },
+  mockRecommendationStore: { deleteByResponse: vi.fn(), bulkCreate: vi.fn(), listByResponse: vi.fn() },
   mockSourceDomainStore: { getMapForDomains: vi.fn() },
   mockManifestStore: { create: vi.fn(), getByRunId: vi.fn() },
   mockPromptCollectionStore: { get: vi.fn() },
@@ -561,6 +561,11 @@ describe("groom-jobs handler", () => {
 describe("parse-response handler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // TD-23: the handler reads prior recommendation rows (to carry any
+    // human override forward) before clearing them - default to none so
+    // every pre-existing test that doesn't care about overrides is
+    // unaffected.
+    mockRecommendationStore.listByResponse.mockResolvedValue([]);
   });
 
   it("classifies and stores a recommendation per mentioned brand, clearing old rows first", async () => {
@@ -630,6 +635,91 @@ describe("parse-response handler", () => {
     await handlers.get("parse-response")!({ responseId: 43 }, 1);
 
     expect(mockRecommendationStore.deleteByResponse).toHaveBeenCalledWith(43);
+    expect(mockRecommendationStore.bulkCreate).not.toHaveBeenCalled();
+  });
+
+  // TD-23: a re-parse must not silently discard an analyst's human
+  // override - it deletes and recreates every recommendation row for
+  // the response, so the override has to be read before the delete and
+  // carried into the new row for the same brand.
+  it("carries a prior human override forward onto the recreated row for the same brand", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 42,
+      runId: 9,
+      responseText: "Top plumbers in Seattle:\n1. Acme Plumbing - reliable emergency service\n2. Globex Plumbing - good value",
+      rawPayload: { citations: [] },
+    });
+    mockRunStore.get.mockResolvedValue({ id: 9, clientId: 10 });
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: "acme.com", createdAt: Date.now() },
+      { id: 2, clientId: 10, canonicalName: "Globex Plumbing", kind: "competitor", primaryDomain: null, createdAt: Date.now() },
+    ]);
+    mockAliasStore.listByBrand.mockImplementation(async (brandId: number) =>
+      brandId === 1
+        ? [{ id: 1, brandId: 1, aliasText: "Acme Plumbing", matchType: "exact", language: null }]
+        : [{ id: 2, brandId: 2, aliasText: "Globex Plumbing", matchType: "exact", language: null }]
+    );
+    // Prior row: an analyst had overridden brand 1's classification
+    // before this re-parse ran.
+    mockRecommendationStore.listByResponse.mockResolvedValue([
+      {
+        id: 501, responseId: 42, brandId: 1, status: "first_choice", rank: 1, confidence: 0.9,
+        evidenceExcerpt: "old evidence", classifierVersion: "rules-0.9",
+        humanStatus: "listed_option", humanUserId: 7, humanAt: 1700000000000,
+      },
+    ]);
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("parse-response")!({ responseId: 42 }, 1);
+
+    const [rows] = mockRecommendationStore.bulkCreate.mock.calls[0];
+    const brand1Row = rows.find((r: { brandId: number }) => r.brandId === 1);
+    const brand2Row = rows.find((r: { brandId: number }) => r.brandId === 2);
+    expect(brand1Row).toEqual(
+      expect.objectContaining({
+        status: "first_choice", // freshly reclassified machine result
+        humanStatus: "listed_option", // carried forward
+        humanUserId: 7,
+        humanAt: 1700000000000,
+      })
+    );
+    // No prior override existed for brand 2 - nothing should be carried.
+    expect(brand2Row.humanStatus).toBeUndefined();
+  });
+
+  it("does not carry a human override forward when the overridden brand is no longer mentioned", async () => {
+    mockResponseStore.get.mockResolvedValue({
+      id: 43,
+      runId: 9,
+      responseText: "Here are some general plumbing maintenance tips for homeowners.",
+      rawPayload: { citations: [] },
+    });
+    mockRunStore.get.mockResolvedValue({ id: 9, clientId: 10 });
+    mockBrandStore.listByClient.mockResolvedValue([
+      { id: 1, clientId: 10, canonicalName: "Acme Plumbing", kind: "client", primaryDomain: "acme.com", createdAt: Date.now() },
+    ]);
+    mockAliasStore.listByBrand.mockResolvedValue([
+      { id: 1, brandId: 1, aliasText: "Acme Plumbing", matchType: "exact", language: null },
+    ]);
+    mockRecommendationStore.listByResponse.mockResolvedValue([
+      {
+        id: 502, responseId: 43, brandId: 1, status: "recommended", rank: null, confidence: 0.5,
+        evidenceExcerpt: "old evidence", classifierVersion: "rules-0.9",
+        humanStatus: "not_recommended", humanUserId: 7, humanAt: 1700000000000,
+      },
+    ]);
+
+    const { runner, handlers } = buildRunner();
+    registerJobHandlers(runner);
+
+    await handlers.get("parse-response")!({ responseId: 43 }, 1);
+
+    // Brand 1 is no longer mentioned post-reparse, so there is no new row
+    // to carry the stale override onto - bulkCreate is correctly not
+    // called at all (matches the existing "no tracked brand mentioned"
+    // behavior).
     expect(mockRecommendationStore.bulkCreate).not.toHaveBeenCalled();
   });
 
