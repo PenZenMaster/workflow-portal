@@ -1,7 +1,7 @@
 import { db } from "./storage";
 import { workflows } from "@shared/schema";
 
-type SeedRow = {
+export type SeedRow = {
   name: string;
   category: string;
   description: string;
@@ -17,7 +17,10 @@ type SeedRow = {
   rankrocketMcpEnabled?: boolean;
 };
 
-const SEED: SeedRow[] = [
+// TD-12: exported so server/services/seedDiff.ts (and script/seedDiff.ts)
+// can compare this source of truth against the live workflows table
+// without duplicating it.
+export const SEED: SeedRow[] = [
   {
     name: "SEO Audit via Rank Rocket SEO Plugin",
     category: "Audit",

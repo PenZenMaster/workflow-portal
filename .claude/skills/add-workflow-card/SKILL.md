@@ -99,6 +99,17 @@ production's actual current catalog (not just dev's) if there's any chance
 of a naming collision or if matching an existing card's established
 pattern matters — dev/seed.ts may be stale.
 
+**TD-12 (fixed v1.87.0): `npm run seed:diff`** checks exactly this drift
+automatically — compares `SEED` against whatever db `DATA_DB_PATH` points
+at (dev's `data.db` by default; point it at a downloaded copy of prod's to
+check that side) and reports every card that's missing from either side or
+whose fields differ. `--apply=seed-to-db` writes a reviewable
+`seed-sync.sql`; `--apply=db-to-seed` prints a `SEED[]` literal to paste
+over the array in `server/seed.ts`. Neither ever writes to a db directly.
+Run it plain (no `--apply`) after step 3 below as a final confirmation
+that seed.ts and the target db agree, instead of eyeballing the diff by
+hand.
+
 ## Steps
 
 1. **Gather the card-specific content from the user** — do NOT re-derive the

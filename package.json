@@ -1,6 +1,6 @@
 {
   "name": "workflow-portal",
-  "version": "1.86.1",
+  "version": "1.87.0",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -16,6 +16,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
+    "seed:diff": "tsx script/seedDiff.ts",
     "lint": "eslint . --max-warnings 0",
     "package": "node script/preflight.js && npm run lint && npm run check && npm run db:check && npm test && npm run build && node script/package-deploy.js",
     "test": "vitest run",
