@@ -30,7 +30,7 @@ const GEMINI_BODY = {
   candidates: [{
     content: { parts: [{ text: "Acme SEO is highly recommended. Check https://acme.com." }] },
   }],
-  modelVersion: "gemini-2.0-flash",
+  modelVersion: "gemini-3.5-flash",
   usageMetadata: { promptTokenCount: 42, candidatesTokenCount: 117, totalTokenCount: 159 },
 };
 
@@ -334,7 +334,7 @@ describe("GeminiAdapter", () => {
     const a = new GeminiAdapter("AIza-test", { retryDelayMs: 0 });
     const r = await a.run("Best SEO agency");
     expect(r.text).toContain("Acme SEO");
-    expect(r.requestedModel).toBe("gemini-2.0-flash");
+    expect(r.requestedModel).toBe("gemini-3.5-flash");
     expect(r.citations.some((c) => c.url.includes("acme.com"))).toBe(true);
   });
 
@@ -401,12 +401,12 @@ describe("MistralAdapter", () => {
 // ---------------------------------------------------------------------------
 describe("DeepSeekAdapter", () => {
   it("returns RawResponse with correct id", async () => {
-    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: { ...OPENAI_BODY, model: "deepseek-chat" } }]));
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: { ...OPENAI_BODY, model: "deepseek-v4-flash" } }]));
     const a = new DeepSeekAdapter("dsk-test", { retryDelayMs: 0 });
     const r = await a.run("Best SEO agency");
     expect(a.id).toBe("deepseek");
-    expect(r.modelVariant).toBe("deepseek-chat");
-    expect(r.requestedModel).toBe("deepseek-chat");
+    expect(r.modelVariant).toBe("deepseek-v4-flash");
+    expect(r.requestedModel).toBe("deepseek-v4-flash");
   });
 
   it("throws when API key is empty", async () => {

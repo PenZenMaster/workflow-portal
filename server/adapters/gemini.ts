@@ -3,7 +3,9 @@ import { AdapterTimeoutError } from "./types";
 import { extractUrlCitations, resolveMaxOutputTokens, resolveTimeoutMs, REGEX_CITATION_CAPABILITIES } from "./openaiCompatible";
 import { logger } from "../logger";
 
-const DEFAULT_MODEL = "gemini-2.0-flash";
+// gemini-2.0-flash was shut down by Google 2026-06-01; gemini-3.5-flash is
+// Google's documented migration target (see docs/system-documentation.md).
+const DEFAULT_MODEL = "gemini-3.5-flash";
 const MAX_RETRIES = 3;
 
 interface GeminiResponse {
