@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   LineChart,
@@ -34,13 +35,27 @@ function KpiCard({ label, value, unit = "%" }: { label: string; value: number; u
   );
 }
 
+// B-30: matches this API's existing period convention (server/routes/
+// metrics.ts's periodToDates) rather than TrafficSection's "3m/6m/12m" -
+// this chart is a daily trend line, not discrete month buckets, so the
+// day-count convention already used everywhere else in this app fits it
+// better than copying Traffic's month-bucket-specific labels.
+type Period = "30d" | "90d" | "365d";
+const PERIOD_LABELS: Record<Period, string> = {
+  "30d": "Last 30 Days",
+  "90d": "Last 90 Days",
+  "365d": "Last 12 Months",
+};
+
 export function OverviewSection({ clientId }: { clientId: string }) {
+  const [period, setPeriod] = useState<Period>("30d");
+
   const { data: overviewData } = useQuery<{ data: OverviewData }>({
-    queryKey: [`/api/clients/${clientId}/metrics/overview?period=30d`],
+    queryKey: [`/api/clients/${clientId}/metrics/overview?period=${period}`],
   });
 
   const { data: trendData } = useQuery<{ data: TrendPoint[] }>({
-    queryKey: [`/api/clients/${clientId}/metrics/trend?metric=mentionRate&period=30d`],
+    queryKey: [`/api/clients/${clientId}/metrics/trend?metric=mentionRate&period=${period}`],
   });
 
   const overview = overviewData?.data;
@@ -48,7 +63,24 @@ export function OverviewSection({ clientId }: { clientId: string }) {
 
   return (
     <section>
-      <h2 className="text-xl font-bold mb-4">Overview</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold">Overview</h2>
+        <div className="flex gap-1">
+          {(["30d", "90d", "365d"] as Period[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`text-xs px-3 py-1 rounded border transition-colors ${
+                period === p
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-input text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {overview ? (
         <>
@@ -62,7 +94,7 @@ export function OverviewSection({ clientId }: { clientId: string }) {
           {trend.length > 0 && (
             <div className="border rounded-lg p-5">
               <h3 className="text-sm font-medium mb-4 text-muted-foreground">
-                Mention Rate — Last 30 Days
+                Mention Rate — {PERIOD_LABELS[period]}
               </h3>
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={trend}>
@@ -77,7 +109,7 @@ export function OverviewSection({ clientId }: { clientId: string }) {
           )}
 
           <p className="text-xs text-muted-foreground mt-4">
-            Based on {overview.totalResponses} responses in the last 30 days.
+            Based on {overview.totalResponses} responses in the {PERIOD_LABELS[period].toLowerCase()}.
           </p>
         </>
       ) : (

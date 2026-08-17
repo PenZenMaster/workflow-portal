@@ -3539,12 +3539,25 @@ Confirmed decisions:
   6 JobStore, 2 handler-behavior, both directions). Full suite 1450 ->
   1458 tests, all green.
 - B-30 Feature (logged 2026-07-23): standardize the 3m/6m/12m period-toggle
-  buttons across every monthly-aggregated chart. The pattern already exists
-  on ClientDetail's "Sessions by AI Source — Monthly" chart (AI Traffic
-  Impact section, client/src/pages/ai/ClientDetail.tsx); any other graph
-  whose x-axis is Month and whose data is aggregated by month should get
-  the same 3/6/12-month toggle for consistency. Audit other chart sections
-  (Mention Rate trend, etc.) for month-axis charts currently missing it.
+  buttons across every monthly-aggregated chart. **COMPLETE, rescoped
+  (v1.89.0)**. Audited every chart in the AI Visibility module (only two
+  exist at all: TrafficSection's monthly stacked-bar chart, which already
+  had the toggle, and OverviewSection's Mention Rate trend line) - the
+  literal "3m/6m/12m" premise didn't fit the second one: it's a daily
+  trend line over `periodToDates`'s existing 30d/90d/365d convention
+  (already used throughout this API for period params), not discrete
+  month buckets, so copying Traffic's month-bucket-specific button labels
+  verbatim would have been the wrong shape. The real gap, confirmed with
+  the user before building: OverviewSection's KPI cards and trend chart
+  were both hardcoded to period=30d with **no user-facing selector at
+  all** - not "missing the month toggle" specifically. Fixed by adding a
+  30d/90d/365d button-toggle (client/src/pages/ai/sections/
+  OverviewSection.tsx) matching TrafficSection's visual style but this
+  app's existing day-count period convention; both queries (metrics/
+  overview, metrics/trend) now use the selected period, and the trend
+  chart heading + response-count label update to match ("Last 30 Days" /
+  "Last 90 Days" / "Last 12 Months"). TDD throughout (3 new tests). Full
+  suite 1466 -> 1469 tests, all green; lint, typecheck clean.
 - B-04 Seed data versioning strategy (allow adding/updating workflows without full redeploy) -
   **CLOSED 2026-08-17**, resolved by TD-12 (`npm run seed:diff`,
   server/services/seedDiff.ts) - and the "without full redeploy" premise
