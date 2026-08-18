@@ -3975,3 +3975,20 @@ Confirmed decisions:
   account and need their own connection. Downgraded Medium -> Low priority
   2026-08-10 (user decision) — approval has been pending over a month with
   no movement, no longer worth checking every session.
+  Researched 2026-08-18 (web search + Google's own developer docs, since the
+  user asked whether per-location applications are needed): approval is
+  per Google Cloud project, not per individual location - once the one
+  project's quota moves 0 -> 300 QPM, no separate application per location
+  is needed. However, the application itself is gated on a specific
+  verified GBP active 60+ days, a matching business website, and an
+  applicant account that's an owner/manager on THAT GBP - it's built
+  around one business's own profile, not an agency's client portfolio.
+  Third-party sources (not confirmed against Google's own docs) suggest
+  agencies can get delegated *manager* access to client locations under
+  one project, but each client's own account may need to independently
+  apply for real API quota on their own locations - consistent with the
+  existing OAuth-is-per-account note above. Unconfirmed until the pending
+  application actually gets approved and a client under a different
+  Google account is tested against it - flag this as the first thing to
+  verify once B-20 is unblocked, before assuming one approval covers every
+  client.
