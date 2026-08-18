@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Trash2, ChevronDown, ChevronRight, X, AlertCircle } from "lucide-react";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { MeasurementHealthSection } from "./sections/MeasurementHealthSection";
 import { OverviewSection } from "./sections/OverviewSection";
 import { PlatformBreakdownSection } from "./sections/PlatformBreakdownSection";
@@ -108,9 +109,15 @@ function BrandRow({ brand, clientId }: { brand: Brand; clientId: string }) {
       {expanded && (
         <div className="border-t px-4 pb-4 pt-3 space-y-3 bg-muted/20">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Aliases — names the AI response parser will detect
-            </p>
+            <div className="flex items-center gap-1">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Aliases — names the AI response parser will detect
+              </p>
+              <InfoTooltip
+                label="About aliases"
+                text="The brand's canonical name already matches automatically. Add aliases for the alternate forms AI answers actually use: abbreviations, short forms, misspellings, or domain names."
+              />
+            </div>
             {!showAliasForm && (
               <Button size="sm" variant="ghost" onClick={() => setShowAliasForm(true)}>
                 <Plus className="h-3.5 w-3.5 mr-1" />Add alias
@@ -327,7 +334,13 @@ export default function ClientDetail() {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="brand-kind" className="text-xs">Kind</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="brand-kind" className="text-xs">Kind</Label>
+                  <InfoTooltip
+                    label="About brand Kind"
+                    text="AI Share of Voice is the client brand's mentions divided by total mentions across all brands. Add exactly one Client brand (your agency's own client) and at least one Competitor brand, or the ratio will read as a meaningless 0% or 100%."
+                  />
+                </div>
                 <select
                   id="brand-kind"
                   value={brandKind}

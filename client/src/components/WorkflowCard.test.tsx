@@ -21,6 +21,7 @@ import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { WorkflowCard } from "./WorkflowCard";
 import type { Workflow } from "@shared/schema";
 
@@ -47,12 +48,14 @@ const noop = vi.fn();
 
 function renderCard(workflow: Workflow) {
   return render(
-    <WorkflowCard
-      workflow={workflow}
-      onEdit={noop}
-      onDelete={noop}
-      onTogglePin={noop}
-    />
+    <TooltipProvider>
+      <WorkflowCard
+        workflow={workflow}
+        onEdit={noop}
+        onDelete={noop}
+        onTogglePin={noop}
+      />
+    </TooltipProvider>
   );
 }
 
@@ -312,5 +315,35 @@ describe("WorkflowCard - RankRocket MCP run", () => {
     expect(JSON.parse(init.body as string)).toEqual({
       inputValues: ["tristate-hvac"],
     });
+  });
+});
+
+describe("WorkflowCard - action tooltips (B-24)", () => {
+  it("shows an explanatory tooltip on hover for the pin, edit, and delete icons", async () => {
+    renderCard(BASE_WORKFLOW);
+
+    await userEvent.hover(screen.getByTestId("button-pin-7"));
+    expect(
+      await screen.findByRole("tooltip", { name: /pin this workflow to the top/i })
+    ).toBeInTheDocument();
+
+    await userEvent.hover(screen.getByTestId("button-edit-7"));
+    expect(
+      await screen.findByRole("tooltip", { name: /edit this workflow/i })
+    ).toBeInTheDocument();
+
+    await userEvent.hover(screen.getByTestId("button-delete-7"));
+    expect(
+      await screen.findByRole("tooltip", { name: /permanently delete this workflow/i })
+    ).toBeInTheDocument();
+  });
+
+  it("swaps the pin tooltip to Unpin wording once a workflow is pinned", async () => {
+    renderCard({ ...BASE_WORKFLOW, pinned: true });
+
+    await userEvent.hover(screen.getByTestId("button-pin-7"));
+    expect(
+      await screen.findByRole("tooltip", { name: /unpin this workflow/i })
+    ).toBeInTheDocument();
   });
 });

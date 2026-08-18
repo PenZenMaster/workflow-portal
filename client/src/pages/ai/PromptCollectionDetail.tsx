@@ -3,6 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Prompt, PromptCollection, Platform, GeneratedPromptCandidate, GenerationResult, PromptGenerationRun, RunSchedule, PromptPanelType, PromptIntentType, BrandContext, CollectionDiagnostics } from "@shared/schema";
 import { PROMPT_INTENT_TYPES, FUNNEL_STAGES, INTENT_TO_LEGACY_CATEGORY } from "@shared/schema";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 // issue #4 Phase 3 item H: canonical intent is now the primary editable
 // classification in both the review panel and existing-prompt edit form;
@@ -670,6 +671,10 @@ export default function PromptCollectionDetail() {
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <Label htmlFor="prompt-intent-type" className="mb-0">Intent type</Label>
+              <InfoTooltip
+                label="About intent type"
+                text="The kind of question or search intent this prompt represents (e.g. asking for a recommendation vs. comparing options vs. checking trust signals). Drives the panel's intent-mix quotas - a balanced spread across intent types gives a more representative AI Visibility measurement than many near-duplicate prompts of the same type."
+              />
               <span className="text-xs text-muted-foreground">Legacy: {INTENT_TO_LEGACY_CATEGORY[intentType]}</span>
             </div>
             <select

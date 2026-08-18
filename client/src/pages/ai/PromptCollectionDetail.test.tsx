@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
 import { AuthProvider } from "@/lib/auth";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import type { UserRole } from "@shared/schema";
 import PromptCollectionDetail from "./PromptCollectionDetail";
 
@@ -218,9 +219,11 @@ function renderPage() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <PromptCollectionDetail />
-      </AuthProvider>
+      <TooltipProvider>
+        <AuthProvider>
+          <PromptCollectionDetail />
+        </AuthProvider>
+      </TooltipProvider>
     </QueryClientProvider>,
   );
 }
@@ -532,7 +535,7 @@ describe("PromptCollectionDetail — manual prompt creation (issue #4 Phase 3 it
     await userEvent.click(await screen.findByRole("button", { name: /^Add prompt$/i }));
 
     expect(screen.queryByLabelText(/^category$/i)).not.toBeInTheDocument();
-    const intentSelect = screen.getByLabelText(/intent type/i);
+    const intentSelect = screen.getByLabelText(/intent type/i, { selector: "select" });
     expect(intentSelect).toHaveValue("provider_recommendation");
     expect(screen.getByText(/Legacy: commercial/i)).toBeInTheDocument();
 
@@ -558,6 +561,17 @@ describe("PromptCollectionDetail — manual prompt creation (issue #4 Phase 3 it
       funnelStage: "decision",
     });
     expect(body).not.toHaveProperty("category");
+  });
+
+  it("shows an explanatory tooltip on the intent type field (B-24)", async () => {
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /^Add prompt$/i }));
+    await userEvent.hover(screen.getByRole("button", { name: /about intent type/i }));
+
+    expect(
+      await screen.findByRole("tooltip", { name: /kind of question or search intent/i })
+    ).toBeInTheDocument();
   });
 });
 
@@ -614,7 +628,7 @@ describe("PromptCollectionDetail — edit existing prompt", () => {
     await screen.findByText("Best plumber in Seattle");
     await userEvent.click(screen.getByRole("button", { name: /Edit/i }));
 
-    const intentSelect = screen.getByLabelText(/intent type/i);
+    const intentSelect = screen.getByLabelText(/intent type/i, { selector: "select" });
     expect(intentSelect).toHaveValue("geographic_discovery");
     expect(screen.getByText(/Legacy: local/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/^category$/i)).not.toBeInTheDocument();

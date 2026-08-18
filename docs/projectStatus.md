@@ -1,13 +1,13 @@
 ## Resume From
 
-Last session: 2026-08-17
-Branch: main | Version: v1.93.0 | PACKAGED, not yet deployed. v1.91.0 is still the last version confirmed live on cPanel (deploy + smoke test PASS). v1.92.0 (B-27 source-domain admin UI + B-06 session-store review, no code change) and v1.93.0 (B-15 v2 guided-checklist links) were built and packaged this session in auto-mode but not yet uploaded/deployed - user has not been asked to deploy them yet.
+Last session: 2026-08-18
+Branch: main | Version: v1.94.0 | PACKAGED, not yet deployed. v1.91.0 is still the last version confirmed live on cPanel (deploy + smoke test PASS). v1.92.0 (B-27 + B-06), v1.93.0 (B-15 v2), and v1.94.0 (B-24 partial) were all built and packaged this session in auto-mode but not yet uploaded/deployed - user has not been asked to deploy them yet.
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live (endpoint probe returned the expected auth-rejection response, not a connectivity failure). RankRocket Site Insights admin CRUD (Parts A/B/C/D) is fully shipped and live end-to-end across both repos. No rankrocket-mcp changes this session.
 
 NEXT SESSION:
-1. Auto-mode medium-priority sweep in progress: B-27 DONE (v1.92.0), B-06 DONE (v1.92.0, no code change), B-15 v2 DONE (v1.93.0). B-24 (tooltips) is the last of the 4 medium-priority items - not yet started.
-2. Deploy checkpoint needed: v1.92.0 and v1.93.0 are packaged/tagged but not on cPanel yet - confirm with user before/after B-24 whether to deploy now or bundle with B-24.
-3. Low priority backlog once B-24 is done: B-09 (Windows dev server), B-10 (replace better-sqlite3-session-store), B-14 (version in footer), B-20 (GBP snapshot, externally blocked).
+1. Auto-mode medium-priority sweep COMPLETE: B-27 DONE (v1.92.0), B-06 DONE (v1.92.0, no code change), B-15 v2 DONE (v1.93.0), B-24 DONE-PARTIAL (v1.94.0 - workflow card icons + AI Visibility setup controls shipped; launch-dialog input-field tooltips explicitly deferred, needs the user's own copy for 116+ fields before it can be a real backlog item, not just a UI-wiring task).
+2. Deploy checkpoint needed: v1.92.0, v1.93.0, v1.94.0 are packaged/tagged but not on cPanel yet - all three are additive/low-risk (no schema/migration changes across any of them), safe to bundle into one deploy whenever the user is ready.
+3. Low priority backlog next: B-09 (Windows dev server), B-10 (replace better-sqlite3-session-store), B-14 (version in footer), B-20 (GBP snapshot, externally blocked).
 4. Epic 1 (issue #35) slice 5 - the standard adapter-contract test suite (parameterized, every enabled provider must pass), the last item on the original 5-slice roadmap. Slices 1-4 are now all shipped and deployed (1: v1.77.0, 2: v1.78.0, 3: v1.79.0, 4: v1.86.0).
 5. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
 6. Remaining Phase 3 RankRocket MCP follow-ups (distinct from the now-complete Site Insights admin CRUD): retrofitting the three existing Perplexity-launch RankRocket cards to use the MCP-client pattern, a third input for page/post-scoped read-only capabilities, generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server.
@@ -32,6 +32,36 @@ links are page-level only. TDD throughout both slices. Full suite
 1469 -> 1540 tests, all green; lint, typecheck clean each time. Both
 versions packaged/tagged but NOT yet deployed to cPanel - see Resume
 From. B-24 (tooltips) remains, the last of the 4 medium-priority items.
+
+Session 2026-08-18 (part 10): v1.94.0 - B-24 tooltips, closing out the
+auto-mode medium-priority sweep. Scoped down before building: surfaced
+to the user that the launch-dialog input-field tooltips ("what is it,
+where to find it, example" for 116+ distinct input labels across 22
+workflows, zero per-field metadata in the schema today) would require
+inventing SEO-domain guidance I can't verify, risking wrong instructions
+in real client work - user chose to skip that part rather than accept
+generic placeholder text, deferring it as its own backlog item pending
+the user's own copy. Built the other two parts: new shared
+client/src/components/InfoTooltip.tsx ((?) icon + shadcn Tooltip,
+delayDuration=0 for instant response on compact targets) used on
+WorkflowCard.tsx's Pin/Unpin/Edit/Delete icon buttons (replacing bare
+native `title` with real explanatory Tooltip content) and on three AI
+Visibility setup controls: ClientDetail.tsx's brand Kind field (explains
+the AI Share of Voice ratio requirement that B-15's readiness check
+exists to catch) and Aliases section (canonical names auto-match;
+aliases are for short forms/misspellings/domains), and
+PromptCollectionDetail.tsx's Intent type field on the primary Add Prompt
+form (explains the panel intent-mix quota system, not duplicated onto
+the edit form/generation-review rows to keep the diff reviewable). TDD
+throughout - each of the 6 new tests was RED-verified via a temporary
+stub-or-revert-then-confirm cycle, since the tooltip trigger and its
+content necessarily ship in the same commit as the test that checks for
+them. Full suite 1540 -> 1546 tests, all green; lint, typecheck clean.
+Packaged/tagged but NOT yet deployed - v1.92.0/v1.93.0/v1.94.0 are all
+additive with no schema changes, safe to bundle into one cPanel deploy
+whenever the user is ready. This closes the "lets start on the medium
+Priority. Go into auto-mode and complete all steps" instruction (B-27,
+B-06, B-15 v2, B-24 all done this session).
 
 Session 2026-08-17 (part 8): v1.91.0 - RankRocket Site Insights admin
 CRUD, Parts A/B/D (site credentials) shipped, completing the feature
@@ -3625,6 +3655,39 @@ Confirmed decisions:
   (what each value is, where to find it, example), workflow card action
   icons, and the AI Visibility setup controls (brands, aliases, prompt
   categories).
+  **PARTIAL (v1.94.0)** - workflow card action icons + AI Visibility setup
+  controls shipped; launch-dialog input-field tooltips explicitly deferred
+  (see below).
+  New shared `client/src/components/InfoTooltip.tsx` ((?) icon + shadcn
+  Tooltip, `delayDuration={0}` for instant hover response on compact icon
+  targets) used everywhere a label-adjacent explanation was added, plus
+  WorkflowCard.tsx's three icon buttons (Pin/Unpin, Edit, Delete) switched
+  from native `title` to real Tooltip content so the explanation is richer
+  than a bare browser tooltip (Pin/Unpin's now states what pinning does,
+  not just the verb). ClientDetail.tsx: Kind tooltip explains the AI Share
+  of Voice ratio requirement (client + >=1 competitor brand) that motivated
+  B-15's readiness check in the first place; Aliases tooltip explains that
+  canonical names match automatically and aliases are for short forms/
+  misspellings/domains, mirroring system-documentation.md Section 1B Step
+  3's table. PromptCollectionDetail.tsx: Intent type tooltip (Add Prompt
+  form only, not every duplicate occurrence in the edit form/generation-
+  review rows, to keep the diff reviewable) explains what intent type
+  drives (panel intent-mix quotas) using the already-established
+  PROMPT_INTENT_TYPES taxonomy.
+  **Launch-dialog input-field tooltips deferred** - surfaced to the user
+  before building: 116+ distinct required-input labels across 22 workflows
+  (plus optional inputs on top), zero per-field metadata in the schema
+  today (`inputs`/`optionalInputs` are just `string[]` labels). Writing
+  accurate "what is it / where to find it / example" copy for each would
+  mean inventing SEO-domain instructions I can't verify, risking wrong
+  guidance shipped into real client work - user chose (Recommended) to
+  skip this part rather than ship placeholder text; it needs the user's
+  own copy input to become a real backlog item.
+  TDD throughout (6 new tests: 1 InfoTooltip, 2 WorkflowCard, 2
+  ClientDetail, 1 PromptCollectionDetail - each RED-verified by a
+  temporary stub/revert-then-confirm cycle since the tooltip trigger and
+  its content exist in the same commit as the test). Full suite 1540 ->
+  1546 tests, all green; lint, typecheck clean.
 - B-25 Feature: in-app Help / system documentation. Surface
   docs/system-documentation.md (and the workflow methodology docs) inside
   the portal - a /help route with rendered markdown, section navigation,

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { LaunchInputsDialog } from "@/components/LaunchInputsDialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Props = {
   workflow: Workflow;
@@ -180,36 +181,54 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
             )}
           </div>
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => onTogglePin(workflow)}
-              data-testid={`button-pin-${workflow.id}`}
-              title={workflow.pinned ? "Unpin" : "Pin"}
-            >
-              {workflow.pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => onEdit(workflow)}
-              data-testid={`button-edit-${workflow.id}`}
-              title="Edit"
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive"
-              onClick={() => onDelete(workflow)}
-              data-testid={`button-delete-${workflow.id}`}
-              title="Delete"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => onTogglePin(workflow)}
+                  data-testid={`button-pin-${workflow.id}`}
+                >
+                  {workflow.pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {workflow.pinned
+                  ? "Unpin this workflow (removes it from the top of the list)"
+                  : "Pin this workflow to the top of the list"}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => onEdit(workflow)}
+                  data-testid={`button-edit-${workflow.id}`}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Edit this workflow&apos;s details, inputs, and prompt template
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  onClick={() => onDelete(workflow)}
+                  data-testid={`button-delete-${workflow.id}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Permanently delete this workflow</TooltipContent>
+            </Tooltip>
           </div>
         </div>
         <CardTitle

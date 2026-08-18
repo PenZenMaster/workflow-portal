@@ -1,9 +1,11 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
 import { AuthProvider } from "@/lib/auth";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import ClientDetail from "./ClientDetail";
 
 vi.mock("wouter", async () => {
@@ -80,9 +82,11 @@ function renderClientDetail() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ClientDetail />
-      </AuthProvider>
+      <TooltipProvider>
+        <AuthProvider>
+          <ClientDetail />
+        </AuthProvider>
+      </TooltipProvider>
     </QueryClientProvider>,
   );
 }
@@ -129,6 +133,35 @@ describe("ClientDetail (consolidated AI visibility page)", () => {
 
     const promptsLink = screen.getByRole("link", { name: "No active prompt collection with prompts" });
     expect(promptsLink).toHaveAttribute("href", "/ai/clients/4/prompts");
+  });
+
+  it("shows an explanatory tooltip on the brand Kind field (B-24)", async () => {
+    renderClientDetail();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Acme" })).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: /add brand/i }));
+    await userEvent.hover(screen.getByRole("button", { name: /about brand kind/i }));
+
+    expect(
+      await screen.findByRole("tooltip", { name: /ai share of voice/i })
+    ).toBeInTheDocument();
+  });
+
+  it("shows an explanatory tooltip on the aliases section (B-24)", async () => {
+    API_RESPONSES["/api/clients/4/brands"] = {
+      data: [{ id: 1, clientId: 4, kind: "client", canonicalName: "Acme", primaryDomain: "acme.com", createdAt: 0 }],
+    };
+    API_RESPONSES["/api/brands/1/aliases"] = { data: [] };
+
+    renderClientDetail();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Acme" })).toBeInTheDocument());
+
+    await userEvent.click(await screen.findByRole("button", { name: /expand to manage aliases/i }));
+    await userEvent.hover(screen.getByRole("button", { name: /about aliases/i }));
+
+    expect(
+      await screen.findByRole("tooltip", { name: /canonical name already matches automatically/i })
+    ).toBeInTheDocument();
   });
 
   it("does not render separate top-nav links for sections now shown inline", async () => {
