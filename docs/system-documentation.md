@@ -867,7 +867,11 @@ review platforms are reputation evidence reported separately, per spec.
 (optionally `?class=`), `PUT /api/source-domains/:domain` (class +
 rationale), and `GET /api/source-domains/unreviewed` — cited domains not
 yet in the registry, most-cited first, which powers the spec's monthly
-review of newly observed domains. Only `unknown_or_low_trust` citations
+review of newly observed domains. **Source Domains** (top navigation,
+Super Admin/Agency Admin only, added v1.92.0/B-27) surfaces this as an
+admin page instead of API-only — an Unreviewed Domains queue to classify
+newly observed domains, and a Registry list filterable by class with
+inline reclassification. Only `unknown_or_low_trust` citations
 count toward the queue (v1.34.2): domains fully resolved by ownership
 (client or competitor sites) never appear, and a domain that is owned in
 one client's runs but unresolved in another's shows only its unresolved

@@ -3648,6 +3648,20 @@ Confirmed decisions:
   per-domain class dropdown + required rationale field posting to PUT
   /api/source-domains/:domain, plus a registry list filterable by class.
   Powers the spec's monthly review of newly observed domains.
+  **COMPLETE (v1.92.0)**. Backend was already fully built and tested
+  (server/routes/sourceDomains.ts, server/storage/sourceDomainStore.ts) -
+  pure UI slice, no backend changes. New client/src/pages/admin/
+  SourceDomains.tsx: Unreviewed Domains section (per-row class `<select>`
+  + rationale `<Input>` + Save, matching the domain's citation count),
+  Registry section (class-filter dropdown refetching with `?class=`,
+  inline reclassify via the same PUT-upsert endpoint the unreviewed
+  queue uses - the backend distinguishes new vs. existing purely by
+  whether the domain already exists, not by a different route). New
+  `/admin/source-domains` route + Home.tsx nav link, gated super_admin/
+  agency_admin like every other admin page. TDD throughout (6 page
+  tests, 2 nav-link tests). Full suite 1530 -> 1538 tests, all green;
+  lint, typecheck clean. docs/system-documentation.md's registry-
+  management note updated.
 - B-28 Optimize AI/LLM API calls (GitHub issue #2, filed 2026-07-15,
   labeled priority: medium) — **CLOSED 2026-07-24, COMPLETE except F5**.
   F1 token accounting (v1.37.0+v1.39.0), F2 output caps + F4
@@ -3701,7 +3715,14 @@ Confirmed decisions:
   required a code deploy (a direct SQL insert or the admin UI always
   worked against the live db independent of any deploy); the real
   problem was seed.ts drifting out of sync, which seed:diff now solves.
-- B-06 Session store: session expiry cleanup configuration review
+- B-06 Session store: session expiry cleanup configuration review -
+  **CLOSED 2026-08-18**, verified safe, no code change. server/auth.ts's
+  existing config already handles this correctly: better-sqlite3-
+  session-store's `expired: { clear: true, intervalMs: 3600000 }` (hourly
+  cleanup of expired rows), `rolling: true` (session extends on
+  activity), 30-day cookie maxAge. Checked prod's actual sessions.db over
+  SSH: 12KB, 2 rows - no bloat, cleanup demonstrably working in practice,
+  not just configured. Nothing to fix.
 - B-15 v1 DONE (v1.15.0): Client Run-Readiness badges on /ai/clients (Ready /
   Setup incomplete with itemized issues) catch the missing-competitors gap that
   caused Salvo's AI SoV to read 0%/100% (see system-documentation.md Section 1B

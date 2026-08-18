@@ -90,4 +90,20 @@ describe("Home — top nav", () => {
 
     expect(screen.queryByRole("link", { name: /RankRocket Site Insights/i })).not.toBeInTheDocument();
   });
+
+  // B-27
+  it("shows a Source Domains admin link to /admin/source-domains for agency_admin", async () => {
+    currentRole = "agency_admin";
+    renderHome();
+
+    const link = await screen.findByRole("link", { name: /Source Domains/i });
+    expect(link).toHaveAttribute("href", "/admin/source-domains");
+  });
+
+  it("does not show the Source Domains admin link for a non-admin role", async () => {
+    renderHome();
+    await screen.findByRole("link", { name: /^Clients$/i });
+
+    expect(screen.queryByRole("link", { name: /Source Domains/i })).not.toBeInTheDocument();
+  });
 });

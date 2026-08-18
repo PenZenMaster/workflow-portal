@@ -28,6 +28,7 @@ import Jobs from "@/pages/admin/Jobs";
 import Platforms from "@/pages/admin/Platforms";
 import Help from "@/pages/Help";
 import RankRocketSiteInsights from "@/pages/admin/RankRocketSiteInsights";
+import SourceDomains from "@/pages/admin/SourceDomains";
 import { Skeleton } from "@/components/ui/skeleton";
 
 class ErrorBoundary extends Component<
@@ -71,6 +72,7 @@ function AppRouter() {
       <Route path="/admin/platforms" component={Platforms} />
       <Route path="/help" component={Help} />
       <Route path="/admin/rankrocket-site-insights" component={RankRocketSiteInsights} />
+      <Route path="/admin/source-domains" component={SourceDomains} />
       <Route path="/ai/clients/:id/settings/integrations" component={Integrations} />
       <Route path="/ai/clients/:id/sentiment/review" component={ReviewQueue} />
       <Route path="/ai/clients/:id/reports" component={Reports} />
