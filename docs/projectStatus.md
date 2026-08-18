@@ -4106,3 +4106,41 @@ Confirmed decisions:
   submitted under - worth checking whether it's flight-deck-476019 or a
   different project, and if different, whether re-submitting under
   flight-deck-476019 instead is worth trying.
+
+  **2026-08-18, MAJOR UPDATE - the caveat above turned out to be wrong in
+  the useful direction, confirmed by a live call, not inference.** Found a
+  second module in E:\projects\reporting-suite
+  (shared/src/shared/gbp_business_info.py, API_BASE_URL
+  mybusinessbusinessinformation.googleapis.com/v1) - exactly the Business
+  Information API B-20 needs - that appeared built-but-unverified (its own
+  507-line test suite is 100% unittest.mock, no live-call evidence in any
+  checkpoint). Ran a real, live, read-only verification directly
+  (GBPBusinessInfoClient.list_accounts(), reusing reporting-suite's own
+  credentials/client_secrets.json + credentials/token.json - same
+  flight-deck-476019 project, OAuth scope business.manage, same shared
+  token as the already-working Performance API extractor): **it succeeded,
+  live, right now** - returned 15 real GBP accounts, not an error. Two are
+  clients this app already tracks: **Salvo Metal Works**
+  (accounts/111224042680146879833) and **United Structural Systems**
+  (accounts/111886712335671082123) - the same United Structural Systems the
+  older note above (2026-08-10) says "lives under a different Google
+  account and needs its own connection." That assumption is now confirmed
+  stale: it showed up in the same account list, under the same already-
+  working credentials, with everything else.
+  This means the Business Information API is NOT blocked at 0 QPM
+  everywhere - it is live and approved under flight-deck-476019 right now,
+  with real access to at least 15 client accounts including 2 this app
+  already tracks. workflow-portal's own fresh application (still stuck at
+  0 QPM after the 2026-08-18 re-application) may be the wrong path
+  entirely: reusing flight-deck-476019's proven-working access is very
+  likely faster than waiting on a separate cold application to clear
+  Google's review queue.
+  Un-verified accounts/locations note: `list_accounts()` calls
+  `{mybusinessbusinessinformation.googleapis.com}/v1/accounts` - per
+  Google's own API structure that endpoint normally belongs to the sibling
+  My Business Account Management API, not Business Information. Whether
+  this is a real cross-API quirk/alias or a latent mislabeling in
+  reporting-suite's own code, it demonstrably works today either way - not
+  chasing further, just noting it since it reads as a small inconsistency.
+  **Status effectively changed from "blocked" to "unblock path identified,
+  not yet implemented" - see the in-progress work item below.**
