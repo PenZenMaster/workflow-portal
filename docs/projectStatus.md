@@ -1,17 +1,49 @@
 ## Resume From
 
 Last session: 2026-08-18
-Branch: main | Version: v1.94.0 | PACKAGED, not yet deployed. v1.91.0 is still the last version confirmed live on cPanel (deploy + smoke test PASS). v1.92.0 (B-27 + B-06), v1.93.0 (B-15 v2), and v1.94.0 (B-24 partial) were all built and packaged this session in auto-mode but not yet uploaded/deployed - user has not been asked to deploy them yet.
+Branch: main | Version: v1.95.0 | PACKAGED, not yet deployed. v1.91.0 is still the last version confirmed live on cPanel (deploy + smoke test PASS). v1.92.0 (B-27 + B-06), v1.93.0 (B-15 v2), v1.94.0 (B-24 partial), and v1.95.0 (Epic 1 slice 5) were all built and packaged this session but not yet uploaded/deployed - user has not been asked to deploy them yet.
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live (endpoint probe returned the expected auth-rejection response, not a connectivity failure). RankRocket Site Insights admin CRUD (Parts A/B/C/D) is fully shipped and live end-to-end across both repos. No rankrocket-mcp changes this session.
 
 NEXT SESSION:
 1. Auto-mode medium-priority sweep COMPLETE: B-27 DONE (v1.92.0), B-06 DONE (v1.92.0, no code change), B-15 v2 DONE (v1.93.0), B-24 DONE-PARTIAL (v1.94.0 - workflow card icons + AI Visibility setup controls shipped; launch-dialog input-field tooltips explicitly deferred, needs the user's own copy for 116+ fields before it can be a real backlog item, not just a UI-wiring task).
-2. Deploy checkpoint needed: v1.92.0, v1.93.0, v1.94.0 are packaged/tagged but not on cPanel yet - all three are additive/low-risk (no schema/migration changes across any of them), safe to bundle into one deploy whenever the user is ready.
-3. Low priority backlog next: B-09 (Windows dev server), B-10 (replace better-sqlite3-session-store), B-14 (version in footer), B-20 (GBP snapshot, externally blocked).
-4. Epic 1 (issue #35) slice 5 - the standard adapter-contract test suite (parameterized, every enabled provider must pass), the last item on the original 5-slice roadmap. Slices 1-4 are now all shipped and deployed (1: v1.77.0, 2: v1.78.0, 3: v1.79.0, 4: v1.86.0).
+2. Epic 1 (issue #35) is now fully CLOSED - slice 5 (the standard adapter-contract test suite) shipped as v1.95.0, closing the 5-slice roadmap (1: v1.77.0, 2: v1.78.0, 3: v1.79.0, 4: v1.86.0, 5: v1.95.0).
+3. Deploy checkpoint needed: v1.92.0 through v1.95.0 are packaged/tagged but not on cPanel yet - v1.95.0 is test-only (no runtime/dist behavior change); the other three are additive/low-risk (no schema/migration changes across any of them). Safe to bundle all four into one deploy whenever the user is ready.
+4. Low priority backlog next: B-09 (Windows dev server), B-10 (replace better-sqlite3-session-store), B-14 (version in footer), B-20 (GBP snapshot, externally blocked).
 5. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
 6. Remaining Phase 3 RankRocket MCP follow-ups (distinct from the now-complete Site Insights admin CRUD): retrofitting the three existing Perplexity-launch RankRocket cards to use the MCP-client pattern, a third input for page/post-scoped read-only capabilities, generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server.
 7. Dev note: `npm run db:push` was used mid-session to apply migration 0030 directly to dev's data.db - if the dev server fails to boot next session with "duplicate column name" or similar, this is the known db:push-vs-migrate()-tracking desync (documented fix: delete dev data.db + sessions.db, let a fresh boot reseed and remigrate cleanly).
+
+Session 2026-08-18 (part 11): v1.95.0 - Epic 1 (issue #35) slice 5, the
+final slice of the 5-slice adapter-contract roadmap, closing the issue.
+New tests/server/adapters/contract.test.ts: one shared behavioral
+contract (empty-key guard, RawResponse shape, requestedModel/
+modelVariant separation, usage extraction + null-when-missing, 429
+retry + retry-exhaustion, no-retry-on-4xx, timeout -> AdapterTimeoutError
+with no retry, default/custom/env-override output-token cap) run via
+describe.each against all 7 enabled adapters (openai, anthropic, gemini,
+groq, mistral, deepseek, perplexity) - 12 assertions x 7 providers = 84
+tests in one file. Motivated by a real coverage gap this closes: Groq/
+Mistral/DeepSeek (added later, same OpenAICompatibleAdapter class as
+OpenAI) had only 2 tests each in the existing adapters.test.ts - no
+retry, timeout, or output-cap coverage at all - while OpenAI/Anthropic/
+Gemini had 6-9 each, purely because nobody had gone back to backfill
+parity after each adapter was added. The new suite makes that
+divergence structurally impossible going forward: any new adapter added
+to FIXTURES automatically gets the full contract for free, and skipping
+that step means the adapter has zero contract coverage rather than
+silently-thinner coverage. Purely additive - existing adapters.test.ts/
+perplexity.test.ts test files are unchanged (they retain provider-
+specific behavior not covered here: Anthropic's last-text-block
+selection, Perplexity's native ordered citations, Gemini's null
+providerRequestId already generalized into the new suite too). Not a
+TDD RED/GREEN cycle in the usual sense - this is regression-test
+coverage for already-shipped, already-correct behavior, not new
+production code; all 84 tests passed on first run confirming the
+weakly-tested adapters have no hidden divergence from the well-tested
+ones. Full suite 1546 -> 1630 tests, all green; lint, typecheck clean.
+Packaged/tagged but NOT deployed - this slice touches only test files,
+zero production/runtime behavior change, so it carries no deploy risk
+of its own.
 
 Session 2026-08-17 (part 9): Auto-mode medium-priority backlog sweep
 ("lets start on the medium Priority. Go into auto-mode and complete all
