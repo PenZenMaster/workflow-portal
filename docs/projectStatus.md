@@ -1,13 +1,13 @@
 ## Resume From
 
 Last session: 2026-08-18
-Branch: main | Version: v1.95.1 | v1.95.1 committed, packaged/tagged NOT yet deployed - see NEXT SESSION item 1. Prior state: v1.92.0-v1.95.0 confirmed DEPLOYED, smoke test PASS, TD-16 clean.
+Branch: main | Version: v1.95.1 | DEPLOYED, user confirmed smoke test PASS. Post-deploy TD-16 check via SSH: clean, exactly one lsnode worker each on portal.fullmetaljacketseo.com (started 16:30, post-deploy) and mcp.fullmetaljacketseo.com (started 01:06, untouched) - no stale duplicates.
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. RankRocket Site Insights admin CRUD (Parts A/B/C/D) is fully shipped and live end-to-end across both repos. No rankrocket-mcp changes this session.
 
 NEXT SESSION (top 3):
-1. Package and deploy v1.95.1 (B-09 EADDRINUSE fix - dev-only change, no schema/runtime prod risk, but not yet on cPanel). Low Priority backlog is now fully closed except B-20 (still externally blocked on Google API approval) - nothing queued there.
+1. Low Priority backlog is now fully closed except B-20 (GBP snapshot, still externally blocked on Google Business Profile API approval - check console.cloud.google.com > APIs & Services > Enabled APIs > My Business Business Information API > Quotas: 0 QPM = pending, 300 QPM = approved). Nothing else queued there.
 2. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
-3. TD-16 check: keep doing it every session per the standing ritual, even ones with no deploy. Not done this session (no deploy occurred, dev-only work).
+3. TD-16 check is clean as of this checkpoint (see above) - just keep doing it every session per the standing ritual, even ones with no deploy.
 
 Also open, lower priority (no action needed yet):
 - Remaining Phase 3 RankRocket MCP follow-ups (distinct from the now-complete Site Insights admin CRUD): retrofitting the three existing Perplexity-launch RankRocket cards to use the MCP-client pattern, a third input for page/post-scoped read-only capabilities, generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server. User has previously declined to start these.
