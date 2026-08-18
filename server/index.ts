@@ -18,6 +18,7 @@ import { serveStatic } from "./static";
 import { createServer } from "node:http";
 import { configureSession } from "./auth";
 import { refreshRankRocketSitesCache } from "./mcp/sitesCache";
+import { formatListenErrorMessage } from "./devServerErrors";
 import crypto from "node:crypto";
 import path from "node:path";
 
@@ -138,6 +139,14 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
+  httpServer.on("error", (err: NodeJS.ErrnoException) => {
+    const message = formatListenErrorMessage(err, process.platform, port);
+    if (message) {
+      logger.error(message);
+      process.exit(1);
+    }
+    throw err;
+  });
   httpServer.listen(
     {
       port,
