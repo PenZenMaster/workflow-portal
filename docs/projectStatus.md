@@ -3987,7 +3987,10 @@ Confirmed decisions:
   agencies can get delegated *manager* access to client locations under
   one project, but each client's own account may need to independently
   apply for real API quota on their own locations - consistent with the
-  existing OAuth-is-per-account note above. Unconfirmed until the pending
+  existing OAuth-is-per-account note above.
+  2026-08-18: user verified quota is still 0 QPM and submitted a
+  re-application for a quota increase. Still fully blocked - no code
+  work possible until Google approves. Unconfirmed until the pending
   application actually gets approved and a client under a different
   Google account is tested against it - flag this as the first thing to
   verify once B-20 is unblocked, before assuming one approval covers every
