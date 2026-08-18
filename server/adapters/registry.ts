@@ -117,6 +117,8 @@ export interface RankRocketMcpConfig {
   url: string;
   token: string;
   model: string;
+  maxTokens: number;
+  timeoutMs: number;
 }
 
 export function getRankRocketMcpConfig(): RankRocketMcpConfig | undefined {
@@ -124,5 +126,12 @@ export function getRankRocketMcpConfig(): RankRocketMcpConfig | undefined {
   const token = process.env.RANKROCKET_MCP_TOKEN;
   if (!apiKey || !token) return undefined;
   const url = process.env.RANKROCKET_MCP_URL || RANKROCKET_MCP_DEFAULT_URL;
-  return { apiKey, url, token, model: RANKROCKET_MCP_MODEL };
+  return {
+    apiKey,
+    url,
+    token,
+    model: RANKROCKET_MCP_MODEL,
+    maxTokens: RANKROCKET_MCP_MAX_TOKENS,
+    timeoutMs: RANKROCKET_MCP_TIMEOUT_MS,
+  };
 }

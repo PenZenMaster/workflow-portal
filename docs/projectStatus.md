@@ -1,17 +1,94 @@
 ## Resume From
 
 Last session: 2026-08-18
-Branch: main | Version: v1.95.1 | DEPLOYED, user confirmed smoke test PASS. Post-deploy TD-16 check via SSH: clean, exactly one lsnode worker each on portal.fullmetaljacketseo.com (started 16:30, post-deploy) and mcp.fullmetaljacketseo.com (started 01:06, untouched) - no stale duplicates.
-rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. RankRocket Site Insights admin CRUD (Parts A/B/C/D) is fully shipped and live end-to-end across both repos. No rankrocket-mcp changes this session.
+Branch: main | Version: v1.96.0 | committed, packaged/tagged - NOT yet deployed, see NEXT SESSION item 1. Prior state: v1.95.1 DEPLOYED, smoke test PASS, TD-16 clean.
+rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes this session.
 
 NEXT SESSION (top 3):
-1. Low Priority backlog is now fully closed except B-20 (GBP snapshot, still externally blocked on Google Business Profile API approval - check console.cloud.google.com > APIs & Services > Enabled APIs > My Business Business Information API > Quotas: 0 QPM = pending, 300 QPM = approved). Nothing else queued there.
+1. Package and deploy v1.96.0 (new clients.rankrocket_site_key column/migration 0031 - schema change, deploy carefully per the pre-deploy checklist; also includes two real bug fixes in shared adapter infra - see session note below). Not yet on cPanel.
 2. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
-3. TD-16 check is clean as of this checkpoint (see above) - just keep doing it every session per the standing ritual, even ones with no deploy.
+3. TD-16 check: keep doing it every session per the standing ritual, even ones with no deploy. Not done this session (no deploy occurred).
 
 Also open, lower priority (no action needed yet):
-- Remaining Phase 3 RankRocket MCP follow-ups (distinct from the now-complete Site Insights admin CRUD): retrofitting the three existing Perplexity-launch RankRocket cards to use the MCP-client pattern, a third input for page/post-scoped read-only capabilities, generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server. User has previously declined to start these.
+- B-20 (GBP snapshot) stays externally blocked - quota still 0 QPM as of 2026-08-18, user re-applied for a quota increase. See B-20's backlog entry for cross-repo findings (E:\projects\gbp_api_data and E:\projects\reporting-suite both have real, separately-approved GBP Performance API access under GCP project flight-deck-476019 - a different API product than what B-20 needs, but real evidence worth citing).
+- Cards 1 ("SEO Audit via Rank Rocket SEO Plugin") and 2 ("Location Page Builder") remain unconverted Perplexity-launch cards - Card 2 needs a net-new "create WordPress page" tool built in the separate rankrocket-mcp repo first (confirmed via source search: doesn't exist today); Card 1 needs a scope decision about its live browser-scan + apply-fix loop, which RankRocket-MCP cannot replace. Not a task to pick up unprompted - both are real follow-up planning exercises.
 - B-24's launch-dialog input-field tooltips (116+ fields, no per-field metadata in the schema) remain deferred pending the user's own "what is it / where to find it / example" copy - not a task to pick up unprompted.
+
+Session 2026-08-18 (part 13): v1.96.0 - `planning.ranking-growth-plan`, the
+pilot Lights-Out SEO Factory production cell, closing out the "retrofit the
+three Perplexity-launch RankRocket cards" investigation with a reframe: user
+clarified the real goal is converting Workflow Catalog cards into Factory
+Cells (docs/lights-out-seo-factory.md's already-designed architecture -
+job contract, client-bound input, dryRun/approvalRequired, the persistent
+job runner), not extending the older rankrocketMcpEnabled catalog pattern.
+Investigated first (EnterPlanMode): the three cards need fundamentally
+different things - Card 1 needs live browser-rendered scanning MCP can't do,
+Card 2 needs WordPress page creation that doesn't exist in rankrocket-mcp
+anywhere (confirmed by source search), Card 3 ("Ranking Audit and Improvement
+Suite") is mostly read + report generation, matching the existing read-only
+MCP pattern. User chose Card 3 as the pilot, Factory Cells as the target
+architecture (both recommended options).
+New `clients.rankrocketSiteKey` column (migration 0031) - the Factory's
+"client contract as source of truth" principle applied to WordPress site
+targeting, replacing the old pattern of pasting WP Username/App Password into
+a Perplexity prompt every run. New
+`server/services/factory/rankingGrowthPlanCell.ts` (jobType
+`planning.ranking-growth-plan`): validates a ranking-CSV + optional
+supporting-context input, resolves the client's site key, and reuses the
+exact MCP tool-loop plumbing Site Insights already uses (read-only allowlist,
+zero new write-safety surface). Extracted that connect/filter/run/close
+sequence out of workflowPromptRun.ts into new
+`server/mcp/rankrocketToolRun.ts` (runRankRocketReadOnlyPrompt,
+isRankRocketMcpConfigured) so both callers share one implementation - pure
+refactor, existing workflowPromptRun.test.ts suite re-verified green
+unchanged (vitest's module-mocking resolves by file identity, not import
+depth, so the existing mocks kept working transitively).
+**Two real, previously-latent bugs found and fixed during live
+verification** (not caught by any existing test, both now covered):
+1. anthropicToolLoop.ts silently returned an EMPTY, apparently-successful
+   RawResponse when the tool loop exhausted maxIterations while the model
+   was still mid tool-use (no final answer ever produced) - indistinguishable
+   from a genuine empty-but-successful response. New
+   `AdapterMaxIterationsError` (server/adapters/types.ts, sibling to the
+   existing AdapterTimeoutError) now thrown instead. The existing test that
+   asserted the OLD behavior ("returns whatever text is available") was
+   itself encoding the bug - updated to assert the throw.
+2. `RANKROCKET_MCP_MAX_TOKENS` (4096) and `RANKROCKET_MCP_TIMEOUT_MS`
+   (60000) have existed in server/adapters/registry.ts since the MCP
+   pattern's introduction (2026-08-15/16) with comments stating clear
+   intent ("tool-driven responses can be verbose", "multi-round-trip tool
+   calls add latency") but were never actually threaded into any adapter
+   call anywhere in the codebase - every RankRocket-MCP call (including the
+   live "RankRocket Site Insights" card) has silently been using the
+   generic global defaults (1500 tokens, 30s) instead. Site Insights never
+   surfaced this because its simple single-tool-call answers rarely needed
+   more. Fixed: both fields added to `RankRocketMcpConfig` /
+   `getRankRocketMcpConfig()`, threaded through
+   `runRankRocketReadOnlyPrompt`'s new `{ maxIterations?, maxTokens?,
+   timeoutMs? }` opts (config value as default, caller override wins).
+Live verification (temp tsx script, deleted after, same precedent as the
+original Site Insights verification) caught both bugs in sequence: first an
+empty report (bug 1), then a 30s timeout (bug 2's missing timeoutMs), then a
+120s timeout even after fixing the wiring - which led to also trimming the
+cell's own prompt scope (dropped the heaviest ask, "draft implementation
+assets", capped tool calls to "2-3 most relevant" and the report to "top 3-5
+findings") rather than just continuing to raise timeouts blindly. Final
+verified run: real report, 7229 chars, genuinely tool-backed (real WP post
+IDs 512/856/857, real broken-link URLs, real focus-keyword text, real
+Elementor/perf-rule state, real Rank Math inactive flag) - not hallucinated.
+The pilot cell itself requests explicit headroom (maxIterations: 20,
+maxTokens: 16000, timeoutMs: 120000) grounded in these findings, documented
+inline as to why. docs/lights-out-seo-factory.md gained a new "6a. Planning
+Cells" section documenting the cell and the thinking-tokens-can-eat-the-whole-
+budget lesson for whoever builds the next one.
+TDD throughout every change (RED confirmed before each implementation step,
+including the two bug fixes - the existing anthropicToolLoop test that
+encoded bug 1 was updated to expect the throw, confirmed failing against the
+unfixed code first). Full suite 1633 -> 1660 tests, all green; lint,
+typecheck clean. The old "Ranking Audit and Improvement Suite" Workflow
+Catalog card (seed.ts) is completely untouched - the new cell is additive,
+not a replacement, until proven and the user decides to retire the old card.
+Cards 1 and 2 remain unconverted - see "Also open" above.
 
 Session 2026-08-18 (part 12): Low Priority backlog worked per user request
 ("work the low priority list 1-4", i.e. the Low Priority section's first

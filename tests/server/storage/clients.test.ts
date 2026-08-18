@@ -73,6 +73,19 @@ describe("ClientStore", () => {
     expect(await store.get(9999)).toBeUndefined();
   });
 
+  it("defaults rankrocketSiteKey to null when omitted", async () => {
+    const c = await store.create(SAMPLE_CLIENT);
+    expect(c.rankrocketSiteKey).toBeNull();
+  });
+
+  it("round-trips rankrocketSiteKey through create and update", async () => {
+    const c = await store.create({ ...SAMPLE_CLIENT, rankrocketSiteKey: "tristate-hvac" });
+    expect(c.rankrocketSiteKey).toBe("tristate-hvac");
+
+    const updated = await store.update(c.id, { ...SAMPLE_CLIENT, rankrocketSiteKey: "trevoraspiranti" });
+    expect(updated?.rankrocketSiteKey).toBe("trevoraspiranti");
+  });
+
   it("returns clients sorted alphabetically by name, case-insensitive", async () => {
     await store.create({ ...SAMPLE_CLIENT, name: "zeta Corp" });
     await store.create({ ...SAMPLE_CLIENT, name: "Acme Corp" });

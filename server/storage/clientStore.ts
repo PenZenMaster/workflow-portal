@@ -30,6 +30,7 @@ function hydrate(row: Row): Client {
     exclusions: JSON.parse(row.exclusions || "[]") as string[],
     coreServices: JSON.parse(row.coreServices || "[]") as string[],
     ownerUserId: row.ownerUserId,
+    rankrocketSiteKey: row.rankrocketSiteKey,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -77,6 +78,7 @@ export class ClientStore implements IClientStore {
         exclusions: JSON.stringify(data.exclusions ?? []),
         coreServices: JSON.stringify(data.coreServices ?? []),
         ownerUserId: data.ownerUserId ?? null,
+        rankrocketSiteKey: data.rankrocketSiteKey ?? null,
         createdAt: now,
         updatedAt: now,
       })
@@ -102,6 +104,7 @@ export class ClientStore implements IClientStore {
         exclusions: JSON.stringify(data.exclusions ?? []),
         coreServices: JSON.stringify(data.coreServices ?? []),
         ownerUserId: data.ownerUserId ?? null,
+        rankrocketSiteKey: data.rankrocketSiteKey ?? null,
         updatedAt: now,
       })
       .where(eq(clients.id, id))

@@ -146,6 +146,7 @@ export const SCHEMA_SQL = `
     exclusions TEXT NOT NULL DEFAULT '[]',
     core_services TEXT NOT NULL DEFAULT '[]',
     owner_user_id INTEGER,
+    rankrocket_site_key TEXT,
     deleted_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL

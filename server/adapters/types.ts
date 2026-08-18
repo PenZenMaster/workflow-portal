@@ -46,6 +46,17 @@ export class AdapterTimeoutError extends Error {
   }
 }
 
+// Distinguishes "the tool loop ran out of iterations while the model still
+// wanted to call tools" (no final answer was ever produced) from a normal
+// completion that happens to have empty text - so callers never mistake an
+// exhausted loop for a genuine empty-but-successful response.
+export class AdapterMaxIterationsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AdapterMaxIterationsError";
+  }
+}
+
 export interface CitationRef {
   url: string;
   position: number;

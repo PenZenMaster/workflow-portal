@@ -16,7 +16,12 @@
  */
 
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { getRankRocketMcpConfig, RANKROCKET_MCP_MODEL } from "../../../server/adapters/registry";
+import {
+  getRankRocketMcpConfig,
+  RANKROCKET_MCP_MODEL,
+  RANKROCKET_MCP_MAX_TOKENS,
+  RANKROCKET_MCP_TIMEOUT_MS,
+} from "../../../server/adapters/registry";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -45,6 +50,8 @@ describe("getRankRocketMcpConfig", () => {
       url: "https://mcp.fullmetaljacketseo.com/mcp",
       token: "rrmcp-token",
       model: RANKROCKET_MCP_MODEL,
+      maxTokens: RANKROCKET_MCP_MAX_TOKENS,
+      timeoutMs: RANKROCKET_MCP_TIMEOUT_MS,
     });
   });
 

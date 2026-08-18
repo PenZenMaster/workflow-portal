@@ -560,6 +560,42 @@ The stronger future model is creating a distributed, entity-consistent evidence 
 
 ---
 
+## 6a. Planning Cells
+
+**Implemented (2026-08-18):** `planning.ranking-growth-plan`
+(`server/services/factory/rankingGrowthPlanCell.ts`) - the pilot cell proving
+the Factory Cell pattern end-to-end for the RankRocket SEO Control Layer. Takes
+a keyword ranking CSV plus optional supporting context, resolves the client's
+registered RankRocket-MCP site key from the production contract (a new
+`clients.rankrocketSiteKey` column - no per-run pasted WordPress credentials),
+and runs the same read-only MCP tool loop `RankRocket Site Insights` uses to
+produce a markdown findings/priority-actions report grounded in the site's
+actual current state.
+
+A planning cell sits conceptually before Cell F: it reads and synthesizes but
+never writes, producing recommendations a human (or a later, write-capable
+cell) acts on - distinct from Cell B's keyword/prompt intelligence (broader
+query-universe research) and from Cell F's own "compare desired state to
+actual state" capability (which is about a specific already-decided change,
+not open-ended analysis).
+
+Deliberately out of scope for the pilot: GBP data (blocked on the Business
+Profile API access request, B-20 in `docs/projectStatus.md`) and a persistent
+"project knowledge / avoid duplicate scans" store (Layer 1's distinction
+between verified fact, inferred information, and generated content isn't
+built yet - every run is a fresh read today).
+
+Live-verification note: the model's own "thinking" tokens can consume an
+entire default token budget before producing any answer text on a
+tool-heavy, report-generating prompt like this one - the pilot's own
+verification run hit this exactly (4096-token default budget, fully consumed
+by thinking, zero answer text) before the cell was tuned to request more
+headroom (`maxTokens`, `maxIterations`, `timeoutMs` all overridable per call
+via `server/mcp/rankrocketToolRun.ts`). Worth remembering when building the
+next planning/report cell rather than rediscovering it.
+
+---
+
 ## 7. The Factory Orchestrator
 
 The orchestrator controls the entire production process.

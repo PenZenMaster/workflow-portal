@@ -171,6 +171,11 @@ export const clients = sqliteTable("clients", {
   exclusions: text("exclusions").notNull().default("[]"),   // JSON string[]
   coreServices: text("core_services").notNull().default("[]"), // JSON string[]
   ownerUserId: integer("owner_user_id"),
+  // Lights-Out SEO Factory: which rankrocket-mcp registered site this client's
+  // WordPress deployment targets (see docs/lights-out-seo-factory.md Cell F).
+  // Free text, not an enum - site keys are managed dynamically via rankrocket-mcp's
+  // own registry / the /admin/rankrocket-site-insights Sites CRUD, not this schema.
+  rankrocketSiteKey: text("rankrocket_site_key"),
   deletedAt: integer("deleted_at"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
@@ -216,6 +221,7 @@ export const insertClientSchema = z.object({
   exclusions: z.array(z.string()).default([]),
   coreServices: z.array(z.string()).default([]),
   ownerUserId: z.number().int().optional(),
+  rankrocketSiteKey: z.string().min(1).optional(),
 });
 
 export const insertBrandSchema = z.object({
@@ -257,6 +263,7 @@ export type Client = {
   exclusions: string[];
   coreServices: string[];
   ownerUserId: number | null;
+  rankrocketSiteKey: string | null;
   createdAt: number;
   updatedAt: number;
 };

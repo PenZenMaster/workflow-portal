@@ -208,7 +208,7 @@ describe("runAnthropicWithTools", () => {
     expect(lastMessage.content[0].content).toContain("MCP server unreachable");
   });
 
-  it("stops after maxIterations and returns whatever text is available rather than looping forever", async () => {
+  it("throws AdapterMaxIterationsError instead of silently returning empty text when maxIterations is exhausted mid tool-use", async () => {
     const alwaysToolUse = {
       status: 200,
       body: {
@@ -222,17 +222,45 @@ describe("runAnthropicWithTools", () => {
     vi.stubGlobal("fetch", f);
 
     const executeTool = vi.fn().mockResolvedValue({ isError: false, content: "ok" });
+    await expect(
+      runAnthropicWithTools(
+        "sk-ant-test",
+        "claude-opus-5",
+        "loop forever",
+        TOOLS,
+        executeTool,
+        { retryDelayMs: 0, maxIterations: 3 }
+      )
+    ).rejects.toMatchObject({
+      name: "AdapterMaxIterationsError",
+      message: expect.stringContaining("3"),
+    });
+    expect(f).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not throw when the final turn legitimately has no text (e.g. a distinct stop_reason)", async () => {
+    const f = mockFetchSequence([
+      {
+        status: 200,
+        body: {
+          model: "claude-opus-5",
+          content: [],
+          stop_reason: "end_turn",
+          usage: { input_tokens: 10, output_tokens: 0 },
+        },
+      },
+    ]);
+    vi.stubGlobal("fetch", f);
+
     const result = await runAnthropicWithTools(
       "sk-ant-test",
       "claude-opus-5",
-      "loop forever",
+      "p",
       TOOLS,
-      executeTool,
-      { retryDelayMs: 0, maxIterations: 3 }
+      vi.fn(),
+      { retryDelayMs: 0 }
     );
-
     expect(result.text).toBe("");
-    expect(f).toHaveBeenCalledTimes(3);
   });
 
   it("retries on 429 and succeeds", async () => {

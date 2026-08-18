@@ -21,7 +21,7 @@
  */
 
 import type { RawResponse } from "./types";
-import { AdapterTimeoutError } from "./types";
+import { AdapterTimeoutError, AdapterMaxIterationsError } from "./types";
 import { resolveMaxOutputTokens, resolveTimeoutMs } from "./openaiCompatible";
 import { logger } from "../logger";
 import type { McpToolResult } from "../mcp/mcpClient";
@@ -168,6 +168,12 @@ export async function runAnthropicWithTools(
     );
 
     messages.push({ role: "user", content: toolResults });
+  }
+
+  if (last?.stop_reason === "tool_use") {
+    throw new AdapterMaxIterationsError(
+      `Anthropic tool loop exhausted maxIterations (${maxIterations}) while the model was still requesting tool calls - no final answer was produced`
+    );
   }
 
   const content = last?.content ?? [];
