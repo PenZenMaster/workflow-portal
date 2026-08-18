@@ -1,18 +1,62 @@
 ## Resume From
 
 Last session: 2026-08-18
-Branch: main | Version: v1.95.0 | DEPLOYED. User confirmed deploy + smoke test PASS for v1.92.0, v1.93.0, v1.94.0, v1.95.0 (bundled into one cPanel deploy). Post-deploy TD-16 check via SSH (`ssh -i ~/.ssh/workflow-portal` - the plain default-key attempt failed first, corrected mid-checkpoint): clean, exactly one lsnode worker each on portal.fullmetaljacketseo.com (started 15:38, post-deploy) and mcp.fullmetaljacketseo.com (started 01:06) - no stale duplicates, nothing to kill.
-rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live (endpoint probe returned the expected auth-rejection response, not a connectivity failure). RankRocket Site Insights admin CRUD (Parts A/B/C/D) is fully shipped and live end-to-end across both repos. No rankrocket-mcp changes this session.
+Branch: main | Version: v1.95.1 | v1.95.1 committed, packaged/tagged NOT yet deployed - see NEXT SESSION item 1. Prior state: v1.92.0-v1.95.0 confirmed DEPLOYED, smoke test PASS, TD-16 clean.
+rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. RankRocket Site Insights admin CRUD (Parts A/B/C/D) is fully shipped and live end-to-end across both repos. No rankrocket-mcp changes this session.
 
 NEXT SESSION (top 3):
-1. Auto-mode medium-priority sweep (B-27, B-06, B-15 v2, B-24-partial) and Epic 1 (issue #35, all 5 slices) are now fully COMPLETE and DEPLOYED as of v1.95.0 - pick up the Low Priority backlog next: B-09 (Windows dev server), B-10 (replace better-sqlite3-session-store), B-14 (version in footer). B-20 (GBP snapshot) stays externally blocked on Google API approval.
+1. Package and deploy v1.95.1 (B-09 EADDRINUSE fix - dev-only change, no schema/runtime prod risk, but not yet on cPanel). Low Priority backlog is now fully closed except B-20 (still externally blocked on Google API approval) - nothing queued there.
 2. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
-3. TD-16 check is clean as of this checkpoint (see above) - just keep doing it every session per the standing ritual, even ones with no deploy.
+3. TD-16 check: keep doing it every session per the standing ritual, even ones with no deploy. Not done this session (no deploy occurred, dev-only work).
 
 Also open, lower priority (no action needed yet):
 - Remaining Phase 3 RankRocket MCP follow-ups (distinct from the now-complete Site Insights admin CRUD): retrofitting the three existing Perplexity-launch RankRocket cards to use the MCP-client pattern, a third input for page/post-scoped read-only capabilities, generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server. User has previously declined to start these.
 - B-24's launch-dialog input-field tooltips (116+ fields, no per-field metadata in the schema) remain deferred pending the user's own "what is it / where to find it / example" copy - not a task to pick up unprompted.
-- Dev note: `npm run db:push` was used earlier this week to apply migration 0030 directly to dev's data.db - if the dev server fails to boot with "duplicate column name" or similar, this is the known db:push-vs-migrate()-tracking desync (documented fix: delete dev data.db + sessions.db, let a fresh boot reseed and remigrate cleanly).
+
+Session 2026-08-18 (part 12): Low Priority backlog worked per user request
+("work the low priority list 1-4", i.e. the Low Priority section's first
+four entries: B-08 already closed, B-09/B-10/B-14 addressed this session,
+B-20 excluded as still externally blocked).
+B-09 (Windows dev server) CLOSED as v1.95.1: investigated by actually
+booting the dev server on this Windows machine rather than assuming the
+backlog description was still accurate. The original dual-bind concern
+was already handled (win32 reusePort:false guard, present since the
+initial commit). Reproduced a real, different issue instead: stopping
+`npm run dev` (task-kill / Ctrl+C) does not reliably terminate the
+underlying node.exe child on Windows - confirmed directly via
+Get-NetTCPConnection/Get-Process showing an orphaned node.exe still bound
+to port 5000 after the wrapping task was reported stopped - so a
+follow-up `npm run dev` crashed with a raw unhandled EADDRINUSE stack
+trace giving no hint of the real cause. Fixed: new
+server/devServerErrors.ts (formatListenErrorMessage, pure/testable)
+wired into httpServer's 'error' event handler in server/index.ts - on
+EADDRINUSE, logs the port, likely cause, and the exact find-and-kill
+command per platform (netstat/taskkill on win32, lsof/kill elsewhere)
+then exits, instead of throwing; every other listen error still throws
+unchanged. TDD: RED confirmed (module didn't exist) before implementing.
+Live-verified the fix itself, not just the unit test: started two dev-
+server instances back to back and confirmed the second one printed the
+new actionable message instead of the old stack trace. Also hit and
+fixed, as a blocking prerequisite to even booting dev: the known dev
+data.db/sessions.db db:push-vs-migrate() desync (documented recovery -
+delete + reseed - carried over from a prior session's note, now applied).
+Full suite 1630 -> 1633 tests, all green; lint, typecheck clean.
+B-10 (evaluate replacing better-sqlite3-session-store) CLOSED, no code
+change: package is stale (last published 2022-06-25, single maintainer)
+but `npm audit` shows zero known vulnerabilities and it works correctly
+here; the realistic alternative (connect-sqlite3) uses the callback-style
+`sqlite3` driver instead of `better-sqlite3` already used everywhere else
+in this codebase, so swapping would add a second SQLite driver for no
+functional gain. Same investigate-and-close precedent as B-08/B-06.
+B-14 (version number in footer of every page) CLOSED, no code change:
+found already shipped in an earlier commit (315a9e2, "add semantic
+versioning and version badge on all pages") - a global `v{__APP_VERSION__}`
+badge in App.tsx, outside the Router switch, visible on every route
+including pre-auth screens. The backlog entry was simply never marked
+closed once the feature landed - same documentation-lag pattern as the
+Epic 1 slice 3 gap from the 2026-08-10 checkpoint.
+Committed (6ff7475) - NOT yet pushed/packaged/deployed, see NEXT SESSION
+item 1.
 
 Session 2026-08-18 (part 11): v1.95.0 - Epic 1 (issue #35) slice 5, the
 final slice of the 5-slice adapter-contract roadmap, closing the issue.
@@ -3872,10 +3916,51 @@ Confirmed decisions:
   ~60 errors 100% inside node_modules (unused drizzle-orm dialects,
   recharts/lodash types gap, vitest's own .d.ts), zero in this project's
   own code. Reverted, no code change.
-- B-09 Local dev server fix for Windows (remaining socket/network issues)
-- B-10 Evaluate replacing better-sqlite3-session-store (deprecated)
-- B-14 Display the app version number (from package.json) in the footer of every page —
-  currently Home.tsx has a one-off footer but no shared layout footer exists across routes.
+- B-09 Local dev server fix for Windows - **CLOSED 2026-08-18 (v1.95.1)**.
+  Reproduced directly on this Windows machine: `npm run dev` boots and
+  responds cleanly on both localhost/127.0.0.1 (the existing win32
+  reusePort:false guard in server/index.ts already handles the original
+  dual-bind issue). The real remaining pain was port-conflict recovery -
+  stopping the dev server (Ctrl+C, closing the terminal, a harness task
+  kill) does not reliably terminate the underlying node.exe on Windows,
+  so it keeps holding the port; the next `npm run dev` then crashed with
+  a raw unhandled EADDRINUSE stack trace with no hint of the real cause.
+  Fixed: httpServer now handles the 'error' event and, on EADDRINUSE,
+  logs the port, likely cause, and the exact find-and-kill command per
+  platform (netstat/taskkill on win32, lsof/kill elsewhere) before
+  exiting, instead of throwing. New server/devServerErrors.ts
+  (formatListenErrorMessage, pure/testable), 3 new tests, TDD (RED
+  confirmed - module didn't exist - before implementing). Verified live:
+  started two dev-server instances back to back, second one printed the
+  new actionable message instead of the old stack trace. Also hit and
+  fixed the known dev data.db/sessions.db db:push-vs-migrate() desync
+  while investigating (documented recovery: delete + reseed) - unrelated
+  pre-existing issue, not itself part of B-09's scope, but was blocking
+  local boot entirely. Full suite 1630 -> 1633 tests, all green; lint,
+  typecheck clean.
+- B-10 Evaluate replacing better-sqlite3-session-store (deprecated) -
+  **CLOSED 2026-08-18**, investigated, no code change. Package is stale
+  (last published 2022-06-25, single maintainer, 4 versions total) but
+  `npm audit` reports zero known vulnerabilities and it works correctly
+  in this app (server/auth.ts) with no observed bugs. The realistic
+  alternatives (e.g. connect-sqlite3) use the callback-style `sqlite3`
+  driver rather than `better-sqlite3` already used everywhere else in
+  this codebase (Drizzle, jobs, migrations) - swapping would mean a
+  second SQLite driver in the dependency tree for no functional gain.
+  Same investigate-and-close precedent as B-08/B-06 - revisit only if a
+  CVE or an actual bug surfaces.
+- B-14 Display the app version number (from package.json) in the footer of every page -
+  **CLOSED 2026-08-18, already shipped, doc-only correction**. Found already
+  implemented: commit 315a9e2 ("add semantic versioning and version badge
+  on all pages", predates this checkpoint) added a global `v{__APP_VERSION__}`
+  badge in App.tsx (`__APP_VERSION__` injected from package.json via
+  vite.config.ts's `define`), rendered as a fixed bottom-right overlay
+  outside the Router switch, so it's present on every route including the
+  pre-auth screens (login/setup, forgot/reset password) - not just Home.tsx's
+  separate workflow-count footer, which shows no version. This backlog entry
+  was simply never marked closed once the feature shipped - same
+  documentation-lag pattern as the Epic 1 slice 3 gap noted in the
+  2026-08-10 checkpoint. No code change, no version bump.
 - B-20 Feature: GBP snapshot integration. Once Google Business Profile API
   access is approved (application submitted 2026-07-03, still pending as of
   2026-08-10 — user-owned, checked every session with no change), add a
