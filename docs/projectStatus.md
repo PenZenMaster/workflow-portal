@@ -1,15 +1,37 @@
 ## Resume From
 
 Last session: 2026-08-17
-Branch: main | Version: v1.91.0 | DEPLOYED. User confirmed deploy + smoke test PASS. Post-deploy TD-16 check via SSH: found one stale mcp.fullmetaljacketseo.com worker (PID 2818111, ~12.5h old, predating today's rankrocket-mcp deploy) alongside the fresh one - killed it, confirmed clean (single fresh worker on each of portal and mcp).
-rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live (endpoint probe returned the expected auth-rejection response, not a connectivity failure). RankRocket Site Insights admin CRUD (Parts A/B/C/D) is now fully shipped and live end-to-end across both repos.
+Branch: main | Version: v1.93.0 | PACKAGED, not yet deployed. v1.91.0 is still the last version confirmed live on cPanel (deploy + smoke test PASS). v1.92.0 (B-27 source-domain admin UI + B-06 session-store review, no code change) and v1.93.0 (B-15 v2 guided-checklist links) were built and packaged this session in auto-mode but not yet uploaded/deployed - user has not been asked to deploy them yet.
+rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live (endpoint probe returned the expected auth-rejection response, not a connectivity failure). RankRocket Site Insights admin CRUD (Parts A/B/C/D) is fully shipped and live end-to-end across both repos. No rankrocket-mcp changes this session.
 
 NEXT SESSION:
-1. Remaining backlog items: B-24 (tooltips), B-27 (source-domain registry admin UI), B-06 (session store expiry review), B-15 v2 (onboarding wizard) medium priority; B-09 (Windows dev server), B-10 (replace better-sqlite3-session-store), B-14 (version in footer), B-20 (GBP snapshot, externally blocked) low priority.
-2. Epic 1 (issue #35) slice 5 - the standard adapter-contract test suite (parameterized, every enabled provider must pass), the last item on the original 5-slice roadmap. Slices 1-4 are now all shipped and deployed (1: v1.77.0, 2: v1.78.0, 3: v1.79.0, 4: v1.86.0).
-3. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
-4. Remaining Phase 3 RankRocket MCP follow-ups (distinct from the now-complete Site Insights admin CRUD): retrofitting the three existing Perplexity-launch RankRocket cards to use the MCP-client pattern, a third input for page/post-scoped read-only capabilities, generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server.
+1. Auto-mode medium-priority sweep in progress: B-27 DONE (v1.92.0), B-06 DONE (v1.92.0, no code change), B-15 v2 DONE (v1.93.0). B-24 (tooltips) is the last of the 4 medium-priority items - not yet started.
+2. Deploy checkpoint needed: v1.92.0 and v1.93.0 are packaged/tagged but not on cPanel yet - confirm with user before/after B-24 whether to deploy now or bundle with B-24.
+3. Low priority backlog once B-24 is done: B-09 (Windows dev server), B-10 (replace better-sqlite3-session-store), B-14 (version in footer), B-20 (GBP snapshot, externally blocked).
+4. Epic 1 (issue #35) slice 5 - the standard adapter-contract test suite (parameterized, every enabled provider must pass), the last item on the original 5-slice roadmap. Slices 1-4 are now all shipped and deployed (1: v1.77.0, 2: v1.78.0, 3: v1.79.0, 4: v1.86.0).
+5. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
+6. Remaining Phase 3 RankRocket MCP follow-ups (distinct from the now-complete Site Insights admin CRUD): retrofitting the three existing Perplexity-launch RankRocket cards to use the MCP-client pattern, a third input for page/post-scoped read-only capabilities, generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server.
 7. Dev note: `npm run db:push` was used mid-session to apply migration 0030 directly to dev's data.db - if the dev server fails to boot next session with "duplicate column name" or similar, this is the known db:push-vs-migrate()-tracking desync (documented fix: delete dev data.db + sessions.db, let a fresh boot reseed and remigrate cleanly).
+
+Session 2026-08-17 (part 9): Auto-mode medium-priority backlog sweep
+("lets start on the medium Priority. Go into auto-mode and complete all
+steps" - covers B-24, B-27, B-06, B-15 v2, no per-item confirmation).
+v1.92.0: B-27 source-domain registry admin UI (pure UI slice, backend
+already existed) + B-06 session-store expiry review (CLOSED, verified
+safe, no code change - see Backlog entries for both). v1.93.0: B-15 v2 -
+Client Run-Readiness issues list is now a guided checklist. New additive
+`ClientReadiness.actionableIssues: { message, href }[]` field
+(shared/schema.ts) built alongside the existing `issues: string[]` in
+computeReadiness() (server/services/clientReadiness.ts); confirmed
+measurementHealth.ts never reads `.issues` so this is zero-blast-radius
+there. ClientsList.tsx and ClientDetail.tsx both switched from plain
+`<li>{issue}</li>` to wouter `<Link>`s targeting `/ai/clients/:id`
+(brand issues) or `/ai/clients/:id/prompts` (missing-collection issue) -
+wouter's useHashLocation rules out hash-anchor scroll-to-section, so
+links are page-level only. TDD throughout both slices. Full suite
+1469 -> 1540 tests, all green; lint, typecheck clean each time. Both
+versions packaged/tagged but NOT yet deployed to cPanel - see Resume
+From. B-24 (tooltips) remains, the last of the 4 medium-priority items.
 
 Session 2026-08-17 (part 8): v1.91.0 - RankRocket Site Insights admin
 CRUD, Parts A/B/D (site credentials) shipped, completing the feature
@@ -3726,10 +3748,27 @@ Confirmed decisions:
 - B-15 v1 DONE (v1.15.0): Client Run-Readiness badges on /ai/clients (Ready /
   Setup incomplete with itemized issues) catch the missing-competitors gap that
   caused Salvo's AI SoV to read 0%/100% (see system-documentation.md Section 1B
-  Step 2 note, added 2026-06-12). Remaining for a v2: turn the issues list into
-  a guided onboarding wizard/checklist that links directly to the page where
-  each fix is made (add brand, add competitor + aliases, create prompt
-  collection), per the 6 manual setup steps in Section 1B.
+  Step 2 note, added 2026-06-12).
+  **v2 COMPLETE (v1.93.0)**: turned the issues list into a guided checklist -
+  each issue is now a clickable link to the page where it's fixed, not just
+  plain text. New additive field `ClientReadiness.actionableIssues:
+  { message: string; href: string }[]` (shared/schema.ts) alongside the
+  existing `issues: string[]`, which measurementHealth.ts still consumes
+  unchanged (confirmed it never reads `.issues`, only competitorBrandCount/
+  competitorBrandsWithAliasCount - additive field, zero blast radius there).
+  server/services/clientReadiness.ts's computeReadiness() now builds both
+  arrays together, one issue per push. Links target `/ai/clients/:id` for
+  brand-related issues (missing client brand, missing/unaliased competitors)
+  and `/ai/clients/:id/prompts` for the missing-active-collection issue -
+  wouter's useHashLocation rules out hash-anchor scrolling to a section
+  within the page, so this is page-level navigation only, not scroll-to-
+  section. Both ClientsList.tsx (expandable badge) and ClientDetail.tsx
+  (setup-incomplete banner) switched from rendering `.issues` as plain `<li>`
+  text to rendering `.actionableIssues` as wouter `<Link>`s. TDD throughout
+  (5 clientReadiness.test.ts assertions, 1 new ClientsList.test.tsx test, 1
+  new ClientDetail.test.tsx test). Full suite 1538 -> 1540 tests, all green;
+  lint, typecheck clean. No schema/DB migration - pure TS type addition, no
+  Drizzle table involved.
 
 ### Low Priority
 - B-08 skipLibCheck: false in tsconfig - **CLOSED 2026-08-17**, duplicate

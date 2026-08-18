@@ -60,6 +60,7 @@ describe("clientReadiness", () => {
         hasActivePromptCollectionWithPrompts: true,
         ready: true,
         issues: [],
+        actionableIssues: [],
       });
     });
 
@@ -74,6 +75,11 @@ describe("clientReadiness", () => {
       expect(result.hasClientBrand).toBe(false);
       expect(result.ready).toBe(false);
       expect(result.issues).toContain("No client brand defined");
+      // B-15 v2: each issue links directly to the page where it's fixed.
+      expect(result.actionableIssues).toContainEqual({
+        message: "No client brand defined",
+        href: "/ai/clients/10",
+      });
     });
 
     it("flags missing competitor brands as an AI Share of Voice risk", async () => {
@@ -87,6 +93,10 @@ describe("clientReadiness", () => {
       expect(result.competitorBrandCount).toBe(0);
       expect(result.ready).toBe(false);
       expect(result.issues).toContain("No competitor brands defined - AI Share of Voice will be meaningless");
+      expect(result.actionableIssues).toContainEqual({
+        message: "No competitor brands defined - AI Share of Voice will be meaningless",
+        href: "/ai/clients/10",
+      });
     });
 
     it("flags competitor brands that have no aliases configured", async () => {
@@ -102,6 +112,11 @@ describe("clientReadiness", () => {
       expect(result.issues).toContain(
         "Competitor brands have no aliases configured - canonical names still match, but short-form name variants will be missed"
       );
+      expect(result.actionableIssues).toContainEqual({
+        message:
+          "Competitor brands have no aliases configured - canonical names still match, but short-form name variants will be missed",
+        href: "/ai/clients/10",
+      });
     });
 
     it("flags missing an active prompt collection with prompts", async () => {
@@ -115,6 +130,10 @@ describe("clientReadiness", () => {
       expect(result.hasActivePromptCollectionWithPrompts).toBe(false);
       expect(result.ready).toBe(false);
       expect(result.issues).toContain("No active prompt collection with prompts");
+      expect(result.actionableIssues).toContainEqual({
+        message: "No active prompt collection with prompts",
+        href: "/ai/clients/10/prompts",
+      });
     });
   });
 

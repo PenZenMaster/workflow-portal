@@ -80,6 +80,15 @@ Navigate to **Users** (top navigation, visible to Super Admin only). Create acco
 
 Follow this order for each new client. Skipping steps will result in missing data in reports.
 
+> **Guided checklist (v1.93.0):** the portal tracks whether Steps 1-3 are
+> complete for a client and surfaces a "Ready" / "Setup incomplete" badge on
+> `/ai/clients` and a setup-incomplete banner on the client's own page. Since
+> v1.93.0 each listed issue is a clickable link straight to the page where
+> it's fixed (the client page for missing brand/competitor/alias issues, the
+> Prompt Collections page for a missing active collection with prompts) —
+> operators no longer need to cross-reference this doc manually to find where
+> a flagged gap is fixed.
+
 **Step 1 — Create the client**
 AI Visibility → New Client
 - **Client name**: the agency client's company name

@@ -10,9 +10,10 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-06-14
- * Last Modified Date: 2026-06-14
+ * Last Modified Date: 2026-08-17
  * Comments:
  * - v1.00 Initial implementation (B-15)
+ * - v1.01 Add actionableIssues with page-level links for guided fix flow (B-15 v2)
  */
 
 import {
@@ -46,16 +47,29 @@ export async function computeReadiness(clientId: number): Promise<ClientReadines
   }
 
   const issues: string[] = [];
-  if (!clientBrand) issues.push("No client brand defined");
+  const actionableIssues: { message: string; href: string }[] = [];
+  const clientHref = `/ai/clients/${clientId}`;
+  const promptsHref = `/ai/clients/${clientId}/prompts`;
+
+  if (!clientBrand) {
+    const message = "No client brand defined";
+    issues.push(message);
+    actionableIssues.push({ message, href: clientHref });
+  }
   if (competitorBrands.length === 0) {
-    issues.push("No competitor brands defined - AI Share of Voice will be meaningless");
+    const message = "No competitor brands defined - AI Share of Voice will be meaningless";
+    issues.push(message);
+    actionableIssues.push({ message, href: clientHref });
   } else if (competitorBrandsWithAliasCount === 0) {
-    issues.push(
-      "Competitor brands have no aliases configured - canonical names still match, but short-form name variants will be missed"
-    );
+    const message =
+      "Competitor brands have no aliases configured - canonical names still match, but short-form name variants will be missed";
+    issues.push(message);
+    actionableIssues.push({ message, href: clientHref });
   }
   if (!hasActivePromptCollectionWithPrompts) {
-    issues.push("No active prompt collection with prompts");
+    const message = "No active prompt collection with prompts";
+    issues.push(message);
+    actionableIssues.push({ message, href: promptsHref });
   }
 
   return {
@@ -66,6 +80,7 @@ export async function computeReadiness(clientId: number): Promise<ClientReadines
     hasActivePromptCollectionWithPrompts,
     ready: issues.length === 0,
     issues,
+    actionableIssues,
   };
 }
 

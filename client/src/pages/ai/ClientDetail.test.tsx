@@ -32,6 +32,10 @@ const API_RESPONSES: Record<string, unknown> = {
         "No competitor brands defined - AI Share of Voice will be meaningless",
         "No active prompt collection with prompts",
       ],
+      actionableIssues: [
+        { message: "No competitor brands defined - AI Share of Voice will be meaningless", href: "/ai/clients/4" },
+        { message: "No active prompt collection with prompts", href: "/ai/clients/4/prompts" },
+      ],
     },
   },
   "/api/clients/4/metrics/overview?period=30d": {
@@ -112,6 +116,19 @@ describe("ClientDetail (consolidated AI visibility page)", () => {
     expect(await screen.findByText(/Setup incomplete/i)).toBeInTheDocument();
     expect(screen.getByText("No competitor brands defined - AI Share of Voice will be meaningless")).toBeInTheDocument();
     expect(screen.getByText("No active prompt collection with prompts")).toBeInTheDocument();
+  });
+
+  it("links each setup-incomplete issue directly to the page where it's fixed", async () => {
+    renderClientDetail();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Acme" })).toBeInTheDocument());
+
+    const competitorLink = await screen.findByRole("link", {
+      name: "No competitor brands defined - AI Share of Voice will be meaningless",
+    });
+    expect(competitorLink).toHaveAttribute("href", "/ai/clients/4");
+
+    const promptsLink = screen.getByRole("link", { name: "No active prompt collection with prompts" });
+    expect(promptsLink).toHaveAttribute("href", "/ai/clients/4/prompts");
   });
 
   it("does not render separate top-nav links for sections now shown inline", async () => {

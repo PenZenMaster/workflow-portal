@@ -32,6 +32,7 @@ const READINESS = [
     hasActivePromptCollectionWithPrompts: true,
     ready: true,
     issues: [],
+    actionableIssues: [],
   },
   {
     clientId: 2,
@@ -43,6 +44,10 @@ const READINESS = [
     issues: [
       "No competitor brands defined - AI Share of Voice will be meaningless",
       "No active prompt collection with prompts",
+    ],
+    actionableIssues: [
+      { message: "No competitor brands defined - AI Share of Voice will be meaningless", href: "/ai/clients/2" },
+      { message: "No active prompt collection with prompts", href: "/ai/clients/2/prompts" },
     ],
   },
 ];
@@ -96,6 +101,23 @@ describe("ClientsList — readiness badges", () => {
     await userEvent.click(screen.getByText(/Setup incomplete/i));
     expect(screen.getByText("No competitor brands defined - AI Share of Voice will be meaningless")).toBeInTheDocument();
     expect(screen.getByText("No active prompt collection with prompts")).toBeInTheDocument();
+  });
+
+  it("renders each setup issue as a link to the page where it's fixed", async () => {
+    clientsResponse = { data: CLIENTS };
+    readinessResponse = { data: READINESS };
+
+    renderClientsList();
+
+    await userEvent.click(await screen.findByText(/Setup incomplete/i));
+
+    const competitorLink = screen.getByRole("link", {
+      name: "No competitor brands defined - AI Share of Voice will be meaningless",
+    });
+    expect(competitorLink).toHaveAttribute("href", "/ai/clients/2");
+
+    const promptsLink = screen.getByRole("link", { name: "No active prompt collection with prompts" });
+    expect(promptsLink).toHaveAttribute("href", "/ai/clients/2/prompts");
   });
 });
 

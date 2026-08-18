@@ -242,8 +242,12 @@ export default function ClientDetail() {
               client will be meaningful:
             </p>
             <ul className="list-disc list-inside space-y-0.5">
-              {readiness.issues.map((issue) => (
-                <li key={issue}>{issue}</li>
+              {readiness.actionableIssues.map((issue) => (
+                <li key={issue.message}>
+                  <Link href={issue.href} className="hover:underline hover:text-foreground">
+                    {issue.message}
+                  </Link>
+                </li>
               ))}
             </ul>
           </div>

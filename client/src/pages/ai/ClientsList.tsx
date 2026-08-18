@@ -205,9 +205,15 @@ export default function ClientsList() {
                   )}
                 </div>
                 {readiness && !readiness.ready && expanded && (
-                  <ul className="mt-2 ml-1 list-disc list-inside text-xs text-muted-foreground space-y-0.5">
-                    {readiness.issues.map((issue) => (
-                      <li key={issue}>{issue}</li>
+                  <ul className="mt-2 ml-1 list-disc list-inside text-xs space-y-0.5">
+                    {readiness.actionableIssues.map((issue) => (
+                      <li key={issue.message}>
+                        <Link href={issue.href}>
+                          <span className="text-muted-foreground hover:text-primary hover:underline">
+                            {issue.message}
+                          </span>
+                        </Link>
+                      </li>
                     ))}
                   </ul>
                 )}

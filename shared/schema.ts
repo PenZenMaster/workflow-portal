@@ -595,6 +595,7 @@ export type ClientReadiness = {
   hasActivePromptCollectionWithPrompts: boolean;
   ready: boolean;
   issues: string[];
+  actionableIssues: { message: string; href: string }[];
 };
 
 export type Platform = {
