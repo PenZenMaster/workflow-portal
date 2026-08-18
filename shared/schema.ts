@@ -642,6 +642,27 @@ export type RankrocketQuestionOption = {
   sortOrder: number;
 };
 
+// RankRocket Site Insights admin CRUD, Part B. No partial-secret patch:
+// appPassword can never be read back to pre-fill an edit, so update
+// requires the full baseUrl/authUser/appPassword resupplied, same as
+// add - both schemas are identical in shape, only the route semantics
+// (insert new key vs. overwrite existing key) differ.
+export const insertRankrocketSiteSchema = z.object({
+  key: z.string().min(1, "Site key is required").max(100),
+  baseUrl: z.string().min(1, "Base URL is required"),
+  authUser: z.string().min(1, "WordPress username is required"),
+  appPassword: z.string().min(1, "WordPress Application Password is required"),
+});
+
+export const updateRankrocketSiteSchema = z.object({
+  baseUrl: z.string().min(1, "Base URL is required"),
+  authUser: z.string().min(1, "WordPress username is required"),
+  appPassword: z.string().min(1, "WordPress Application Password is required"),
+});
+
+export type InsertRankrocketSite = z.infer<typeof insertRankrocketSiteSchema>;
+export type UpdateRankrocketSite = z.infer<typeof updateRankrocketSiteSchema>;
+
 export type PromptCollection = {
   id: number;
   clientId: number;

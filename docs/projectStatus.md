@@ -1,16 +1,90 @@
 ## Resume From
 
 Last session: 2026-08-17
-Branch: main | Version: v1.90.0 | NOT YET DEPLOYED (v1.87.0 is the last version confirmed live). v1.90.0 has a schema migration (0030, rankrocket_question_options) - verify it applies cleanly against prod data.db via direct SQL immediately after deploying, before smoke-testing.
+Branch: main | Version: v1.91.0 | NOT YET DEPLOYED (v1.90.0 is the last version confirmed live - migration 0030 verified applied cleanly, 8 seed question options confirmed present, TD-16 clean). v1.91.0 has no schema migration (site credentials live entirely in rankrocket-mcp's sites.json, not this app's DB) - safe to deploy without a migration-verification step, just the usual smoke test.
+rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 locally - committed and pushed, but **NOT YET deployed to cPanel** (mcp.fullmetaljacketseo.com is still running 0.10.0). workflow-portal's Sites section will fail (502) until rankrocket-mcp 0.11.0 is deployed too - deploy that one first, or alongside v1.91.0.
 
 NEXT SESSION:
-1. Deploy v1.90.0, verify migration 0030 applied cleanly, smoke test, TD-16 check.
-2. RankRocket Site Insights admin CRUD, Part B (site credentials) - the larger, cross-repo half of the feature started this session. Part C (question options) shipped as v1.90.0; Part A (rankrocket-mcp write tools)/B (portal admin routes)/D (Sites section on the same admin page) are NOT started. Full design already scoped and approved - see this session's plan file if still available, or re-derive from Part C's shipped code (server/routes/rankrocketAdmin.ts, server/storage/rankrocketQuestionOptionStore.ts, client/src/pages/admin/RankRocketSiteInsights.tsx) as the established pattern to extend. Key constraints already decided: never expose the site-write MCP tool to Claude's own tool selection (workflow-portal's server calls it directly, same precedent as rankrocket_sites/sitesCache.ts); workflow-portal never persists the WP Application Password at rest (pass-through only); reuse the existing single RANKROCKET_MCP_TOKEN bearer rather than a new secret; never log the appPassword.
-3. Remaining backlog items: B-24 (tooltips), B-27 (source-domain registry admin UI), B-06 (session store expiry review), B-15 v2 (onboarding wizard) medium priority; B-09 (Windows dev server), B-10 (replace better-sqlite3-session-store), B-14 (version in footer), B-20 (GBP snapshot, externally blocked) low priority.
-4. Epic 1 (issue #35) slice 5 - the standard adapter-contract test suite (parameterized, every enabled provider must pass), the last item on the original 5-slice roadmap. Slices 1-4 are now all shipped and deployed (1: v1.77.0, 2: v1.78.0, 3: v1.79.0, 4: v1.86.0).
-5. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
-6. Remaining Phase 3 RankRocket MCP follow-ups (distinct from item 2 above): retrofitting the three existing Perplexity-launch RankRocket cards to use the MCP-client pattern, a third input for page/post-scoped read-only capabilities, generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server.
+1. Deploy rankrocket-mcp v0.11.0 first (dist/rankrocket-mcp-deploy-0.11.0.tar.gz already built, cPanel upload+restart per that repo's own README), then workflow-portal v1.91.0. Smoke test: open RankRocket Site Insights admin page, confirm the Sites section loads (not a 502), add/edit/delete a real test site, confirm it appears/disappears in the "RankRocket Site Insights" workflow card's site-key dropdown without a workflow-portal restart (tests the cache-refresh-after-write step).
+2. Remaining backlog items: B-24 (tooltips), B-27 (source-domain registry admin UI), B-06 (session store expiry review), B-15 v2 (onboarding wizard) medium priority; B-09 (Windows dev server), B-10 (replace better-sqlite3-session-store), B-14 (version in footer), B-20 (GBP snapshot, externally blocked) low priority.
+3. Epic 1 (issue #35) slice 5 - the standard adapter-contract test suite (parameterized, every enabled provider must pass), the last item on the original 5-slice roadmap. Slices 1-4 are now all shipped and deployed (1: v1.77.0, 2: v1.78.0, 3: v1.79.0, 4: v1.86.0).
+4. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
+5. Remaining Phase 3 RankRocket MCP follow-ups (distinct from the now-complete Site Insights admin CRUD): retrofitting the three existing Perplexity-launch RankRocket cards to use the MCP-client pattern, a third input for page/post-scoped read-only capabilities, generalizing server/mcp/mcpClient.ts + toolBridge.ts for a second future MCP server.
 7. Dev note: `npm run db:push` was used mid-session to apply migration 0030 directly to dev's data.db - if the dev server fails to boot next session with "duplicate column name" or similar, this is the known db:push-vs-migrate()-tracking desync (documented fix: delete dev data.db + sessions.db, let a fresh boot reseed and remigrate cleanly).
+
+Session 2026-08-17 (part 8): v1.91.0 - RankRocket Site Insights admin
+CRUD, Parts A/B/D (site credentials) shipped, completing the feature
+started earlier this session (Part C, question options, shipped as
+v1.90.0). User confirmed "yes, continue now" to building the larger
+cross-repo credential slice in the same session.
+Part A (rankrocket-mcp, separate repo, shipped as v0.11.0): new
+saveSites/upsertSite/deleteSite (src/config/sites.ts) - read-modify-
+write sites.json and drop the module's in-memory cache afterward so the
+next read reflects the change immediately; this file had no write path
+or cache invalidation before this release. New rankrocket_sites_detail
+tool (read-only, key/baseUrl/authUser for every site, never
+appPassword) and rankrocket_sites_write tool (add/update/delete,
+confirm:true gated, destructiveHint:true, matching every other write
+tool's safety pattern exactly - update requires the full baseUrl/
+authUser/appPassword resupplied, no partial-secret patch, since
+appPassword can never be read back to pre-fill an edit). TDD throughout,
+21 new tests (10 config-loader, 11 tool-registration), full suite 122 ->
+138, build clean. README/CONNECTING.md/CHANGELOG.md updated (20 tools
+total, 11 read-only). Committed, pushed (5ea3b73). Deploy tarball built
+(dist/rankrocket-mcp-deploy-0.11.0.tar.gz) but NOT yet uploaded to
+cPanel - mcp.fullmetaljacketseo.com is still running 0.10.0 as of this
+checkpoint.
+Part B (workflow-portal admin routes): new server/mcp/sitesAdmin.ts
+(listSitesDetail/upsertSite/deleteSite - thin wrappers calling
+rankrocket-mcp's two new tools directly via the existing MCP client,
+same connect-call-close pattern as sitesCache.ts's boot-time refresh;
+every function throws on failure rather than sitesCache.ts's silent-
+degrade, so the admin route surfaces a real error; a successful write
+also calls refreshRankRocketSitesCache() so the site-key dropdown
+picks up the change without an app restart). Four new routes in
+server/routes/rankrocketAdmin.ts (GET .../sites/admin,
+POST/PATCH/DELETE .../sites[/:key]) - unlike Part C's question-options
+GET, every one of these requires ADMIN_ROLES, since they expose real
+WordPress credentials on write and site metadata on read. A failed MCP
+call is logged server-side with full detail but translated to a generic
+502 in the HTTP response, so connection internals (IPs, etc.) never
+reach the client. New insertRankrocketSiteSchema/
+updateRankrocketSiteSchema (shared/schema.ts) - both identical in
+shape (key + baseUrl/authUser/appPassword all required), only the
+route semantics differ.
+Part D (admin UI): new SitesSection component on the same
+RankRocketSiteInsights.tsx page as Part C's Question Options section.
+List shows key/baseUrl/authUser, never a password. Add-site form
+collects all four fields (password field type="password", masked).
+Edit opens inline pre-filled with baseUrl/authUser but an always-blank
+"New WP Application Password" field (distinct label from the add
+form's, to keep both independently queryable/accessible) - re-entering
+it is required to save, since the stored value can never be
+redisplayed. Delete is a single click, same pattern as Question
+Options' delete.
+Verified the safety-critical design decision holds: server/mcp/
+toolBridge.ts's RANKROCKET_READONLY_TOOLS is an explicit allowlist
+(not a denylist) that this session never touched - rankrocket_sites,
+rankrocket_sites_detail, and rankrocket_sites_write are all absent from
+it, so none of them are reachable through Claude's own tool selection
+in the "RankRocket Site Insights" Q&A card's tool loop, only through
+the new admin routes' direct server-to-server calls.
+TDD throughout all three parts: RED confirmed before every
+implementation step. Full workflow-portal suite 1500 -> 1530 tests, all
+green; lint, typecheck, db:check clean (no schema migration in this
+slice - site data lives entirely in rankrocket-mcp's registry, not this
+app's DB). docs/system-documentation.md's RankRocket Site Insights note
+extended to cover the Sites section; CLAUDE.md's RANKROCKET_MCP_TOKEN
+env var entry updated to note it now also gates the admin write path
+(same token, no new secret, per the plan's stated tradeoff).
+Deployed and verified this session: v1.90.0 (Part C) - migration 0030
+confirmed applied cleanly against prod, 8 seed options confirmed
+present, TD-16 clean (single fresh worker). v1.91.0 (Parts A/B/D)
+committed, pushed, packaged, tagged - NOT YET deployed; deploying it
+without rankrocket-mcp 0.11.0 live first would leave the new Sites
+section returning 502 (the tools it calls don't exist on the currently-
+deployed 0.10.0 server) - see NEXT SESSION item 1 for the correct
+deploy order.
 
 Session 2026-08-17 (part 7): v1.90.0 - RankRocket Site Insights admin
 CRUD, Part C (question options only) shipped. New feature request mid-

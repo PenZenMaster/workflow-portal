@@ -19,9 +19,14 @@ const OPTIONS = [
   { id: 2, label: "Image alt-text coverage across the site", sortOrder: 1 },
 ];
 
+const SITES = [
+  { key: "tristate-hvac", baseUrl: "https://tristate-hvac.com", authUser: "admin" },
+];
+
 const API_RESPONSES: Record<string, unknown> = {
   "/api/auth/status": AUTH_STATUS,
   "/api/rankrocket-question-options": { data: OPTIONS },
+  "/api/rankrocket-mcp/sites/admin": { data: SITES },
 };
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -51,6 +56,29 @@ beforeEach(() => {
         json: async () => ({ data: { id: 9, label: payload.label, sortOrder: 2 } }),
         text: async () => "",
       } as Response;
+    }
+
+    if (method === "POST" && url === "/api/rankrocket-mcp/sites") {
+      const payload = JSON.parse(String(init?.body ?? "{}"));
+      return {
+        ok: true,
+        status: 201,
+        json: async () => ({ data: { key: payload.key } }),
+        text: async () => "",
+      } as Response;
+    }
+
+    if (method === "PATCH" && url === "/api/rankrocket-mcp/sites/tristate-hvac") {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { key: "tristate-hvac" } }),
+        text: async () => "",
+      } as Response;
+    }
+
+    if (method === "DELETE" && url === "/api/rankrocket-mcp/sites/tristate-hvac") {
+      return { ok: true, status: 204, json: async () => ({}), text: async () => "" } as Response;
     }
 
     const body = API_RESPONSES[url] ?? { data: null };
@@ -127,6 +155,89 @@ describe("RankRocketSiteInsights admin page - question options (Part C)", () => 
           method: "POST",
           body: JSON.stringify({ label: "A brand new question" }),
         })
+      )
+    );
+  });
+});
+
+describe("RankRocketSiteInsights admin page - sites (Part D)", () => {
+  it("renders the site list with key/baseUrl/authUser, never a password field value", async () => {
+    renderPage();
+    expect(await screen.findByText("tristate-hvac")).toBeInTheDocument();
+    expect(screen.getByText("https://tristate-hvac.com")).toBeInTheDocument();
+    expect(screen.getByText("admin")).toBeInTheDocument();
+  });
+
+  it("adding a new site sends a POST with key/baseUrl/authUser/appPassword", async () => {
+    renderPage();
+    await screen.findByText("tristate-hvac");
+
+    await userEvent.type(screen.getByLabelText(/^Site key$/i), "new-site");
+    await userEvent.type(screen.getByLabelText(/^Base URL$/i), "https://new-site.com");
+    await userEvent.type(screen.getByLabelText(/^WP username$/i), "admin");
+    await userEvent.type(screen.getByLabelText(/^WP Application Password$/i), "secret pass");
+    await userEvent.click(screen.getByRole("button", { name: /Add site/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/rankrocket-mcp/sites",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            key: "new-site",
+            baseUrl: "https://new-site.com",
+            authUser: "admin",
+            appPassword: "secret pass",
+          }),
+        })
+      )
+    );
+  });
+
+  it("the add-site password field is a masked password input", async () => {
+    renderPage();
+    await screen.findByText("tristate-hvac");
+    expect(screen.getByLabelText(/^WP Application Password$/i)).toHaveAttribute("type", "password");
+  });
+
+  it("editing a site pre-fills baseUrl/authUser but leaves the password blank, and PATCHes on save", async () => {
+    renderPage();
+    await screen.findByText("tristate-hvac");
+
+    await userEvent.click(screen.getByRole("button", { name: /Edit tristate-hvac/i }));
+
+    expect(screen.getByDisplayValue("https://tristate-hvac.com")).toBeInTheDocument();
+    const passwordInput = screen.getByLabelText(/^New WP Application Password$/i);
+    expect(passwordInput).toHaveValue("");
+
+    await userEvent.type(passwordInput, "rotated pass");
+    await userEvent.click(screen.getByRole("button", { name: /^Save$/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/rankrocket-mcp/sites/tristate-hvac",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({
+            baseUrl: "https://tristate-hvac.com",
+            authUser: "admin",
+            appPassword: "rotated pass",
+          }),
+        })
+      )
+    );
+  });
+
+  it("deleting a site sends a DELETE request", async () => {
+    renderPage();
+    await screen.findByText("tristate-hvac");
+
+    await userEvent.click(screen.getByRole("button", { name: /Delete tristate-hvac/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/rankrocket-mcp/sites/tristate-hvac",
+        expect.objectContaining({ method: "DELETE" })
       )
     );
   });
