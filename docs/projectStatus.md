@@ -3995,3 +3995,37 @@ Confirmed decisions:
   Google account is tested against it - flag this as the first thing to
   verify once B-20 is unblocked, before assuming one approval covers every
   client.
+  2026-08-18: scanned every other repo under E:\projects\ (4 parallel
+  agents) at user's request, looking for prior GBP API work that could
+  speed up approval. Found two repos with REAL, working, already-approved
+  Google Business Profile API access - neither is workflow-portal, and
+  the API surface differs from what B-20 needs:
+  - E:\projects\gbp_api_data: GCP project "flight-deck-476019" has Basic
+    Access approved for the Business Profile PERFORMANCE API
+    (businessprofileperformance.googleapis.com, OAuth scope
+    business.manage) - 8 real CSV exports Nov 2025 -> Apr 2026 prove it's
+    still working today, for location 7443279615985798277.
+  - E:\projects\reporting-suite: a separate production pipeline
+    (extractors/gbp-api/src/gbp_extractor.py) that explicitly copied
+    flight-deck-476019's OAuth credentials (per its own 2025-11-07
+    checkpoint) and runs an end-to-end GBP Performance API -> CSV/Sheets
+    -> Looker Studio pipeline for client **salvo-metal-works** - the same
+    Salvo Metal Works client this app tracks (brand_id=4, see TD-14).
+  Everything else (30+ other repos, including rankrocket-mcp and
+  rank_rocket_seo_plugin) has only incidental "Google Business Profile"
+  text (marketing copy, embed-widget UI, a GMB keyword-string generator)
+  or forward-looking spec docs describing a future GBP fetcher that was
+  never built - no other real credentials/API client code anywhere.
+  Caveat: Basic Access approval is granted per specific API product, not
+  automatically extended across the whole Business Profile API family -
+  flight-deck-476019 being approved for the Performance API does not
+  guarantee the Business Information API (what B-20 actually needs,
+  locations.get) or the legacy v4.9 Reviews/Q&A APIs would be
+  auto-approved too. But it's real evidence of a Google account with a
+  compliant, months-long usage history on this API family, which likely
+  makes a related-API request under that SAME project faster to approve
+  than a fresh, unproven one. Not yet confirmed which GCP project
+  workflow-portal's own 2026-07-03/2026-08-18 applications were actually
+  submitted under - worth checking whether it's flight-deck-476019 or a
+  different project, and if different, whether re-submitting under
+  flight-deck-476019 instead is worth trying.
