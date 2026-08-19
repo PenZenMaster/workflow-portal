@@ -1,25 +1,22 @@
 ## Resume From
 
 Last session: 2026-08-19 (continued from 2026-08-18)
-Branch: main | Version: v1.97.0 | DEPLOYED and confirmed live 2026-08-19: version verified
-(package.json on server), both migrations applied (rankrocket_site_key + gbp_location_name
-columns confirmed via direct SQL against persistent/data.db), smoke test PASS (portal
-responds HTTP 200), TD-16 clean (single fresh worker on portal.fullmetaljacketseo.com,
-started 14:14 post-deploy; mcp.fullmetaljacketseo.com untouched, no stale duplicates).
-User added GBP_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN to cPanel's .env before this deploy,
-per NEXT SESSION item 1 below (now done) - the gbp-snapshot cell should be fully live.
-NOT yet done: an actual live functional test of planning.gbp-snapshot against production
-(a real POST /api/factory/jobs call) - only structural checks (version/migration/health)
-have been confirmed so far, not the cell's own behavior in prod.
+Branch: main | Version: v1.97.0 | DEPLOYED and confirmed fully working live 2026-08-19,
+including a real functional test (not just structural checks): version verified, both
+migrations applied, smoke test PASS, TD-16 clean, AND a real `planning.gbp-snapshot`
+factory job run against production for client 4 (Salvo Metal Works) returned genuine,
+correct GBP data (real address/phone/hours/category/place ID) - not a placeholder, not
+an error. See B-20's backlog entry below for the full verification trail, including a
+real bug found and fixed along the way (wrong GBP location resource-name format).
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes this session.
 
 NEXT SESSION (top 3):
 1. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
 2. TD-16 check is clean as of this checkpoint (see above) - keep doing it every session per the standing ritual, even ones with no deploy.
-3. Consider a real functional test of planning.gbp-snapshot in production (create a real factory job for Salvo Metal Works or United Structural Systems via POST /api/factory/jobs once those clients' clients.gbp_location_name is populated in prod - not yet done, only verified locally in dev).
+3. New finding this session, not yet fixed: `server/jobs/runner.ts`'s tick() silently swallows a malformed job `payload` (JSON.parse failure falls back to `{}` instead of failing the job) - discovered via an unrelated typo in a manually-inserted test job, but it's a real, previously-latent gap in shared job-runner infrastructure, not specific to GBP. A malformed payload currently makes a job silently report "done" with no error anywhere, rather than "failed" with a clear message. Not yet scoped/fixed - flagged for the user to decide whether/when to prioritize it (see B-20's entry below for the exact reproduction).
 
 Also open, lower priority (no action needed yet):
-- B-20 (GBP snapshot) stays externally blocked - quota still 0 QPM as of 2026-08-18, user re-applied for a quota increase. See B-20's backlog entry for cross-repo findings (E:\projects\gbp_api_data and E:\projects\reporting-suite both have real, separately-approved GBP Performance API access under GCP project flight-deck-476019 - a different API product than what B-20 needs, but real evidence worth citing).
+- B-20 (GBP snapshot): the Business Information API piece is now DONE and live (see below) - what's left is the legacy v4.9 Reviews/Q&A APIs (unverified, not attempted) and mapping any of the other 13 GBP accounts under flight-deck-476019 to workflow-portal clients beyond the 2 already mapped (Salvo Metal Works, United Structural Systems). Not urgent - pick up only if the user wants more clients wired in or the Reviews data specifically.
 - Cards 1 ("SEO Audit via Rank Rocket SEO Plugin") and 2 ("Location Page Builder") remain unconverted Perplexity-launch cards - Card 2 needs a net-new "create WordPress page" tool built in the separate rankrocket-mcp repo first (confirmed via source search: doesn't exist today); Card 1 needs a scope decision about its live browser-scan + apply-fix loop, which RankRocket-MCP cannot replace. Not a task to pick up unprompted - both are real follow-up planning exercises.
 - B-24's launch-dialog input-field tooltips (116+ fields, no per-field metadata in the schema) remain deferred pending the user's own "what is it / where to find it / example" copy - not a task to pick up unprompted.
 
@@ -4209,3 +4206,44 @@ Confirmed decisions:
   Credentials are in local dev `.env` only right now - cPanel's `.env`
   needs the same three `GBP_OAUTH_*` vars added before this cell will work
   in production (see NEXT SESSION item 1).
+
+  **2026-08-19: v1.97.0 deployed, GBP_OAUTH_* added to cPanel by the user,
+  and a real functional test run directly against production - not just
+  the structural checks (version/migration/health) from the deploy
+  confirmation.** Populated `clients.gbp_location_name` for the two
+  confirmed clients (id 4 Salvo Metal Works, id 11 UNITED STRUCTURAL
+  SYSTEMS OF ILLINOIS, INC) via direct SQL, then created real
+  `factory_jobs`/`jobs` rows by hand (no admin UI exists yet for this -
+  same precedent as the pilot cell's dev verification, just done against
+  prod this time) to exercise the actual deployed code path end to end.
+  **Found and fixed a real bug in the process** (not a guess - a live
+  404 from Google's own API): the `gbpLocationName` value must be the
+  location's own resource name, `locations/{id}` - the longer
+  `accounts/{accountId}/locations/{id}` form (used when *listing*
+  locations under an account) 404s against `locations.get`. This was
+  wrong in the schema comment, the SQL used to populate both prod client
+  rows, and the test fixtures - all corrected (docs-only commit, no code
+  change, since `getLocationSnapshot()` itself is format-agnostic; it was
+  only the stored string that was wrong). After the fix, a real
+  (non-dry-run) `planning.gbp-snapshot` job for client 4 returned genuine
+  Salvo Metal Works data - real address (566 West 5th Avenue, Naperville
+  IL), real phone ((630) 857-3631), real category ("Metal fabricator"),
+  real weekly hours, real place ID - matching the dev verification from
+  2026-08-18 exactly. B-20's Business Information API piece is now
+  confirmed DONE end-to-end in production, not just in dev.
+  **Separate finding surfaced by this exercise, NOT yet fixed**: while
+  debugging why a job silently showed "done" with no output despite a
+  malformed test payload, traced it to `server/jobs/runner.ts`'s
+  `tick()` (~line 249-255) - `JSON.parse(job.payload)` is wrapped in its
+  own try/catch that silently falls back to `{}` on a parse failure,
+  rather than failing the job. This let a `factory-run` job with a typo'd
+  payload silently resolve as a no-op "done" (the dispatcher couldn't
+  find `factoryJobId: undefined`, logged a warn, and returned without
+  throwing) instead of surfacing any error anywhere. This is a real,
+  previously-latent gap in shared job-runner infrastructure - not
+  specific to GBP or this session's own SQL typo that exposed it. Not
+  scoped or fixed yet; see NEXT SESSION item 3 above.
+  Verification job rows left in prod's `factory_jobs`/`jobs` tables as a
+  real audit trail (jobIds `verify_gbp_snapshot_dryrun_02` and
+  `_realrun_02` succeeded; earlier `_dryrun_01`/`_realrun_01` attempts
+  with the malformed-payload bug were deleted, not left as clutter).
