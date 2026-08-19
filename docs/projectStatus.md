@@ -1,19 +1,24 @@
 ## Resume From
 
 Last session: 2026-08-19 (continued from 2026-08-18)
-Branch: main | Version: v1.97.0 | DEPLOYED and confirmed fully working live 2026-08-19,
-including a real functional test (not just structural checks): version verified, both
-migrations applied, smoke test PASS, TD-16 clean, AND a real `planning.gbp-snapshot`
-factory job run against production for client 4 (Salvo Metal Works) returned genuine,
-correct GBP data (real address/phone/hours/category/place ID) - not a placeholder, not
-an error. See B-20's backlog entry below for the full verification trail, including a
-real bug found and fixed along the way (wrong GBP location resource-name format).
+Branch: main | Version: v1.97.1 | committed, packaged/tagged - NOT yet deployed. Prior
+state (v1.97.0) DEPLOYED and confirmed fully working live 2026-08-19, including a real
+functional test (not just structural checks): version verified, both migrations
+applied, smoke test PASS, TD-16 clean, AND a real `planning.gbp-snapshot` factory job
+run against production for client 4 (Salvo Metal Works) returned genuine, correct GBP
+data (real address/phone/hours/category/place ID) - not a placeholder, not an error.
+See B-20's backlog entry below for the full verification trail, including a real bug
+found and fixed along the way (wrong GBP location resource-name format).
+v1.97.1 (this same session, immediately after): fixed a second real bug surfaced by
+that verification exercise - `server/jobs/runner.ts` silently swallowed a malformed
+job payload instead of failing the job. TDD, 2 new tests, full suite 1679 -> 1681, all
+green. Pure code fix (no migration, no schema change) - low-risk deploy whenever ready.
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes this session.
 
 NEXT SESSION (top 3):
-1. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
-2. TD-16 check is clean as of this checkpoint (see above) - keep doing it every session per the standing ritual, even ones with no deploy.
-3. New finding this session, not yet fixed: `server/jobs/runner.ts`'s tick() silently swallows a malformed job `payload` (JSON.parse failure falls back to `{}` instead of failing the job) - discovered via an unrelated typo in a manually-inserted test job, but it's a real, previously-latent gap in shared job-runner infrastructure, not specific to GBP. A malformed payload currently makes a job silently report "done" with no error anywhere, rather than "failed" with a clear message. Not yet scoped/fixed - flagged for the user to decide whether/when to prioritize it (see B-20's entry below for the exact reproduction).
+1. Package and deploy v1.97.1 (pure bug fix, no migration - low risk). Not yet on cPanel.
+2. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
+3. TD-16 check is clean as of the v1.97.0 deploy checkpoint above - keep doing it every session per the standing ritual, even ones with no deploy.
 
 Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot): the Business Information API piece is now DONE and live (see below) - what's left is the legacy v4.9 Reviews/Q&A APIs (unverified, not attempted) and mapping any of the other 13 GBP accounts under flight-deck-476019 to workflow-portal clients beyond the 2 already mapped (Salvo Metal Works, United Structural Systems). Not urgent - pick up only if the user wants more clients wired in or the Reviews data specifically.
@@ -4231,18 +4236,29 @@ Confirmed decisions:
   real weekly hours, real place ID - matching the dev verification from
   2026-08-18 exactly. B-20's Business Information API piece is now
   confirmed DONE end-to-end in production, not just in dev.
-  **Separate finding surfaced by this exercise, NOT yet fixed**: while
+  **Separate finding surfaced by this exercise, FIXED as v1.97.1**: while
   debugging why a job silently showed "done" with no output despite a
   malformed test payload, traced it to `server/jobs/runner.ts`'s
-  `tick()` (~line 249-255) - `JSON.parse(job.payload)` is wrapped in its
-  own try/catch that silently falls back to `{}` on a parse failure,
+  `tick()` (~line 249-255) - `JSON.parse(job.payload)` was wrapped in its
+  own try/catch that silently fell back to `{}` on a parse failure,
   rather than failing the job. This let a `factory-run` job with a typo'd
   payload silently resolve as a no-op "done" (the dispatcher couldn't
   find `factoryJobId: undefined`, logged a warn, and returned without
-  throwing) instead of surfacing any error anywhere. This is a real,
+  throwing) instead of surfacing any error anywhere. This was a real,
   previously-latent gap in shared job-runner infrastructure - not
-  specific to GBP or this session's own SQL typo that exposed it. Not
-  scoped or fixed yet; see NEXT SESSION item 3 above.
+  specific to GBP or this session's own SQL typo that exposed it.
+  FIXED same session (user asked immediately after the finding was
+  reported): the inner try/catch's silent-fallback branch now throws a
+  descriptive error ("Malformed job payload (invalid JSON): <reason>")
+  instead of swallowing it, which folds it into the SAME outer
+  retry/backoff/mark-failed path a handler throw already used - a
+  malformed payload now requeues with a clear `last_error`, then fails
+  terminally once `max_attempts` is reached, exactly like any other job
+  failure. TDD: 2 new tests in tests/server/jobs/runner.test.ts (RED
+  confirmed - both reproduced the exact silent-success bug against the
+  unfixed code - before the one-block fix). Full suite 1679 -> 1681,
+  lint/typecheck clean. Pure code fix, no schema/migration - packaged as
+  v1.97.1, not yet deployed (see NEXT SESSION item 1).
   Verification job rows left in prod's `factory_jobs`/`jobs` tables as a
   real audit trail (jobIds `verify_gbp_snapshot_dryrun_02` and
   `_realrun_02` succeeded; earlier `_dryrun_01`/`_realrun_01` attempts

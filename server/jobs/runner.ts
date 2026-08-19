@@ -247,11 +247,17 @@ export class JobRunner {
       }
 
       try {
-        let payload: unknown = {};
+        let payload: unknown;
         try {
           payload = JSON.parse(job.payload);
-        } catch {
-          // malformed payload — use empty object
+        } catch (parseErr) {
+          // A malformed payload must fail the job through the same
+          // retry/backoff path as a handler throw below - silently
+          // falling back to an empty object here previously let a
+          // corrupted payload "succeed" as a no-op with no error
+          // anywhere, indistinguishable from real success.
+          const reason = parseErr instanceof Error ? parseErr.message : String(parseErr);
+          throw new Error(`Malformed job payload (invalid JSON): ${reason}`);
         }
         await handler.handle(payload, job.id);
         db.update(jobs)

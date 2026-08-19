@@ -161,6 +161,37 @@ describe("JobRunner", () => {
     expect(getJob(sqlite, jobId).status).toBe("failed");
   });
 
+  it("requeues with a clear error instead of silently succeeding when payload is malformed JSON", async () => {
+    const jobId = insertJob(sqlite, {
+      payload: '{factoryJobId: 6}', // missing quotes around the key - invalid JSON
+      attempts: 0,
+      maxAttempts: 3,
+    });
+    const handler = vi.fn().mockResolvedValue(undefined);
+    runner.register({ kind: "test-job", handle: handler });
+
+    await runner.tick();
+
+    expect(handler).not.toHaveBeenCalled();
+    const job = getJob(sqlite, jobId);
+    expect(job.status).toBe("queued");
+    expect(job.attempts).toBe(1);
+    expect(job.last_error).toMatch(/payload/i);
+  });
+
+  it("fails a job with malformed payload once attempts reach max_attempts, same as a handler throw", async () => {
+    const jobId = insertJob(sqlite, {
+      payload: "not json at all",
+      attempts: 2,
+      maxAttempts: 3,
+    });
+    runner.register({ kind: "test-job", handle: vi.fn() });
+
+    await runner.tick();
+
+    expect(getJob(sqlite, jobId).status).toBe("failed");
+  });
+
   it("does not pick up a job whose next_run_at is in the future", async () => {
     const jobId = insertJob(sqlite, { nextRunAt: Date.now() + 60_000 });
     const handler = vi.fn().mockResolvedValue(undefined);
