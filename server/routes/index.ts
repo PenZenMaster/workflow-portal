@@ -37,6 +37,7 @@ import { registerRecommendationRoutes } from "./recommendations";
 import { registerBrandContextRoutes } from "./brandContext";
 import { registerHelpRoutes } from "./help";
 import { registerRankrocketAdminRoutes } from "./rankrocketAdmin";
+import { registerAdminAlertRoutes } from "./adminAlerts";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -69,6 +70,7 @@ export async function registerRoutes(
   registerBrandContextRoutes(app);
   registerHelpRoutes(app);
   registerRankrocketAdminRoutes(app);
+  registerAdminAlertRoutes(app);
 
   return httpServer;
 }

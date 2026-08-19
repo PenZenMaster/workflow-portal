@@ -38,6 +38,7 @@ function hydrate(row: Row): Integration {
 
 export interface IIntegrationStore {
   listByClient(clientId: number): Promise<Integration[]>;
+  listByStatus(status: Integration["status"]): Promise<Integration[]>;
   get(id: number): Promise<Integration | undefined>;
   create(clientId: number, data: InsertIntegration): Promise<Integration>;
   delete(id: number): Promise<boolean>;
@@ -57,6 +58,18 @@ export class IntegrationStore implements IIntegrationStore {
       .select()
       .from(integrations)
       .where(eq(integrations.clientId, clientId))
+      .all();
+    return rows.map(hydrate);
+  }
+
+  // Admin Alerts (B-24 sequence item 4) needs every failing integration
+  // across all clients - listByClient can't answer that without an N+1
+  // loop over every client.
+  async listByStatus(status: Integration["status"]): Promise<Integration[]> {
+    const rows = this._db
+      .select()
+      .from(integrations)
+      .where(eq(integrations.status, status))
       .all();
     return rows.map(hydrate);
   }

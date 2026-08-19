@@ -47,6 +47,7 @@ export interface IExportStore {
   create(data: ExportCreateInput): Promise<ReportExport>;
   get(id: number): Promise<ReportExport | undefined>;
   listByClient(clientId: number): Promise<ReportExport[]>;
+  listByStatus(status: ReportExport["status"], limit?: number): Promise<ReportExport[]>;
   updateStatus(
     id: number,
     status: ReportExport["status"],
@@ -91,6 +92,24 @@ export class ExportStore implements IExportStore {
       .where(eq(reportExports.clientId, clientId))
       .orderBy(desc(reportExports.createdAt))
       .all();
+    return rows.map(hydrate);
+  }
+
+  // Admin Alerts (B-24 sequence item 4) needs every failed export across
+  // all clients - listByClient can't answer that without an N+1 loop.
+  async listByStatus(status: ReportExport["status"], limit?: number): Promise<ReportExport[]> {
+    let query = this._db
+      .select()
+      .from(reportExports)
+      .where(eq(reportExports.status, status))
+      .orderBy(desc(reportExports.createdAt))
+      .$dynamic();
+
+    if (limit) {
+      query = query.limit(limit);
+    }
+
+    const rows = query.all();
     return rows.map(hydrate);
   }
 

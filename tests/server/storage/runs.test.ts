@@ -83,6 +83,40 @@ describe("RunStore", () => {
     });
   });
 
+  // B-24 sequence item 4 (Admin Alerts): needs every failed/partial run
+  // across all clients, not just one client's - same global-scan gap as
+  // IntegrationStore/ExportStore.listByStatus.
+  describe("listByStatus", () => {
+    it("returns runs across all clients matching any of the given statuses", async () => {
+      const failed = await store.create(SAMPLE_RUN_DATA);
+      const partial = await store.create({ ...SAMPLE_RUN_DATA, clientId: 2 });
+      const done = await store.create({ ...SAMPLE_RUN_DATA, clientId: 3 });
+
+      await store.updateStatus(failed.id, "failed");
+      await store.updateStatus(partial.id, "partial");
+      await store.updateStatus(done.id, "complete");
+
+      const found = await store.listByStatus(["failed", "partial"]);
+      expect(found.map((r) => r.id).sort()).toEqual([failed.id, partial.id].sort());
+    });
+
+    it("respects the limit parameter", async () => {
+      const a = await store.create(SAMPLE_RUN_DATA);
+      const b = await store.create({ ...SAMPLE_RUN_DATA, clientId: 2 });
+      await store.updateStatus(a.id, "failed");
+      await store.updateStatus(b.id, "failed");
+
+      const found = await store.listByStatus(["failed"], 1);
+      expect(found).toHaveLength(1);
+    });
+
+    it("returns an empty array when nothing matches", async () => {
+      await store.create(SAMPLE_RUN_DATA);
+      const found = await store.listByStatus(["failed", "partial"]);
+      expect(found).toEqual([]);
+    });
+  });
+
   it("gets a run by id", async () => {
     const run = await store.create(SAMPLE_RUN_DATA);
     const found = await store.get(run.id);

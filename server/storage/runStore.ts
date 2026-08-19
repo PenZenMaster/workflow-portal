@@ -15,7 +15,7 @@
 
 import { promptRuns } from "@shared/schema";
 import type { PromptRun } from "@shared/schema";
-import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -43,6 +43,7 @@ function hydrate(row: Row): PromptRun {
 export interface IRunStore {
   listByClient(clientId: number, limit?: number): Promise<PromptRun[]>;
   listByClientInRange(clientId: number, fromMs: number, toMs: number): Promise<PromptRun[]>;
+  listByStatus(statuses: PromptRun["status"][], limit?: number): Promise<PromptRun[]>;
   get(id: number): Promise<PromptRun | undefined>;
   create(data: {
     clientId: number;
@@ -87,6 +88,25 @@ export class RunStore implements IRunStore {
       )
       .orderBy(desc(promptRuns.createdAt))
       .all();
+    return rows.map(hydrate);
+  }
+
+  // Admin Alerts (B-24 sequence item 4) needs every failed/partial run
+  // across all clients - listByClient can't answer that without an N+1
+  // loop over every client.
+  async listByStatus(statuses: PromptRun["status"][], limit?: number): Promise<PromptRun[]> {
+    let query = this._db
+      .select()
+      .from(promptRuns)
+      .where(inArray(promptRuns.status, statuses))
+      .orderBy(desc(promptRuns.createdAt))
+      .$dynamic();
+
+    if (limit) {
+      query = query.limit(limit);
+    }
+
+    const rows = query.all();
     return rows.map(hydrate);
   }
 

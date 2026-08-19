@@ -25,6 +25,7 @@ import Integrations from "@/pages/ai/Integrations";
 import OAuthPopup from "@/pages/OAuthPopup";
 import Users from "@/pages/admin/Users";
 import Jobs from "@/pages/admin/Jobs";
+import Alerts from "@/pages/admin/Alerts";
 import Platforms from "@/pages/admin/Platforms";
 import Help from "@/pages/Help";
 import RankRocketSiteInsights from "@/pages/admin/RankRocketSiteInsights";
@@ -70,6 +71,7 @@ function AppRouter() {
       <Route path="/share/:token" component={SharePage} />
       <Route path="/admin/users" component={Users} />
       <Route path="/admin/jobs" component={Jobs} />
+      <Route path="/admin/alerts" component={Alerts} />
       <Route path="/admin/platforms" component={Platforms} />
       <Route path="/help" component={Help} />
       <Route path="/admin/rankrocket-site-insights" component={RankRocketSiteInsights} />
