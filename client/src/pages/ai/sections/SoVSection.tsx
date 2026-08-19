@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { scrollToSection } from "@/lib/scrollToSection";
 
 interface SoVData {
   aiSoV: number;
@@ -22,7 +23,7 @@ export function SoVSection({ clientId }: { clientId: string }) {
       {isLoading ? (
         <p className="text-muted-foreground">Loading...</p>
       ) : sov ? (
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div className="border rounded-lg p-6">
             <p className="text-sm text-muted-foreground mb-1">Client AI SoV</p>
             <p className="text-5xl font-bold">{sov.aiSoV.toFixed(1)}<span className="text-xl text-muted-foreground font-normal">%</span></p>
@@ -30,9 +31,18 @@ export function SoVSection({ clientId }: { clientId: string }) {
               {sov.clientMentions} client mentions out of {sov.allBrandMentions} total brand mentions
             </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Period: {sov.fromDate} to {sov.toDate}
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              Period: {sov.fromDate} to {sov.toDate}
+            </p>
+            <button
+              type="button"
+              onClick={() => scrollToSection("mentions-section")}
+              className="text-xs text-primary hover:underline"
+            >
+              View mentions &rarr;
+            </button>
+          </div>
         </div>
       ) : (
         <p className="text-muted-foreground">No data yet.</p>

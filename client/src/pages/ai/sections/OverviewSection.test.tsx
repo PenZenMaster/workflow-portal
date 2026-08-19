@@ -88,3 +88,22 @@ describe("OverviewSection — period selector (B-30)", () => {
     expect(screen.getByText(/99 responses/)).toBeInTheDocument();
   });
 });
+
+describe("OverviewSection — link to detailed platform data", () => {
+  it("scrolls to the platform-breakdown-section element when clicked", async () => {
+    const user = userEvent.setup();
+    renderSection();
+    await waitFor(() => expect(screen.getByText(/Citation Frequency/i)).toBeInTheDocument());
+
+    const target = document.createElement("div");
+    target.id = "platform-breakdown-section";
+    const scrollSpy = vi.fn();
+    target.scrollIntoView = scrollSpy;
+    document.body.appendChild(target);
+
+    await user.click(screen.getByRole("button", { name: /view platform breakdown/i }));
+
+    expect(scrollSpy).toHaveBeenCalledWith({ behavior: "smooth" });
+    document.body.removeChild(target);
+  });
+});

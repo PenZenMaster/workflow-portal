@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import { scrollToSection } from "@/lib/scrollToSection";
 
 interface OverviewData {
   citationFrequency: number;
@@ -108,9 +109,18 @@ export function OverviewSection({ clientId }: { clientId: string }) {
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground mt-4">
-            Based on {overview.totalResponses} responses in the {PERIOD_LABELS[period].toLowerCase()}.
-          </p>
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-xs text-muted-foreground">
+              Based on {overview.totalResponses} responses in the {PERIOD_LABELS[period].toLowerCase()}.
+            </p>
+            <button
+              type="button"
+              onClick={() => scrollToSection("platform-breakdown-section")}
+              className="text-xs text-primary hover:underline"
+            >
+              View platform breakdown &rarr;
+            </button>
+          </div>
         </>
       ) : (
         <p className="text-muted-foreground">No data yet. Run a prompt collection to start tracking.</p>

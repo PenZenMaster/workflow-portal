@@ -394,16 +394,29 @@ export default function ClientDetail() {
       </section>
 
       {/* AI Visibility reports — all on one page */}
+      <MeasurementHealthSection clientId={id!} />
+
+      {/* Compact summary — the 5 charts an operator checks first */}
       <div className="mt-12 space-y-12">
-        <MeasurementHealthSection clientId={id!} />
         <OverviewSection clientId={id!} />
-        <PlatformBreakdownSection clientId={id!} />
-        <MentionsSection clientId={id!} />
-        <SoVSection clientId={id!} />
         <SentimentSection clientId={id!} />
-        <SourcesSection clientId={id!} />
-        <RecommendationsSection clientId={id!} />
+        <SoVSection clientId={id!} />
         <TrafficSection clientId={id!} />
+        <RecommendationsSection clientId={id!} />
+      </div>
+
+      {/* Detailed data — reachable via "View ..." links above, or by scrolling */}
+      <div className="mt-16 pt-8 border-t space-y-12">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Detailed Data
+        </h2>
+        <div id="platform-breakdown-section">
+          <PlatformBreakdownSection clientId={id!} />
+        </div>
+        <div id="mentions-section">
+          <MentionsSection clientId={id!} />
+        </div>
+        <SourcesSection clientId={id!} />
         <TokenUsageSection clientId={id!} />
       </div>
     </div>

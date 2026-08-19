@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 
 interface Recommendation {
   kind: string;
@@ -13,12 +15,16 @@ const SEVERITY_STYLE: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
 };
 
+const COMPACT_LIMIT = 3;
+
 export function RecommendationsSection({ clientId }: { clientId: string }) {
+  const [expanded, setExpanded] = useState(false);
   const { data, isLoading } = useQuery<{ data: Recommendation[] }>({
     queryKey: [`/api/clients/${clientId}/recommendations`],
   });
 
   const recs = data?.data ?? [];
+  const visibleRecs = expanded ? recs : recs.slice(0, COMPACT_LIMIT);
 
   return (
     <section>
@@ -29,8 +35,9 @@ export function RecommendationsSection({ clientId }: { clientId: string }) {
       ) : recs.length === 0 ? (
         <p className="text-muted-foreground">No gaps detected. Keep running audits to track trends.</p>
       ) : (
+        <>
         <ul className="space-y-4">
-          {recs.map((r, i) => (
+          {visibleRecs.map((r, i) => (
             <li key={i} className="border rounded-lg p-5">
               <div className="flex items-center gap-3 mb-3">
                 <span className={`text-xs px-2 py-0.5 rounded ${SEVERITY_STYLE[r.severity]}`}>
@@ -46,6 +53,21 @@ export function RecommendationsSection({ clientId }: { clientId: string }) {
             </li>
           ))}
         </ul>
+
+        {recs.length > COMPACT_LIMIT && (
+          <div className="mt-4">
+            {expanded ? (
+              <Button variant="outline" size="sm" onClick={() => setExpanded(false)}>
+                Show less
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => setExpanded(true)}>
+                Show all {recs.length}
+              </Button>
+            )}
+          </div>
+        )}
+        </>
       )}
     </section>
   );

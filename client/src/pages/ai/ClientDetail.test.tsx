@@ -172,4 +172,32 @@ describe("ClientDetail (consolidated AI visibility page)", () => {
       expect(screen.queryByRole("link", { name: label })).not.toBeInTheDocument();
     }
   });
+
+  it("puts Overview, Sentiment, Share of Voice, AI Traffic Impact, and Recommendations first, in that order", async () => {
+    renderClientDetail();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Acme" })).toBeInTheDocument());
+
+    const compactNames = ["Overview", "Sentiment", "Share of Voice", "AI Traffic Impact", "Recommendations"];
+    const headings = await Promise.all(compactNames.map((n) => screen.findByRole("heading", { level: 2, name: n })));
+    const allH2 = screen.getAllByRole("heading", { level: 2 });
+    const positions = headings.map((h) => allH2.indexOf(h));
+
+    for (let i = 1; i < positions.length; i++) {
+      expect(positions[i]).toBeGreaterThan(positions[i - 1]);
+    }
+    // The detail sections (Platform Breakdown, Mentions) must come after all 5 compact ones.
+    const platformBreakdown = screen.getByRole("heading", { level: 2, name: "Platform Breakdown" });
+    const mentions = screen.getByRole("heading", { level: 2, name: "Mentions" });
+    expect(allH2.indexOf(platformBreakdown)).toBeGreaterThan(positions[positions.length - 1]);
+    expect(allH2.indexOf(mentions)).toBeGreaterThan(positions[positions.length - 1]);
+  });
+
+  it("wraps the detail sections in scroll-target ids for the compact sections' 'view data' links", async () => {
+    renderClientDetail();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Acme" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Mentions" })).toBeInTheDocument());
+
+    expect(document.getElementById("platform-breakdown-section")).toBeInTheDocument();
+    expect(document.getElementById("mentions-section")).toBeInTheDocument();
+  });
 });
