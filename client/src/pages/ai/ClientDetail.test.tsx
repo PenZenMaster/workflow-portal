@@ -190,6 +190,10 @@ describe("ClientDetail (consolidated AI visibility page)", () => {
     const mentions = screen.getByRole("heading", { level: 2, name: "Mentions" });
     expect(allH2.indexOf(platformBreakdown)).toBeGreaterThan(positions[positions.length - 1]);
     expect(allH2.indexOf(mentions)).toBeGreaterThan(positions[positions.length - 1]);
+
+    // The compact charts sit right under the nav buttons, above Brands.
+    const brands = screen.getByRole("heading", { level: 2, name: "Brands" });
+    expect(positions[0]).toBeLessThan(allH2.indexOf(brands));
   });
 
   it("wraps the detail sections in scroll-target ids for the compact sections' 'view data' links", async () => {

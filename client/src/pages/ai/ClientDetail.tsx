@@ -284,6 +284,15 @@ export default function ClientDetail() {
         </Link>
       </div>
 
+      {/* Compact summary — the 5 charts an operator checks first */}
+      <div className="space-y-12 mb-16">
+        <OverviewSection clientId={id!} />
+        <SentimentSection clientId={id!} />
+        <SoVSection clientId={id!} />
+        <TrafficSection clientId={id!} />
+        <RecommendationsSection clientId={id!} />
+      </div>
+
       {/* Brands section */}
       <section>
         <div className="flex items-center justify-between mb-3">
@@ -394,15 +403,8 @@ export default function ClientDetail() {
       </section>
 
       {/* AI Visibility reports — all on one page */}
-      <MeasurementHealthSection clientId={id!} />
-
-      {/* Compact summary — the 5 charts an operator checks first */}
-      <div className="mt-12 space-y-12">
-        <OverviewSection clientId={id!} />
-        <SentimentSection clientId={id!} />
-        <SoVSection clientId={id!} />
-        <TrafficSection clientId={id!} />
-        <RecommendationsSection clientId={id!} />
+      <div className="mt-12">
+        <MeasurementHealthSection clientId={id!} />
       </div>
 
       {/* Detailed data — reachable via "View ..." links above, or by scrolling */}

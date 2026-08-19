@@ -1,42 +1,43 @@
 ## Resume From
 
 Last session: 2026-08-19 (continued from 2026-08-18)
-Branch: main | Version: v1.98.0 | committed, packaged/tagged - NOT yet deployed. Prior
-state (v1.97.1) DEPLOYED, user confirmed smoke test PASS; TD-16 re-checked directly
-(single worker each, unchanged - a restart not a fresh deploy since v1.97.0, so no new
-worker timestamp expected). v1.97.0 was confirmed fully working live 2026-08-19,
-including a real functional test (not just structural checks): version verified, both
-migrations applied, smoke test PASS, TD-16 clean, AND a real `planning.gbp-snapshot`
-factory job run against production for client 4 (Salvo Metal Works) returned genuine,
-correct GBP data (real address/phone/hours/category/place ID) - not a placeholder, not
-an error. See B-20's backlog entry below for the full verification trail, including a
-real bug found and fixed along the way (wrong GBP location resource-name format).
-v1.97.1 fixed a second real bug surfaced by that verification exercise -
-`server/jobs/runner.ts` silently swallowed a malformed job payload instead of failing
-the job. TDD, 2 new tests, full suite 1679 -> 1681, all green.
-v1.98.0 (this session, new work - see session note below): ClientDetail compact
-redesign, item 1 of the 4-item client-experience sequence plan (settings
-consolidation, archive, admin alerts, ClientDetail redesign) the user asked to be
-planned as a whole. Pure UI change, no schema/backend. Full suite 1681 -> 1691, all
-green. NOT visually browser-verified this session - dev's fresh local DB had no admin
-account, blocked on a real UI blocker (a first-run-created account got 403 Forbidden
-trying to create a client, a role-related issue in the dev environment unrelated to
-this change, not investigated further) - user asked to skip further dev debugging and
-ship straight to prod instead. Verify visually in prod after deploy.
+Branch: main | Version: v1.98.1 | committed, packaged/tagged - NOT yet deployed. Prior
+state (v1.98.0) DEPLOYED and confirmed by the user in prod - "Design looks good I like
+the links to the data" - resolving the local-verification gap noted when it shipped
+(dev's fresh DB had no working admin account; user chose to skip dev debugging and
+verify directly in prod instead, which is now done). v1.97.1 DEPLOYED, smoke test PASS,
+TD-16 clean. v1.97.0 was confirmed fully working live 2026-08-19 with a real
+`planning.gbp-snapshot` factory job run against production for client 4 (Salvo Metal
+Works) - see B-20's backlog entry for the full verification trail.
+v1.98.1 (this session, immediately after the user's positive feedback): a follow-up
+placement tweak on the same redesign - moved the 5 compact charts (Overview/Sentiment/
+SoV/Traffic/Recommendations) from below the Brands section to directly under the nav
+buttons row (Reports/Prompt Collections/Runs/Integrations), per explicit user request.
+Brands and Measurement Health now sit below the charts instead of above. TDD (RED
+confirmed for the new heading-order assertion first), full suite still 1691, all green.
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes this session.
 
 NEXT SESSION (top 3):
-1. Package and deploy v1.98.0 (pure UI change, no migration - low risk, but NOT
-   visually verified locally - see note above, so check the redesigned
-   /ai/clients/:id page carefully after this deploy specifically). Not yet on cPanel.
+1. Package and deploy v1.98.1 (pure UI reorder, no migration - low risk, and this time
+   the underlying redesign is already prod-verified as good). Not yet on cPanel.
 2. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
 3. TD-16 check is clean as of this checkpoint (see above) - keep doing it every session per the standing ritual, even ones with no deploy.
-4. Client-experience sequence plan items 2-4 (Client Settings consolidation, Archive with frozen snapshot, Admin Alerts) remain - see docs/lights-out-seo-factory.md-style planning precedent; full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Ask the user before starting #2.
+4. Client-experience sequence plan items 2-4 (Client Settings consolidation, Archive with frozen snapshot, Admin Alerts) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Ask the user before starting #2.
 
 Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot): the Business Information API piece is now DONE and live (see below) - what's left is the legacy v4.9 Reviews/Q&A APIs (unverified, not attempted) and mapping any of the other 13 GBP accounts under flight-deck-476019 to workflow-portal clients beyond the 2 already mapped (Salvo Metal Works, United Structural Systems). Not urgent - pick up only if the user wants more clients wired in or the Reviews data specifically.
 - Cards 1 ("SEO Audit via Rank Rocket SEO Plugin") and 2 ("Location Page Builder") remain unconverted Perplexity-launch cards - Card 2 needs a net-new "create WordPress page" tool built in the separate rankrocket-mcp repo first (confirmed via source search: doesn't exist today); Card 1 needs a scope decision about its live browser-scan + apply-fix loop, which RankRocket-MCP cannot replace. Not a task to pick up unprompted - both are real follow-up planning exercises.
 - B-24's launch-dialog input-field tooltips (116+ fields, no per-field metadata in the schema) remain deferred pending the user's own "what is it / where to find it / example" copy - not a task to pick up unprompted.
+
+Session 2026-08-19 (part 16): v1.98.1 - follow-up to part 15's redesign,
+after the user confirmed it looked good live in prod ("Design looks good
+I like the links to the data") and asked for one placement change: move
+the 5 compact charts to sit directly under the nav buttons row, above
+Brands (previously Brands/Measurement Health came first, charts below).
+Straightforward JSX move in ClientDetail.tsx - no new components, no
+logic change. TDD: added a RED assertion (Overview heading position <
+Brands heading position) to the existing ordering test before moving the
+block. Full suite still 1691, all green; lint, typecheck clean.
 
 Session 2026-08-19 (part 15): v1.98.0 - ClientDetail compact redesign, the
 first of a 4-item client-experience sequence the user asked to be planned
