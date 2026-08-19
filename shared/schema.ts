@@ -176,11 +176,14 @@ export const clients = sqliteTable("clients", {
   // Free text, not an enum - site keys are managed dynamically via rankrocket-mcp's
   // own registry / the /admin/rankrocket-site-insights Sites CRUD, not this schema.
   rankrocketSiteKey: text("rankrocket_site_key"),
-  // Lights-Out SEO Factory: full GBP location resource name
-  // ("accounts/.../locations/...") this client maps to, resolved via the
-  // shared GBP_OAUTH_* credential (server/services/gbp.ts) - one Google
-  // account with manager access to many clients' GBP profiles, not a
-  // per-client OAuth connection like the GA4 integration.
+  // Lights-Out SEO Factory: the GBP location's own resource name
+  // ("locations/{id}" - NOT "accounts/{accountId}/locations/{id}"; that
+  // longer form is only valid for LISTING locations under an account, and
+  // 404s if used against locations.get - confirmed via a live production
+  // call 2026-08-19) this client maps to, resolved via the shared
+  // GBP_OAUTH_* credential (server/services/gbp.ts) - one Google account
+  // with manager access to many clients' GBP profiles, not a per-client
+  // OAuth connection like the GA4 integration.
   gbpLocationName: text("gbp_location_name"),
   deletedAt: integer("deleted_at"),
   createdAt: integer("created_at").notNull(),

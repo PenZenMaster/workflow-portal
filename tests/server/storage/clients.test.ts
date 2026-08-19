@@ -94,15 +94,15 @@ describe("ClientStore", () => {
   it("round-trips gbpLocationName through create and update", async () => {
     const c = await store.create({
       ...SAMPLE_CLIENT,
-      gbpLocationName: "accounts/111224042680146879833/locations/1",
+      gbpLocationName: "locations/7443279615985798277",
     });
-    expect(c.gbpLocationName).toBe("accounts/111224042680146879833/locations/1");
+    expect(c.gbpLocationName).toBe("locations/7443279615985798277");
 
     const updated = await store.update(c.id, {
       ...SAMPLE_CLIENT,
-      gbpLocationName: "accounts/111886712335671082123/locations/2",
+      gbpLocationName: "locations/2407812057486978176",
     });
-    expect(updated?.gbpLocationName).toBe("accounts/111886712335671082123/locations/2");
+    expect(updated?.gbpLocationName).toBe("locations/2407812057486978176");
   });
 
   it("returns clients sorted alphabetically by name, case-insensitive", async () => {

@@ -44,7 +44,7 @@ function makeJob(overrides: Partial<FactoryJobRecord> = {}): FactoryJobRecord {
 
 const CLIENT_WITH_LOCATION = {
   id: 4,
-  gbpLocationName: "accounts/111224042680146879833/locations/1",
+  gbpLocationName: "locations/7443279615985798277",
 };
 
 const SNAPSHOT = {
@@ -123,7 +123,7 @@ describe("planning.gbp-snapshot cell", () => {
     const output = await cell.run(makeJob());
 
     expect(mockGetLocationSnapshot).toHaveBeenCalledWith(
-      "accounts/111224042680146879833/locations/1"
+      "locations/7443279615985798277"
     );
     expect(output).toEqual(SNAPSHOT);
   });
