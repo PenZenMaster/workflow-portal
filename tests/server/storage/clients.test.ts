@@ -86,6 +86,25 @@ describe("ClientStore", () => {
     expect(updated?.rankrocketSiteKey).toBe("trevoraspiranti");
   });
 
+  it("defaults gbpLocationName to null when omitted", async () => {
+    const c = await store.create(SAMPLE_CLIENT);
+    expect(c.gbpLocationName).toBeNull();
+  });
+
+  it("round-trips gbpLocationName through create and update", async () => {
+    const c = await store.create({
+      ...SAMPLE_CLIENT,
+      gbpLocationName: "accounts/111224042680146879833/locations/1",
+    });
+    expect(c.gbpLocationName).toBe("accounts/111224042680146879833/locations/1");
+
+    const updated = await store.update(c.id, {
+      ...SAMPLE_CLIENT,
+      gbpLocationName: "accounts/111886712335671082123/locations/2",
+    });
+    expect(updated?.gbpLocationName).toBe("accounts/111886712335671082123/locations/2");
+  });
+
   it("returns clients sorted alphabetically by name, case-insensitive", async () => {
     await store.create({ ...SAMPLE_CLIENT, name: "zeta Corp" });
     await store.create({ ...SAMPLE_CLIENT, name: "Acme Corp" });

@@ -1,0 +1,1 @@
+ALTER TABLE `clients` ADD `gbp_location_name` text;

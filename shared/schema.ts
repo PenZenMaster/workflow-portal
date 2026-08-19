@@ -176,6 +176,12 @@ export const clients = sqliteTable("clients", {
   // Free text, not an enum - site keys are managed dynamically via rankrocket-mcp's
   // own registry / the /admin/rankrocket-site-insights Sites CRUD, not this schema.
   rankrocketSiteKey: text("rankrocket_site_key"),
+  // Lights-Out SEO Factory: full GBP location resource name
+  // ("accounts/.../locations/...") this client maps to, resolved via the
+  // shared GBP_OAUTH_* credential (server/services/gbp.ts) - one Google
+  // account with manager access to many clients' GBP profiles, not a
+  // per-client OAuth connection like the GA4 integration.
+  gbpLocationName: text("gbp_location_name"),
   deletedAt: integer("deleted_at"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
@@ -222,6 +228,7 @@ export const insertClientSchema = z.object({
   coreServices: z.array(z.string()).default([]),
   ownerUserId: z.number().int().optional(),
   rankrocketSiteKey: z.string().min(1).optional(),
+  gbpLocationName: z.string().min(1).optional(),
 });
 
 export const insertBrandSchema = z.object({
@@ -264,6 +271,7 @@ export type Client = {
   coreServices: string[];
   ownerUserId: number | null;
   rankrocketSiteKey: string | null;
+  gbpLocationName: string | null;
   createdAt: number;
   updatedAt: number;
 };

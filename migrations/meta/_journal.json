@@ -225,6 +225,13 @@
       "when": 1787083046526,
       "tag": "0031_loose_stryfe",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1787098759395,
+      "tag": "0032_light_tyger_tiger",
+      "breakpoints": true
     }
   ]
 }

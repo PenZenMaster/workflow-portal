@@ -594,6 +594,29 @@ headroom (`maxTokens`, `maxIterations`, `timeoutMs` all overridable per call
 via `server/mcp/rankrocketToolRun.ts`). Worth remembering when building the
 next planning/report cell rather than rediscovering it.
 
+**Implemented (2026-08-18):** `planning.gbp-snapshot`
+(`server/services/factory/gbpSnapshotCell.ts`) - the second planning cell,
+resolving the exact GBP-data gap the first cell above deliberately left
+open. Unlike GA4's per-client OAuth connection, this reuses a single
+already-proven shared OAuth credential (`server/services/gbp.ts`,
+`GBP_OAUTH_CLIENT_ID`/`SECRET`/`REFRESH_TOKEN` - one Google account with
+manager access to many clients' GBP profiles via Location Groups, verified
+live 2026-08-18 against 15 real accounts under GCP project
+`flight-deck-476019`, sourced from the sibling `reporting-suite` repo). A
+new `clients.gbpLocationName` column (same "client contract as source of
+truth" pattern as `rankrocketSiteKey`) maps a portal client to its GBP
+location resource name; the cell calls the Business Information API
+directly (`mybusinessbusinessinformation.googleapis.com`) and returns the
+snapshot shape `docs/aeo_geo_google_data_architecture.md`'s
+`gbp_location_snapshot` table already documented (title, categories,
+address, service area, phone, website, profile description, hours,
+place ID). Live-verified against two real clients (Salvo Metal Works,
+United Structural Systems) - genuine addresses, phone numbers, service
+areas, and hours, not placeholder data, on the first live attempt (no bugs
+found this time, unlike the first planning cell). B-20's originally-planned
+per-client OAuth popup flow and the legacy v4.9 Reviews/Q&A APIs remain
+unbuilt - see B-20 in `docs/projectStatus.md` for what's still open.
+
 ---
 
 ## 7. The Factory Orchestrator

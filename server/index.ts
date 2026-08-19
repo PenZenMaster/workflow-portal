@@ -13,6 +13,7 @@ import { registerJobHandlers } from "./jobs/handlers";
 import { registerFactoryJobHandlers } from "./jobs/factory";
 import { createReportingMonthlyPipelineCell } from "./services/factory/reportingCell";
 import { createRankingGrowthPlanCell } from "./services/factory/rankingGrowthPlanCell";
+import { createGbpSnapshotCell } from "./services/factory/gbpSnapshotCell";
 import { integrationStore, clientStore } from "./storage";
 import { Ga4Service } from "./services/ga4";
 import { serveStatic } from "./static";
@@ -99,6 +100,7 @@ app.use((req, res, next) => {
       ga4: new Ga4Service(),
     }),
     createRankingGrowthPlanCell({ clientStore }),
+    createGbpSnapshotCell({ clientStore }),
   ]);
   // TD-16: self-eviction - cPanel's Application Root is always this
   // process's cwd regardless of the entry file's own location (same

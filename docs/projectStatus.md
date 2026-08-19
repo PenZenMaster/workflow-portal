@@ -1,11 +1,11 @@
 ## Resume From
 
 Last session: 2026-08-18
-Branch: main | Version: v1.96.0 | committed, packaged/tagged - NOT yet deployed, see NEXT SESSION item 1. Prior state: v1.95.1 DEPLOYED, smoke test PASS, TD-16 clean.
+Branch: main | Version: v1.97.0 | committed, packaged/tagged - NOT yet deployed, see NEXT SESSION item 1. Prior state: v1.95.1 DEPLOYED, smoke test PASS, TD-16 clean.
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes this session.
 
 NEXT SESSION (top 3):
-1. Package and deploy v1.96.0 (new clients.rankrocket_site_key column/migration 0031 - schema change, deploy carefully per the pre-deploy checklist; also includes two real bug fixes in shared adapter infra - see session note below). Not yet on cPanel.
+1. Package and deploy v1.97.0 (two schema migrations - clients.rankrocket_site_key #0031, clients.gbp_location_name #0032 - deploy carefully per the pre-deploy checklist; also includes two real bug fixes in shared adapter infra from the first slice - see session notes below). Not yet on cPanel. **Also requires setting GBP_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN in cPanel's .env before the new gbp-snapshot cell will work in production** - these are only in local dev .env right now (see B-20 below for values' source).
 2. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
 3. TD-16 check: keep doing it every session per the standing ritual, even ones with no deploy. Not done this session (no deploy occurred).
 
@@ -13,6 +13,25 @@ Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot) stays externally blocked - quota still 0 QPM as of 2026-08-18, user re-applied for a quota increase. See B-20's backlog entry for cross-repo findings (E:\projects\gbp_api_data and E:\projects\reporting-suite both have real, separately-approved GBP Performance API access under GCP project flight-deck-476019 - a different API product than what B-20 needs, but real evidence worth citing).
 - Cards 1 ("SEO Audit via Rank Rocket SEO Plugin") and 2 ("Location Page Builder") remain unconverted Perplexity-launch cards - Card 2 needs a net-new "create WordPress page" tool built in the separate rankrocket-mcp repo first (confirmed via source search: doesn't exist today); Card 1 needs a scope decision about its live browser-scan + apply-fix loop, which RankRocket-MCP cannot replace. Not a task to pick up unprompted - both are real follow-up planning exercises.
 - B-24's launch-dialog input-field tooltips (116+ fields, no per-field metadata in the schema) remain deferred pending the user's own "what is it / where to find it / example" copy - not a task to pick up unprompted.
+
+Session 2026-08-18 (part 14): v1.97.0 - `planning.gbp-snapshot`, the second
+Lights-Out SEO Factory planning cell, closing the GBP gap the first cell
+(part 13, below) deliberately left open. Triggered by a live discovery
+while researching B-20: a sibling repo (reporting-suite) had unverified
+code calling exactly the API B-20 needs, under the same GCP project
+already proven live for a different GBP API. A direct read-only
+verification call confirmed it works today - 15 real accounts, including
+two clients this app already tracks. User directed reusing that same
+proven credential/pattern in workflow-portal rather than waiting on this
+app's own stuck application or building B-20's originally-planned
+per-client OAuth flow. Full detail in B-20's own backlog entry below
+(Tech Debt Register precedes Backlog - search "IMPLEMENTED as v1.97.0").
+17 new tests, full suite 1660 -> 1679, all green; lint, typecheck clean.
+Live-verified against two real clients with zero bugs found (contrast
+with part 13's pilot, which found two real latent bugs during its own
+verification). Packaged/tagged, NOT deployed - production also needs the
+three new GBP_OAUTH_* env vars added to cPanel's .env before this cell
+will work there.
 
 Session 2026-08-18 (part 13): v1.96.0 - `planning.ranking-growth-plan`, the
 pilot Lights-Out SEO Factory production cell, closing out the "retrofit the
@@ -4144,3 +4163,40 @@ Confirmed decisions:
   chasing further, just noting it since it reads as a small inconsistency.
   **Status effectively changed from "blocked" to "unblock path identified,
   not yet implemented" - see the in-progress work item below.**
+
+  **2026-08-18, IMPLEMENTED as v1.97.0** (same session, following the live
+  verification above): new `planning.gbp-snapshot` Factory Cell
+  (`server/services/factory/gbpSnapshotCell.ts`) +
+  `server/services/gbp.ts` (Business Information API client, OAuth
+  refresh-token flow mirroring `server/services/ga4.ts`'s pattern but with
+  a single shared credential - `GBP_OAUTH_CLIENT_ID`/`SECRET`/
+  `REFRESH_TOKEN`, values copied from reporting-suite's own
+  `credentials/client_secrets.json` + `credentials/token.json`, same
+  flight-deck-476019 project - rather than B-20's originally-planned
+  per-client OAuth popup). New `clients.gbpLocationName` column (migration
+  0032, same pattern as `rankrocketSiteKey`) maps a portal client to its
+  GBP location resource name. TDD throughout (17 new tests: gbp.ts's OAuth
+  refresh/list/snapshot-mapping logic, the cell's dry-run/error/success
+  paths). Live-verified against the real API (temp script, deleted after):
+  `listLocations()` then `getLocationSnapshot()` for both Salvo Metal Works
+  and United Structural Systems returned genuine, complete data on the
+  first attempt - real street addresses, phone numbers, business
+  descriptions, multi-county service areas, weekly hours, and place IDs,
+  not placeholders. Salvo Metal Works' location ID
+  (7443279615985798277) exactly matches the one hardcoded in
+  `gbp_api_data`'s own config.yaml - independent confirmation this is the
+  same real client across all three repos.
+  Explicitly NOT done in this pass (see the implementation plan's own
+  scope cuts): the legacy v4.9 Reviews API + Q&A API (unverified - only
+  Business Information API was live-tested); a per-client OAuth popup UI
+  (unnecessary, the shared credential already covers every currently-
+  mapped client); wiring this cell's output into
+  `planning.ranking-growth-plan`'s dropped GBP input (fast-follow once
+  both cells are independently proven, not done together to keep each
+  slice reviewable); mapping any of the other 13 GBP accounts under
+  flight-deck-476019 to workflow-portal clients (only Salvo Metal Works
+  and United Structural Systems are confirmed name matches - the rest may
+  or may not correspond to other tracked clients, not investigated).
+  Credentials are in local dev `.env` only right now - cPanel's `.env`
+  needs the same three `GBP_OAUTH_*` vars added before this cell will work
+  in production (see NEXT SESSION item 1).
