@@ -10,10 +10,21 @@ const archive = `workflow-portal-v${version}.tar.gz`;
 const relOut = `../${archive}`;
 
 // Only include what the production server actually needs to run.
-// Everything else (source, tests, docs, git history, dev config) stays local.
+// Everything else (source, tests, internal planning docs, git history, dev
+// config) stays local. docs/system-documentation.md is the one exception -
+// it's genuinely operator-facing content, served at runtime by the in-app
+// Help page (server/routes/help.ts reads it from disk) - found missing in
+// production 2026-08-19, this file had never been added here since B-25
+// shipped, so every deploy's Help page silently rendered empty.
 // No trailing slashes on directories: Windows bsdtar 3.8.x mangles
 // trailing-slash path arguments into empty strings ("Couldn't visit directory").
-const include = ["dist", "migrations", "package.json", "package-lock.json"];
+const include = [
+  "dist",
+  "migrations",
+  "package.json",
+  "package-lock.json",
+  "docs/system-documentation.md",
+];
 
 console.log(`Packaging ${archive} ...`);
 console.log(`  Including: ${include.join(", ")}`);

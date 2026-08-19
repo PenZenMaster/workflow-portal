@@ -80,6 +80,9 @@ export default defineConfig({
     projects: [
       {
         plugins: [react()],
+        define: {
+          __APP_VERSION__: JSON.stringify(version),
+        },
         resolve: {
           alias: {
             "@": path.resolve(import.meta.dirname, "client", "src"),

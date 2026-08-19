@@ -19,12 +19,26 @@ import type { Express } from "express";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { requireAuth } from "../auth";
+import { AppError } from "../errors";
+import { logger } from "../logger";
 
 const DOC_PATH = path.resolve(process.cwd(), "docs/system-documentation.md");
 
 export function registerHelpRoutes(app: Express): void {
   app.get("/api/help/system-documentation", requireAuth, (_req, res) => {
-    const content = readFileSync(DOC_PATH, "utf-8");
+    let content: string;
+    try {
+      content = readFileSync(DOC_PATH, "utf-8");
+    } catch (err) {
+      logger.error("help: failed to read system-documentation.md", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw new AppError(
+        500,
+        "Help documentation is not available on this server. Contact your administrator.",
+        "HELP_DOC_UNAVAILABLE"
+      );
+    }
     res.json({ data: { content } });
   });
 }

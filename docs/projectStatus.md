@@ -1,25 +1,37 @@
 ## Resume From
 
 Last session: 2026-08-19 (continued from 2026-08-18)
-Branch: main | Version: v1.98.1 | committed, packaged/tagged - NOT yet deployed. Prior
-state (v1.98.0) DEPLOYED and confirmed by the user in prod - "Design looks good I like
-the links to the data" - resolving the local-verification gap noted when it shipped
-(dev's fresh DB had no working admin account; user chose to skip dev debugging and
-verify directly in prod instead, which is now done). v1.97.1 DEPLOYED, smoke test PASS,
-TD-16 clean. v1.97.0 was confirmed fully working live 2026-08-19 with a real
-`planning.gbp-snapshot` factory job run against production for client 4 (Salvo Metal
-Works) - see B-20's backlog entry for the full verification trail.
-v1.98.1 (this session, immediately after the user's positive feedback): a follow-up
-placement tweak on the same redesign - moved the 5 compact charts (Overview/Sentiment/
-SoV/Traffic/Recommendations) from below the Brands section to directly under the nav
-buttons row (Reports/Prompt Collections/Runs/Integrations), per explicit user request.
-Brands and Measurement Health now sit below the charts instead of above. TDD (RED
-confirmed for the new heading-order assertion first), full suite still 1691, all green.
+Branch: main | Version: v1.99.0 | committed, packaged/tagged - NOT yet deployed. Prior
+state (v1.98.1) confirmed DEPLOYED (checked directly via SSH package.json) - the compact-
+chart placement tweak, and before it v1.98.0 which the user confirmed looked good live
+in prod ("Design looks good I like the links to the data"). v1.97.1/v1.97.0 also
+DEPLOYED and verified earlier this session - see B-20's backlog entry for the
+`planning.gbp-snapshot` production verification trail.
+v1.99.0 (this session): two real Help-page bugs the user reported, both found via direct
+investigation rather than guessing. (1) The Help page rendered as just a title + one line
+of description, no content - traced to `script/package-deploy.js` never including
+`docs/system-documentation.md` in the deploy tarball (confirmed missing via SSH:
+`docs/` doesn't exist anywhere in the production app root), so `GET /api/help/system-
+documentation` has been throwing an unhandled ENOENT since B-25 shipped, 500-ing
+silently on every production request. Fixed the packaging script (added just that one
+file, not the whole `docs/` tree - the rest is legitimately internal-only) and gave the
+route a clear AppError instead of an opaque 500. (2) Help was only reachable from Home's
+own nav bar, not from any other page - added a persistent `GlobalHelpLink` (fixed
+bottom-left, mirrors the existing version-badge precedent in App.tsx) shown on every
+authenticated page. Found and fixed a real pre-existing test-config gap along the way:
+vitest's `projects` workspace feature doesn't propagate the root-level `define` (used
+for `__APP_VERSION__`) into the "client" project's own build, which had simply never
+surfaced before since nothing rendered `App.tsx` directly until this session's new
+`App.test.tsx`. TDD throughout (RED confirmed for the global-link test, careful to prove
+it against a non-Home page since Home already has its own Help link that would have
+been a false-positive; RED confirmed for the clearer 500 message). Full suite 1691 ->
+1693, all green; lint, typecheck clean.
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes this session.
 
 NEXT SESSION (top 3):
-1. Package and deploy v1.98.1 (pure UI reorder, no migration - low risk, and this time
-   the underlying redesign is already prod-verified as good). Not yet on cPanel.
+1. Package and deploy v1.99.0 - after deploying, verify the Help page actually renders
+   content in prod (the whole point of this fix) and confirm `docs/system-documentation.md`
+   exists in the deployed app root via SSH. Not yet on cPanel.
 2. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
 3. TD-16 check is clean as of this checkpoint (see above) - keep doing it every session per the standing ritual, even ones with no deploy.
 4. Client-experience sequence plan items 2-4 (Client Settings consolidation, Archive with frozen snapshot, Admin Alerts) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Ask the user before starting #2.
@@ -28,6 +40,47 @@ Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot): the Business Information API piece is now DONE and live (see below) - what's left is the legacy v4.9 Reviews/Q&A APIs (unverified, not attempted) and mapping any of the other 13 GBP accounts under flight-deck-476019 to workflow-portal clients beyond the 2 already mapped (Salvo Metal Works, United Structural Systems). Not urgent - pick up only if the user wants more clients wired in or the Reviews data specifically.
 - Cards 1 ("SEO Audit via Rank Rocket SEO Plugin") and 2 ("Location Page Builder") remain unconverted Perplexity-launch cards - Card 2 needs a net-new "create WordPress page" tool built in the separate rankrocket-mcp repo first (confirmed via source search: doesn't exist today); Card 1 needs a scope decision about its live browser-scan + apply-fix loop, which RankRocket-MCP cannot replace. Not a task to pick up unprompted - both are real follow-up planning exercises.
 - B-24's launch-dialog input-field tooltips (116+ fields, no per-field metadata in the schema) remain deferred pending the user's own "what is it / where to find it / example" copy - not a task to pick up unprompted.
+
+Session 2026-08-19 (part 17): v1.99.0 - two Help-page bugs the user
+reported after using the app in prod. Investigated rather than guessed:
+checked `server/routes/help.ts` (reads `docs/system-documentation.md` from
+disk via `readFileSync`, no error handling), then checked production
+directly over SSH and confirmed `docs/` doesn't exist anywhere in the
+deployed app root - `script/package-deploy.js`'s own `include` list
+(`dist`, `migrations`, `package.json`, `package-lock.json`) never
+gained the one file B-25's Help feature actually needs when it shipped.
+Every production request to the Help page has been 500ing silently since
+B-25 - the page's empty appearance (title + one line, nothing else) was
+the client rendering an empty `content` string after the fetch failed.
+Fixed both ends: `package-deploy.js` now also includes
+`docs/system-documentation.md` specifically (not the whole `docs/` tree -
+deliberately checked its content first to confirm it's genuinely
+operator-facing setup/troubleshooting material with no secrets, unlike
+`projectStatus.md`/checkpoints/architecture docs which stay internal-
+only); `help.ts`'s route now catches the read failure and throws a clear
+`AppError` ("Help documentation is not available on this server...",
+code `HELP_DOC_UNAVAILABLE`) instead of leaving an unhandled throw to hit
+the generic 500 handler.
+Second fix: Help was only reachable from Home.tsx's own nav bar - every
+other page had no way to get there. New `GlobalHelpLink` component in
+App.tsx (fixed bottom-left, mirrors the existing `v{__APP_VERSION__}`
+badge's already-established "render outside the route tree, always
+visible" pattern), gated on `useAuth()`'s authenticated status so it's
+inert (not shown) pre-login.
+Incidental fix found while writing the first real test for `App.tsx`
+(none existed before): vitest's `projects` workspace feature does not
+propagate the root-level `define` (`__APP_VERSION__`) into the "client"
+project's own resolved config - a real, previously-latent test-
+infrastructure gap that simply had nothing to trip it before, since no
+test had ever rendered `<App />` directly. Fixed by duplicating the
+`define` into the client project block in `vitest.config.ts`.
+TDD throughout: RED confirmed for the clearer 500 message
+(`tests/server/help.routes.test.ts`); RED confirmed for the global Help
+link - first attempt was a false-positive pass (Home.tsx's own existing
+Help nav link satisfied the assertion without any new code), caught and
+rewritten to render on `/ai/clients` specifically, a page with no Help
+link of its own, before the real RED/GREEN cycle. Full suite 1691 ->
+1693, all green; lint, typecheck clean.
 
 Session 2026-08-19 (part 16): v1.98.1 - follow-up to part 15's redesign,
 after the user confirmed it looked good live in prod ("Design looks good

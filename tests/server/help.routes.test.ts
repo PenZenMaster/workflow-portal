@@ -48,7 +48,7 @@ describe("GET /api/help/system-documentation", () => {
     });
   });
 
-  it("responds 500 without leaking internals when the file can't be read", async () => {
+  it("responds 500 with a clear operator-facing message (not raw fs internals) when the file can't be read", async () => {
     mockReadFileSync.mockImplementation(() => {
       throw new Error("ENOENT: no such file or directory, open '/some/internal/path/system-documentation.md'");
     });
@@ -56,5 +56,7 @@ describe("GET /api/help/system-documentation", () => {
     const res = await request(app).get("/api/help/system-documentation");
     expect(res.status).toBe(500);
     expect(JSON.stringify(res.body)).not.toContain("/some/internal/path");
+    expect(res.body.error).toMatch(/help documentation/i);
+    expect(res.body.code).toBe("HELP_DOC_UNAVAILABLE");
   });
 });

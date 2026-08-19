@@ -30,6 +30,7 @@ import Help from "@/pages/Help";
 import RankRocketSiteInsights from "@/pages/admin/RankRocketSiteInsights";
 import SourceDomains from "@/pages/admin/SourceDomains";
 import { Skeleton } from "@/components/ui/skeleton";
+import { HelpCircle } from "lucide-react";
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -119,6 +120,27 @@ function Gate() {
   );
 }
 
+// Always-visible Help entry point, regardless of which page is active.
+// Plain <a href="#/help"> rather than wouter's <Link> - this renders as a
+// sibling of Gate's own <Router hook={useHashLocation}>, not inside it, so
+// a hash href is the simplest way to navigate correctly without depending
+// on being inside that specific Router instance.
+function GlobalHelpLink() {
+  const { status } = useAuth();
+  if (!status?.authenticated) return null;
+
+  return (
+    <a
+      href="#/help"
+      title="Help"
+      className="fixed bottom-2 left-3 flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-foreground transition-colors z-50"
+    >
+      <HelpCircle className="h-3.5 w-3.5" />
+      Help
+    </a>
+  );
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -128,6 +150,7 @@ function App() {
             <Toaster />
             <AuthProvider>
               <Gate />
+              <GlobalHelpLink />
             </AuthProvider>
             <div className="fixed bottom-2 right-3 text-xs text-muted-foreground/40 select-none pointer-events-none z-50">
               v{__APP_VERSION__}
