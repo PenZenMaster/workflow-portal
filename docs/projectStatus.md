@@ -1,36 +1,21 @@
 ## Resume From
 
 Last session: 2026-08-19 (continued from 2026-08-18)
-Branch: main | Version: v1.99.1 | committed, packaged/tagged - NOT yet deployed. Prior
-state (v1.99.0) confirmed DEPLOYED (checked via SSH: version, docs/system-
-documentation.md present, TD-16 clean single fresh worker) - fixed the empty Help page
-and added the global Help link. v1.98.1/v1.98.0 also DEPLOYED and confirmed good by the
-user in prod. v1.97.1/v1.97.0 DEPLOYED and verified earlier this session - see B-20's
-backlog entry for the `planning.gbp-snapshot` production verification trail.
-v1.99.1 (this session, immediately after v1.99.0 deployed): user hit a live bug clicking
-one of Help's own internal section-nav links in prod
-(`#/help#34-interpreting-results` -> this app's 404 page, "Did you forget to add this
-page to the router?"). Root cause: Help.tsx's own sidebar nav used plain
-`href="#${slug}"` anchor links - the exact same class of bug already found and fixed on
-ClientDetail in part 15/16 (this app's hash-based router interprets any `#...` as a
-route change, not an in-page anchor), just not caught in Help.tsx at the time since it
-predates that fix and nobody had exercised Help's nav links until the doc content
-started rendering in v1.99.0. Fixed by converting the nav entries to buttons using the
-same `scrollToSection()` helper from part 15. Swept the whole `client/src` tree for any
-other bare `href="#...")` anchors - confirmed Help.tsx was the only remaining instance.
-The existing test for this nav actually encoded the broken behavior as correct
-(asserted `href` started with `#`) - rewritten to assert scrollIntoView instead. Full
-suite still 1693, all green; lint, typecheck clean.
+Branch: main | Version: v1.99.1 | DEPLOYED and user-confirmed fixed live (checked via
+SSH: version, TD-16 clean single fresh worker). Fixed two real Help-page bugs this
+session (v1.99.0: doc file missing from every deploy since B-25, Help unreachable from
+any page but Home; v1.99.1: Help's own internal section-nav links 404'd instead of
+scrolling, the same hash-router bug class as ClientDetail's part 15/16 fix) - both
+found via direct investigation of user reports, both verified working in prod after
+deploy. v1.98.1/v1.98.0 also DEPLOYED and confirmed good by the user. v1.97.1/v1.97.0
+DEPLOYED and verified earlier this session - see B-20's backlog entry for the
+`planning.gbp-snapshot` production verification trail.
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes this session.
 
 NEXT SESSION (top 3):
-1. Package and deploy v1.99.1 - after deploying, verify Help's own internal section-nav
-   links actually scroll instead of 404ing (click a sidebar entry, confirm it lands on
-   the matching heading, not the "Did you forget to add this page to the router?" page).
-   Not yet on cPanel.
-2. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
-3. TD-16 check is clean as of this checkpoint (see above) - keep doing it every session per the standing ritual, even ones with no deploy.
-4. Client-experience sequence plan items 2-4 (Client Settings consolidation, Archive with frozen snapshot, Admin Alerts) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Ask the user before starting #2.
+1. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
+2. TD-16 check is clean as of this checkpoint (see above) - keep doing it every session per the standing ritual, even ones with no deploy.
+3. Client-experience sequence plan items 2-4 (Client Settings consolidation, Archive with frozen snapshot, Admin Alerts) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Ask the user before starting #2.
 
 Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot): the Business Information API piece is now DONE and live (see below) - what's left is the legacy v4.9 Reviews/Q&A APIs (unverified, not attempted) and mapping any of the other 13 GBP accounts under flight-deck-476019 to workflow-portal clients beyond the 2 already mapped (Salvo Metal Works, United Structural Systems). Not urgent - pick up only if the user wants more clients wired in or the Reviews data specifically.
