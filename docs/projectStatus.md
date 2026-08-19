@@ -1,13 +1,22 @@
 ## Resume From
 
-Last session: 2026-08-18
-Branch: main | Version: v1.97.0 | committed, packaged/tagged - NOT yet deployed, see NEXT SESSION item 1. Prior state: v1.95.1 DEPLOYED, smoke test PASS, TD-16 clean.
+Last session: 2026-08-19 (continued from 2026-08-18)
+Branch: main | Version: v1.97.0 | DEPLOYED and confirmed live 2026-08-19: version verified
+(package.json on server), both migrations applied (rankrocket_site_key + gbp_location_name
+columns confirmed via direct SQL against persistent/data.db), smoke test PASS (portal
+responds HTTP 200), TD-16 clean (single fresh worker on portal.fullmetaljacketseo.com,
+started 14:14 post-deploy; mcp.fullmetaljacketseo.com untouched, no stale duplicates).
+User added GBP_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN to cPanel's .env before this deploy,
+per NEXT SESSION item 1 below (now done) - the gbp-snapshot cell should be fully live.
+NOT yet done: an actual live functional test of planning.gbp-snapshot against production
+(a real POST /api/factory/jobs call) - only structural checks (version/migration/health)
+have been confirmed so far, not the cell's own behavior in prod.
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes this session.
 
 NEXT SESSION (top 3):
-1. Package and deploy v1.97.0 (two schema migrations - clients.rankrocket_site_key #0031, clients.gbp_location_name #0032 - deploy carefully per the pre-deploy checklist; also includes two real bug fixes in shared adapter infra from the first slice - see session notes below). Not yet on cPanel. **Also requires setting GBP_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN in cPanel's .env before the new gbp-snapshot cell will work in production** - these are only in local dev .env right now (see B-20 below for values' source).
-2. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
-3. TD-16 check: keep doing it every session per the standing ritual, even ones with no deploy. Not done this session (no deploy occurred).
+1. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
+2. TD-16 check is clean as of this checkpoint (see above) - keep doing it every session per the standing ritual, even ones with no deploy.
+3. Consider a real functional test of planning.gbp-snapshot in production (create a real factory job for Salvo Metal Works or United Structural Systems via POST /api/factory/jobs once those clients' clients.gbp_location_name is populated in prod - not yet done, only verified locally in dev).
 
 Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot) stays externally blocked - quota still 0 QPM as of 2026-08-18, user re-applied for a quota increase. See B-20's backlog entry for cross-repo findings (E:\projects\gbp_api_data and E:\projects\reporting-suite both have real, separately-approved GBP Performance API access under GCP project flight-deck-476019 - a different API product than what B-20 needs, but real evidence worth citing).
