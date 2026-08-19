@@ -23,6 +23,7 @@ import type { Components } from "react-markdown";
 import { BookOpen } from "lucide-react";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { scrollToSection } from "@/lib/scrollToSection";
 
 interface NavEntry {
   level: 2 | 3;
@@ -110,12 +111,13 @@ export default function Help() {
             <ul className="space-y-1 text-sm">
               {navEntries.map((entry) => (
                 <li key={entry.slug} className={entry.level === 3 ? "pl-4" : ""}>
-                  <a
-                    href={`#${entry.slug}`}
-                    className="text-muted-foreground hover:text-foreground transition-colors block py-0.5"
+                  <button
+                    type="button"
+                    onClick={() => scrollToSection(entry.slug)}
+                    className="text-muted-foreground hover:text-foreground transition-colors block py-0.5 text-left w-full"
                   >
                     {entry.text}
-                  </a>
+                  </button>
                 </li>
               ))}
             </ul>

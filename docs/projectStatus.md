@@ -1,37 +1,33 @@
 ## Resume From
 
 Last session: 2026-08-19 (continued from 2026-08-18)
-Branch: main | Version: v1.99.0 | committed, packaged/tagged - NOT yet deployed. Prior
-state (v1.98.1) confirmed DEPLOYED (checked directly via SSH package.json) - the compact-
-chart placement tweak, and before it v1.98.0 which the user confirmed looked good live
-in prod ("Design looks good I like the links to the data"). v1.97.1/v1.97.0 also
-DEPLOYED and verified earlier this session - see B-20's backlog entry for the
-`planning.gbp-snapshot` production verification trail.
-v1.99.0 (this session): two real Help-page bugs the user reported, both found via direct
-investigation rather than guessing. (1) The Help page rendered as just a title + one line
-of description, no content - traced to `script/package-deploy.js` never including
-`docs/system-documentation.md` in the deploy tarball (confirmed missing via SSH:
-`docs/` doesn't exist anywhere in the production app root), so `GET /api/help/system-
-documentation` has been throwing an unhandled ENOENT since B-25 shipped, 500-ing
-silently on every production request. Fixed the packaging script (added just that one
-file, not the whole `docs/` tree - the rest is legitimately internal-only) and gave the
-route a clear AppError instead of an opaque 500. (2) Help was only reachable from Home's
-own nav bar, not from any other page - added a persistent `GlobalHelpLink` (fixed
-bottom-left, mirrors the existing version-badge precedent in App.tsx) shown on every
-authenticated page. Found and fixed a real pre-existing test-config gap along the way:
-vitest's `projects` workspace feature doesn't propagate the root-level `define` (used
-for `__APP_VERSION__`) into the "client" project's own build, which had simply never
-surfaced before since nothing rendered `App.tsx` directly until this session's new
-`App.test.tsx`. TDD throughout (RED confirmed for the global-link test, careful to prove
-it against a non-Home page since Home already has its own Help link that would have
-been a false-positive; RED confirmed for the clearer 500 message). Full suite 1691 ->
-1693, all green; lint, typecheck clean.
+Branch: main | Version: v1.99.1 | committed, packaged/tagged - NOT yet deployed. Prior
+state (v1.99.0) confirmed DEPLOYED (checked via SSH: version, docs/system-
+documentation.md present, TD-16 clean single fresh worker) - fixed the empty Help page
+and added the global Help link. v1.98.1/v1.98.0 also DEPLOYED and confirmed good by the
+user in prod. v1.97.1/v1.97.0 DEPLOYED and verified earlier this session - see B-20's
+backlog entry for the `planning.gbp-snapshot` production verification trail.
+v1.99.1 (this session, immediately after v1.99.0 deployed): user hit a live bug clicking
+one of Help's own internal section-nav links in prod
+(`#/help#34-interpreting-results` -> this app's 404 page, "Did you forget to add this
+page to the router?"). Root cause: Help.tsx's own sidebar nav used plain
+`href="#${slug}"` anchor links - the exact same class of bug already found and fixed on
+ClientDetail in part 15/16 (this app's hash-based router interprets any `#...` as a
+route change, not an in-page anchor), just not caught in Help.tsx at the time since it
+predates that fix and nobody had exercised Help's nav links until the doc content
+started rendering in v1.99.0. Fixed by converting the nav entries to buttons using the
+same `scrollToSection()` helper from part 15. Swept the whole `client/src` tree for any
+other bare `href="#...")` anchors - confirmed Help.tsx was the only remaining instance.
+The existing test for this nav actually encoded the broken behavior as correct
+(asserted `href` started with `#`) - rewritten to assert scrollIntoView instead. Full
+suite still 1693, all green; lint, typecheck clean.
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes this session.
 
 NEXT SESSION (top 3):
-1. Package and deploy v1.99.0 - after deploying, verify the Help page actually renders
-   content in prod (the whole point of this fix) and confirm `docs/system-documentation.md`
-   exists in the deployed app root via SSH. Not yet on cPanel.
+1. Package and deploy v1.99.1 - after deploying, verify Help's own internal section-nav
+   links actually scroll instead of 404ing (click a sidebar entry, confirm it lands on
+   the matching heading, not the "Did you forget to add this page to the router?" page).
+   Not yet on cPanel.
 2. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
 3. TD-16 check is clean as of this checkpoint (see above) - keep doing it every session per the standing ritual, even ones with no deploy.
 4. Client-experience sequence plan items 2-4 (Client Settings consolidation, Archive with frozen snapshot, Admin Alerts) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Ask the user before starting #2.
@@ -40,6 +36,35 @@ Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot): the Business Information API piece is now DONE and live (see below) - what's left is the legacy v4.9 Reviews/Q&A APIs (unverified, not attempted) and mapping any of the other 13 GBP accounts under flight-deck-476019 to workflow-portal clients beyond the 2 already mapped (Salvo Metal Works, United Structural Systems). Not urgent - pick up only if the user wants more clients wired in or the Reviews data specifically.
 - Cards 1 ("SEO Audit via Rank Rocket SEO Plugin") and 2 ("Location Page Builder") remain unconverted Perplexity-launch cards - Card 2 needs a net-new "create WordPress page" tool built in the separate rankrocket-mcp repo first (confirmed via source search: doesn't exist today); Card 1 needs a scope decision about its live browser-scan + apply-fix loop, which RankRocket-MCP cannot replace. Not a task to pick up unprompted - both are real follow-up planning exercises.
 - B-24's launch-dialog input-field tooltips (116+ fields, no per-field metadata in the schema) remain deferred pending the user's own "what is it / where to find it / example" copy - not a task to pick up unprompted.
+
+Session 2026-08-19 (part 18): v1.99.1 - one more Help bug, reported by
+the user immediately after v1.99.0 deployed:
+`https://portal.fullmetaljacketseo.com/#34-interpreting-results` landed
+on this app's own 404 page ("Did you forget to add this page to the
+router?", `client/src/pages/not-found.tsx`'s literal text, confirmed by
+reading it - this wasn't a generic error, it was proof the click was
+interpreted as a route navigation). Root cause: `Help.tsx`'s own sidebar
+nav entries (built from the doc's `##`/`###` headings) used plain
+`href="#${slug}"` anchor tags. This app's router (`wouter` with
+`useHashLocation`) treats any `#...` change as a route lookup, not an
+in-page jump - the identical class of bug already found and fixed on
+`ClientDetail` in part 15/16 via a `scrollToSection()` helper, just not
+yet applied to Help.tsx, which predates that fix and had never had its
+nav actually exercised in production until v1.99.0 finally made the doc
+content (and therefore the nav) render at all. Fixed by converting the
+nav entries from `<a href="#slug">` to `<button onClick={() =>
+scrollToSection(slug)}>`, reusing the exact same helper. Swept
+`client/src` for any other bare `href="#...")` anchors before calling
+this done - Help.tsx was the only remaining instance (ClientDetail and
+the new global Help link both already use the safe patterns).
+The existing test for this nav (`Help.test.tsx`) had actually encoded
+the bug as correct behavior - it asserted the nav link's `href` started
+with `#` and matched the target heading's id, which is exactly the
+broken navigable-hash shape. Rewrote it to assert a click triggers
+`scrollIntoView` on the right heading instead, plus updated the sibling
+sub-heading-nav-entry test from `getByRole("link")` to
+`getByRole("button")`. Full suite still 1693, all green; lint, typecheck
+clean.
 
 Session 2026-08-19 (part 17): v1.99.0 - two Help-page bugs the user
 reported after using the app in prod. Investigated rather than guessed:

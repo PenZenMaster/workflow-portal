@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
 import Help from "./Help";
@@ -52,23 +53,29 @@ describe("Help page", () => {
     expect(screen.getByText(/Some intro text\./)).toBeInTheDocument();
   });
 
-  it("builds a section nav from the doc's own ## and ### headings, with matching anchor ids on the rendered headings", async () => {
+  it("builds a section nav from the doc's own ## and ### headings, and clicking a nav entry scrolls to the matching heading (not a hash route change)", async () => {
+    const user = userEvent.setup();
     renderHelp();
     await waitFor(() => expect(screen.getAllByText(/Section 1: Recommended Setup Order/i).length).toBeGreaterThan(0));
 
-    const navLink = screen.getByRole("link", { name: /Section 1: Recommended Setup Order/i });
-    const href = navLink.getAttribute("href");
-    expect(href).toMatch(/^#/);
-
-    const targetId = href!.slice(1);
+    // Real navigable links here would break this app's hash-based router
+    // (clicking "#some-slug" is interpreted as a route change, not an
+    // in-page anchor - the exact bug reported in production). Nav entries
+    // must be buttons that scroll, not links.
+    const navButton = screen.getByRole("button", { name: /Section 1: Recommended Setup Order/i });
     const heading = screen.getByRole("heading", { name: /Section 1: Recommended Setup Order/i });
-    expect(heading.id).toBe(targetId);
+    const scrollSpy = vi.fn();
+    heading.scrollIntoView = scrollSpy;
+
+    await user.click(navButton);
+
+    expect(scrollSpy).toHaveBeenCalledWith({ behavior: "smooth" });
   });
 
   it("includes a nav entry for a sub-section heading (###) as well as top-level (##)", async () => {
     renderHelp();
     await waitFor(() => expect(screen.getAllByText(/1A\. Global Application Settings/i).length).toBeGreaterThan(0));
-    expect(screen.getByRole("link", { name: /1A\. Global Application Settings/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /1A\. Global Application Settings/i })).toBeInTheDocument();
   });
 
   it("renders a markdown table (GFM) correctly via remark-gfm", async () => {
