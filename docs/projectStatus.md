@@ -1,26 +1,50 @@
 ## Resume From
 
 Last session: 2026-08-19 (continued from 2026-08-18)
-Branch: main | Version: v1.99.1 | DEPLOYED and user-confirmed fixed live (checked via
-SSH: version, TD-16 clean single fresh worker). Fixed two real Help-page bugs this
-session (v1.99.0: doc file missing from every deploy since B-25, Help unreachable from
-any page but Home; v1.99.1: Help's own internal section-nav links 404'd instead of
-scrolling, the same hash-router bug class as ClientDetail's part 15/16 fix) - both
-found via direct investigation of user reports, both verified working in prod after
-deploy. v1.98.1/v1.98.0 also DEPLOYED and confirmed good by the user. v1.97.1/v1.97.0
-DEPLOYED and verified earlier this session - see B-20's backlog entry for the
-`planning.gbp-snapshot` production verification trail.
+Branch: main | Version: v1.100.0 | DEPLOYED and user-confirmed QA pass (checked via
+SSH: version, TD-16 clean single fresh worker started post-deploy). Client-experience
+sequence plan item 4 (Admin Alerts) shipped this session - see part 19 below for full
+detail. v1.99.1/v1.99.0 also DEPLOYED and user-confirmed fixed live earlier this
+session (two Help-page bugs). v1.98.1/v1.98.0 also DEPLOYED and confirmed good by the
+user. v1.97.1/v1.97.0 DEPLOYED and verified earlier this session - see B-20's backlog
+entry for the `planning.gbp-snapshot` production verification trail.
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes this session.
 
 NEXT SESSION (top 3):
 1. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
 2. TD-16 check is clean as of this checkpoint (see above) - keep doing it every session per the standing ritual, even ones with no deploy.
-3. Client-experience sequence plan items 2-4 (Client Settings consolidation, Archive with frozen snapshot, Admin Alerts) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Ask the user before starting #2.
+3. Client-experience sequence plan items 2-3 (Client Settings consolidation, Archive with frozen snapshot) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Item 4 (Admin Alerts) shipped this session, minus its deferred measurement-health signal (see part 19). Ask the user before starting #2.
 
 Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot): the Business Information API piece is now DONE and live (see below) - what's left is the legacy v4.9 Reviews/Q&A APIs (unverified, not attempted) and mapping any of the other 13 GBP accounts under flight-deck-476019 to workflow-portal clients beyond the 2 already mapped (Salvo Metal Works, United Structural Systems). Not urgent - pick up only if the user wants more clients wired in or the Reviews data specifically.
 - Cards 1 ("SEO Audit via Rank Rocket SEO Plugin") and 2 ("Location Page Builder") remain unconverted Perplexity-launch cards - Card 2 needs a net-new "create WordPress page" tool built in the separate rankrocket-mcp repo first (confirmed via source search: doesn't exist today); Card 1 needs a scope decision about its live browser-scan + apply-fix loop, which RankRocket-MCP cannot replace. Not a task to pick up unprompted - both are real follow-up planning exercises.
 - B-24's launch-dialog input-field tooltips (116+ fields, no per-field metadata in the schema) remain deferred pending the user's own "what is it / where to find it / example" copy - not a task to pick up unprompted.
+
+Session 2026-08-19 (part 19): v1.100.0 - client-experience sequence plan
+item 4, Admin Alerts. New `/admin/alerts` page (super_admin only, linked
+from the top nav next to Jobs) unions five existing failure signals into
+one list: integrations with status='failing', the generic job queue and
+factory_jobs where status='failed', report_exports where status='failed',
+and prompt_runs where status IN ('failed','partial') - each entry links
+to its client where one applies. On-load fetch with a manual refresh
+button, no polling, no dismiss/acknowledge concept (matches the
+/admin/jobs precedent of being a live reflection of current state, per
+the plan's own "lean toward on-load, lean toward no dismiss for v1"
+open-decision notes). New `listByStatus` methods added to IntegrationStore,
+ExportStore, and RunStore - none had a global (all-clients) status query
+before this, only listByClient. Deliberately deferred: the measurement-
+health signal (degraded/invalid_for_reporting clients), confirmed via
+plan-mode question with the user before starting - its assembly
+(`assembleRunHealth` in server/routes/runs.ts) pulls in manifest,
+comparability, collection diagnostics, and client readiness per run and
+isn't yet factored into a reusable service; folding it in now would have
+been a real refactor, not just a query, so it's scoped as its own
+fast-follow slice rather than rushed into tonight's close-out. TDD
+throughout - every new store method, the aggregator service
+(server/services/adminAlerts.ts), the route, and the page each had a RED
+test confirmed before implementation (24 new tests total). Full suite
+1716/1716 green, lint/typecheck clean. DEPLOYED and user-confirmed QA
+pass; SSH-verified version 1.100.0 live, TD-16 clean single fresh worker.
 
 Session 2026-08-19 (part 18): v1.99.1 - one more Help bug, reported by
 the user immediately after v1.99.0 deployed:
