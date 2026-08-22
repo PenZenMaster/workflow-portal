@@ -1,19 +1,30 @@
 ## Resume From
 
-Last session: 2026-08-19 (continued from 2026-08-18)
+Last session: 2026-08-21 (no code changes - GCP account admin only; see note below)
+Previous code session: 2026-08-19 (continued from 2026-08-18)
 Branch: main | Version: v1.100.0 | DEPLOYED and user-confirmed QA pass (checked via
 SSH: version, TD-16 clean single fresh worker started post-deploy). Client-experience
-sequence plan item 4 (Admin Alerts) shipped this session - see part 19 below for full
-detail. v1.99.1/v1.99.0 also DEPLOYED and user-confirmed fixed live earlier this
-session (two Help-page bugs). v1.98.1/v1.98.0 also DEPLOYED and confirmed good by the
-user. v1.97.1/v1.97.0 DEPLOYED and verified earlier this session - see B-20's backlog
+sequence plan item 4 (Admin Alerts) shipped 2026-08-19 - see part 19 below for full
+detail. v1.99.1/v1.99.0 also DEPLOYED and user-confirmed fixed live that session
+(two Help-page bugs). v1.98.1/v1.98.0 also DEPLOYED and confirmed good by the
+user. v1.97.1/v1.97.0 DEPLOYED and verified that session - see B-20's backlog
 entry for the `planning.gbp-snapshot` production verification trail.
-rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes this session.
+rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes.
+
+2026-08-21 session note: no code touched. User was working through NEXT SESSION
+item 1 below (getting a GOOGLE_AI_API_KEY for Gemini) and hit a GCP account-level
+block: "you do not have permission to create API Keys" despite being Owner on the
+project - diagnosed as Google's abuse-prevention "restricted account" gate, not an
+IAM/role problem, requiring a linked billing account to clear. Then hit a second
+wall: billing account is at its project limit. Left mid-resolution: user was about
+to either unlink billing from an old unused project (reversible, recommended first)
+or delete one outright, to free a slot for this project's billing link. Neither the
+GOOGLE_AI_API_KEY nor DEEPSEEK_API_KEY has been added to .env (local) or cPanel yet.
 
 NEXT SESSION (top 3):
-1. Live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end - no local or prod key was available to hit the real APIs pre-deploy, so this was shipped grounded in each provider's own current docs rather than a live call. Check the next scheduled run's response status for these two platforms once one fires.
-2. TD-16 check is clean as of this checkpoint (see above) - keep doing it every session per the standing ritual, even ones with no deploy.
-3. Client-experience sequence plan items 2-3 (Client Settings consolidation, Archive with frozen snapshot) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Item 4 (Admin Alerts) shipped this session, minus its deferred measurement-health signal (see part 19). Ask the user before starting #2.
+1. Follow up on the GCP billing-slot issue above - confirm the user freed a slot (unlinked or deleted an old project) and successfully linked billing to the Gemini project, then created the API key. Once obtained: add GOOGLE_AI_API_KEY (and DEEPSEEK_API_KEY once separately sourced from platform.deepseek.com) to local .env, then live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end via the next scheduled run's response status - no local or prod key has been available to hit the real APIs since that fix shipped, so it's still unverified against a live call. Add both keys to cPanel's .env too once confirmed working locally.
+2. TD-16 check is clean as of the 2026-08-19 checkpoint (see above) - keep doing it every session per the standing ritual, even ones with no deploy.
+3. Client-experience sequence plan items 2-3 (Client Settings consolidation, Archive with frozen snapshot) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Item 4 (Admin Alerts) shipped 2026-08-19, minus its deferred measurement-health signal (see part 19). Ask the user before starting #2.
 
 Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot): the Business Information API piece is now DONE and live (see below) - what's left is the legacy v4.9 Reviews/Q&A APIs (unverified, not attempted) and mapping any of the other 13 GBP accounts under flight-deck-476019 to workflow-portal clients beyond the 2 already mapped (Salvo Metal Works, United Structural Systems). Not urgent - pick up only if the user wants more clients wired in or the Reviews data specifically.
