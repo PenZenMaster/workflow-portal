@@ -688,8 +688,49 @@ Optional (required for password reset):
 1. Complete the pre-deploy checklist above.
 2. git add -A && git commit && git push
 3. npm run package          (preflight -> lint -> check -> db:check -> test -> build -> archive -> git tag)
-4. cPanel File Manager: upload the new .tar.gz, extract into app root (overwriting dist/)
-5. Setup Node.js App -> Run NPM Install -> Restart
+4. git push --tags
+5. Deploy the archive (two equivalent options):
+   - cPanel File Manager: upload the new .tar.gz, extract into app root (overwriting dist/),
+     then Setup Node.js App -> Run NPM Install -> Restart, OR
+   - SSH (what Claude does): scp the tar.gz into the app root, `tar -xzf` it there, then run
+     the two steps below.
 
 The package script produces dist/, migrations/, package.json, package-lock.json only.
 Archive is named workflow-portal-v<version>.tar.gz and placed one level above the project root.
+
+#### Installing dependencies on deploy - pick the right command
+
+`cloudlinux-selector install-modules --json --interpreter nodejs --app-root <path>`
+is the CLI cPanel's "Run NPM Install" button calls. It behaves like a plain `npm
+install`, NOT `npm ci` - if a transitive package's already-installed version still
+satisfies its parent's semver range, it leaves it alone even when package-lock.json
+now resolves that transitive dep to a different (e.g. patched) version. Confirmed
+2026-09-03: after a lockfile-only Dependabot fix (package.json unchanged,
+package-lock.json's transitive resolutions bumped), `install-modules` completed
+"success" but the deployed node_modules still had the old vulnerable versions.
+
+Rule of thumb:
+- Code-only change (package.json/package-lock.json untouched): `install-modules`
+  then `restart` is fine - this is what "Run NPM Install" does and it's sufficient.
+- Any package.json OR package-lock.json change (new/updated/removed dependency,
+  including transitive-only lockfile bumps like a dependency security fix): use
+  `npm ci` instead, run with the nodevenv activated:
+  ```
+  ssh -i ~/.ssh/workflow-portal fullmetaljacket@69.72.136.208
+  source /home/fullmetaljacket/nodevenv/portal.fullmetaljacketseo.com/22/bin/activate
+  cd /home/fullmetaljacket/portal.fullmetaljacketseo.com
+  npm ci --omit=dev
+  cloudlinux-selector restart --json --interpreter nodejs --app-root /home/fullmetaljacket/portal.fullmetaljacketseo.com
+  ```
+  (adjust the nodevenv version segment `22` if the Node version ever changes)
+
+Side effect, accepted going forward (user confirmed 2026-09-03): cPanel's initial
+"Setup Node.js App" wizard creates `node_modules` in the app root as a symlink into
+the shared nodevenv directory (`nodevenv/portal.fullmetaljacketseo.com/22/lib/node_modules`).
+`npm ci` doesn't preserve that - it sees a "non-directory" at that path, deletes it,
+and creates a real, standalone `node_modules` folder in the app root instead. This
+is functionally identical to Node (module resolution doesn't care whether
+node_modules is a symlink or a real directory) but it means the old nodevenv-shared
+directory is now stale/orphaned, and the app root's node_modules is real from here
+on rather than symlinked. Don't try to restore the symlink - just keep using
+`npm ci` for any dependency-touching deploy.
