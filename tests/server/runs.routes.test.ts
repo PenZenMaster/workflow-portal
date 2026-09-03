@@ -61,7 +61,7 @@ const mockMeasurementHealthOverrideStore = {
 
 vi.mock("../../server/storage", () => ({
   storage: { countUsers: vi.fn() },
-  platformStore: { seedDefaults: vi.fn().mockResolvedValue(undefined), list: vi.fn() },
+  platformStore: { seedDefaults: vi.fn().mockResolvedValue(undefined), list: vi.fn().mockResolvedValue([]) },
   promptCollectionStore: mockPromptCollectionStore,
   promptMethodologyStore: { getActive: vi.fn().mockResolvedValue({ version: "1.0" }) },
   promptStore: mockPromptStore,

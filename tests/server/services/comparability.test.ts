@@ -143,6 +143,26 @@ describe("compareManifests — blocking differences (not_comparable)", () => {
     );
   });
 
+  it("renders platform names instead of raw ids in the detail when a name map is given", () => {
+    const current = makeManifest({ ...BASE_CONFIG, platformIds: [1, 3] });
+    const platformNames = new Map([
+      [1, "Perplexity"],
+      [2, "ChatGPT (OpenAI)"],
+      [3, "Claude (Anthropic)"],
+    ]);
+    const result = compareManifests(makeManifest(), current, platformNames);
+    const reason = result.reasons.find((r) => r.code === "platforms_changed");
+    expect(reason?.detail).toBe("platforms [Perplexity, ChatGPT (OpenAI)] -> [Perplexity, Claude (Anthropic)]");
+  });
+
+  it("falls back to #id for a platform missing from the name map", () => {
+    const current = makeManifest({ ...BASE_CONFIG, platformIds: [1, 3] });
+    const platformNames = new Map([[1, "Perplexity"]]);
+    const result = compareManifests(makeManifest(), current, platformNames);
+    const reason = result.reasons.find((r) => r.code === "platforms_changed");
+    expect(reason?.detail).toBe("platforms [Perplexity, #2] -> [Perplexity, #3]");
+  });
+
   it("flags a replicate count change as blocking", () => {
     const current = makeManifest(BASE_CONFIG, { replicateCount: 3 });
     const result = compareManifests(makeManifest(), current);

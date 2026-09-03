@@ -46,6 +46,7 @@ import {
   manifestStore,
   sourceDomainStore,
   measurementHealthOverrideStore,
+  platformStore,
 } from "../storage";
 import { JOB_STATUSES } from "@shared/schema";
 import { triggerRunSchema, insertScheduleSchema, measurementHealthOverrideSchema } from "@shared/schema";
@@ -83,6 +84,11 @@ const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
 // nearest-previous-run baseline is resolved here - the only mode the
 // period rollup ever uses, since ?against= doesn't make sense across
 // many runs at once.
+async function getPlatformNameMap(): Promise<Map<number, string>> {
+  const platforms = await platformStore.list();
+  return new Map(platforms.map((p) => [p.id, p.displayName]));
+}
+
 async function assembleRunHealth(
   run: PromptRun,
   explicitBaseline?: MeasurementRunManifest | null
@@ -95,7 +101,8 @@ async function assembleRunHealth(
       : await manifestStore.getPreviousManifest(manifest.clientId, manifest.collectionId, manifest.runId)
     : null;
 
-  const comparability = manifest && baseline ? compareManifests(baseline, manifest) : null;
+  const comparability =
+    manifest && baseline ? compareManifests(baseline, manifest, await getPlatformNameMap()) : null;
 
   const responses = await responseStore.listByRun(run.id);
   const completedPlatformIds = Array.from(
@@ -316,7 +323,7 @@ export function registerRunRoutes(app: Express): void {
         throw new AppError(404, "No earlier run with a manifest", "NO_BASELINE");
     }
 
-    ok(res, compareManifests(baseline, manifest));
+    ok(res, compareManifests(baseline, manifest, await getPlatformNameMap()));
   });
 
   // issue #3 Epic 3 slice 1 (issue #30): measurement health is a
