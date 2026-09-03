@@ -410,12 +410,12 @@ describe("GroqAdapter (Llama via Groq)", () => {
 // ---------------------------------------------------------------------------
 describe("MistralAdapter", () => {
   it("returns RawResponse with correct id", async () => {
-    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: { ...OPENAI_BODY, model: "mistral-large-latest" } }]));
+    vi.stubGlobal("fetch", mockFetch([{ status: 200, body: { ...OPENAI_BODY, model: "mistral-medium-latest" } }]));
     const a = new MistralAdapter("mst-test", { retryDelayMs: 0 });
     const r = await a.run("Best SEO agency");
     expect(a.id).toBe("mistral");
-    expect(r.modelVariant).toBe("mistral-large-latest");
-    expect(r.requestedModel).toBe("mistral-large-latest");
+    expect(r.modelVariant).toBe("mistral-medium-latest");
+    expect(r.requestedModel).toBe("mistral-medium-latest");
     expect(r.providerRequestId).toBe("chatcmpl-test");
   });
 

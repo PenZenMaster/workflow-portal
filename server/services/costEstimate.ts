@@ -22,9 +22,12 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-08-17
- * Last Modified Date: 2026-08-17
+ * Last Modified Date: 2026-09-03
  * Comments:
  * - v1.00 issue #35 slice 4
+ * - v1.01 mistral-large-latest retired (403 tier_not_allowed) and replaced
+ *   by mistral-medium-latest as the adapter default - pricing for Medium
+ *   3.5 sourced 2026-09-03 from mistral.ai/pricing/api
  */
 
 export interface ModelPricing {
@@ -55,7 +58,7 @@ const PRICING_TABLE: Record<string, Record<string, ModelPricing>> = {
     "llama-3.3-70b-versatile": { inputPerMillion: 0.59, outputPerMillion: 0.79 },
   },
   mistral: {
-    "mistral-large-latest": { inputPerMillion: 0.5, outputPerMillion: 1.5 },
+    "mistral-medium-latest": { inputPerMillion: 1.5, outputPerMillion: 7.5 },
     "mistral-small-latest": { inputPerMillion: 0.15, outputPerMillion: 0.6 }, // utility tier
   },
   deepseek: {

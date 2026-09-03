@@ -84,7 +84,7 @@ const FIXTURES: Fixture[] = [
   {
     name: "mistral",
     make: (k, o) => new MistralAdapter(k, o),
-    defaultModel: "mistral-large-latest",
+    defaultModel: "mistral-medium-latest",
     buildBody: openAiStyleBody,
     usageBlock: { prompt_tokens: 42, completion_tokens: 117 },
     sentMaxTokens: (b) => b.max_tokens,
