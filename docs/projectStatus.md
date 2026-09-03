@@ -1,35 +1,113 @@
 ## Resume From
 
-Last session: 2026-08-21 (no code changes - GCP account admin only; see note below)
+Last session: 2026-09-03 (GCP/Gemini billing saga fully closed out, plus a small
+shippable fix - v1.100.1)
 Previous code session: 2026-08-19 (continued from 2026-08-18)
-Branch: main | Version: v1.100.0 | DEPLOYED and user-confirmed QA pass (checked via
-SSH: version, TD-16 clean single fresh worker started post-deploy). Client-experience
-sequence plan item 4 (Admin Alerts) shipped 2026-08-19 - see part 19 below for full
-detail. v1.99.1/v1.99.0 also DEPLOYED and user-confirmed fixed live that session
-(two Help-page bugs). v1.98.1/v1.98.0 also DEPLOYED and confirmed good by the
-user. v1.97.1/v1.97.0 DEPLOYED and verified that session - see B-20's backlog
-entry for the `planning.gbp-snapshot` production verification trail.
+Branch: main | Version: v1.100.1 | DEPLOYED and live-verified in browser (banner text
++ footer version both confirmed post-deploy; TD-16 clean single fresh worker on
+portal immediately after this session's restart). v1.100.0's Admin Alerts (part 19)
+also DEPLOYED and user-confirmed. v1.99.1/v1.99.0 also DEPLOYED and user-confirmed
+fixed live that session (two Help-page bugs). v1.98.1/v1.98.0 also DEPLOYED and
+confirmed good by the user. v1.97.1/v1.97.0 DEPLOYED and verified that session - see
+B-20's backlog entry for the `planning.gbp-snapshot` production verification trail.
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes.
 
-2026-08-21 session note: no code touched. User was working through NEXT SESSION
-item 1 below (getting a GOOGLE_AI_API_KEY for Gemini) and hit a GCP account-level
-block: "you do not have permission to create API Keys" despite being Owner on the
-project - diagnosed as Google's abuse-prevention "restricted account" gate, not an
-IAM/role problem, requiring a linked billing account to clear. Then hit a second
-wall: billing account is at its project limit. Left mid-resolution: user was about
-to either unlink billing from an old unused project (reversible, recommended first)
-or delete one outright, to free a slot for this project's billing link. Neither the
-GOOGLE_AI_API_KEY nor DEEPSEEK_API_KEY has been added to .env (local) or cPanel yet.
+Session 2026-09-03 (part 20): closed out NEXT SESSION item 1 from the 2026-08-21
+note below - see full narrative in part 20 detail further down. Short version: the
+GCP "restricted account" block from 2026-08-21 was resolved by disabling billing on
+the HNFO project (freed a slot on My Maps Billing Account, which was at its 5-project
+cap) and linking that billing account to the Gemini project (Full Metal Jacket,
+gen-lang-client-0671758080). A usable API key already existed there (named "FMJ",
+created 2026-06-14) - no new key needed. GOOGLE_AI_API_KEY and DEEPSEEK_API_KEY are
+now in local .env (user filled in real values) and were already present in cPanel's
+env per the user. Live-testing then surfaced the REAL remaining blocker: a 429
+"prepayment credits are depleted" error from a separate Gemini API "Cloud Prepay"
+wallet sitting at $0.00 - entirely independent of the Cloud Billing account link.
+Bought $25 of prepay credit (Visa ...3796) with auto-reload on (tops up $25 below a
+$10 balance, no monthly cap set - worth eyeballing spend for a session or two).
+End-to-end verified live: a direct API call and a manual app-triggered run (client
+Camphouse Country Landscaping, run #160) both succeeded on gemini-3.5-flash after
+the credit purchase. DeepSeek confirmed unaffected throughout (1810+ complete,
+0 failures all-time). Also shipped v1.100.1 (see part 20 detail) and discovered/
+used a new faster deploy path: SSH + `cloudlinux-selector install-modules`/`restart
+--interpreter nodejs --app-root <path>` as an alternative to the cPanel File Manager
+UI steps in this doc's Deployment section - same effect, scriptable, no manual
+upload/extract/click-through needed.
 
 NEXT SESSION (top 3):
-1. Follow up on the GCP billing-slot issue above - confirm the user freed a slot (unlinked or deleted an old project) and successfully linked billing to the Gemini project, then created the API key. Once obtained: add GOOGLE_AI_API_KEY (and DEEPSEEK_API_KEY once separately sourced from platform.deepseek.com) to local .env, then live-confirm the Gemini/DeepSeek default-model fix (v1.85.2, folded into v1.86.0's deploy) actually works end to end via the next scheduled run's response status - no local or prod key has been available to hit the real APIs since that fix shipped, so it's still unverified against a live call. Add both keys to cPanel's .env too once confirmed working locally.
-2. TD-16 check is clean as of the 2026-08-19 checkpoint (see above) - keep doing it every session per the standing ritual, even ones with no deploy.
-3. Client-experience sequence plan items 2-3 (Client Settings consolidation, Archive with frozen snapshot) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Item 4 (Admin Alerts) shipped 2026-08-19, minus its deferred measurement-health signal (see part 19). Ask the user before starting #2.
+1. Client-experience sequence plan items 2-3 (Client Settings consolidation, Archive with frozen snapshot) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Item 4 (Admin Alerts) shipped 2026-08-19, minus its deferred measurement-health signal (see part 19). Ask the user before starting #2.
+2. TD-16 check is clean as of this 2026-09-03 checkpoint on BOTH portal and mcp apps (see part 20 detail - stale duplicate workers were found and killed on both this session, not just portal) - keep doing it every session per the standing ritual, even ones with no deploy.
+3. Spot-check the Gemini prepay wallet (AI Studio > Billing, project Full Metal Jacket) in a session or two - confirm auto-reload actually fires when balance drops below $10, and that spend looks sane given no monthly cap is set.
 
 Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot): the Business Information API piece is now DONE and live (see below) - what's left is the legacy v4.9 Reviews/Q&A APIs (unverified, not attempted) and mapping any of the other 13 GBP accounts under flight-deck-476019 to workflow-portal clients beyond the 2 already mapped (Salvo Metal Works, United Structural Systems). Not urgent - pick up only if the user wants more clients wired in or the Reviews data specifically.
 - Cards 1 ("SEO Audit via Rank Rocket SEO Plugin") and 2 ("Location Page Builder") remain unconverted Perplexity-launch cards - Card 2 needs a net-new "create WordPress page" tool built in the separate rankrocket-mcp repo first (confirmed via source search: doesn't exist today); Card 1 needs a scope decision about its live browser-scan + apply-fix loop, which RankRocket-MCP cannot replace. Not a task to pick up unprompted - both are real follow-up planning exercises.
 - B-24's launch-dialog input-field tooltips (116+ fields, no per-field metadata in the schema) remain deferred pending the user's own "what is it / where to find it / example" copy - not a task to pick up unprompted.
+
+Session 2026-09-03 (part 20): Two unrelated threads closed out in one session.
+
+Thread A - GCP/Gemini billing (closing NEXT SESSION item 1 from the 2026-08-21
+note): The 2026-08-21 block ("you do not have permission to create API Keys",
+diagnosed as Google's abuse-prevention gate needing a linked billing account)
+turned out to be one layer of a two-layer problem. Checked Google Cloud Console's
+billing/projects list: My Maps Billing Account (01868E-DA635A-296B0A) was linked to
+5 projects already (BackLink Factory, Flight Deck, G-Site Builder, HNFO, Salvo
+Metal Works) while the Gemini project (Full Metal Jacket, gen-lang-client-
+0671758080, the auto-created AI-Studio project) showed "Billing is disabled" - a
+5-project cap on that billing account, not an IAM issue. With explicit user
+approval, disabled billing on HNFO (Console > Billing > Your projects > row menu >
+Disable billing) to free a slot, then linked My Maps Billing Account to Full Metal
+Jacket. Checked Google AI Studio's API Keys page and found a key already existed
+there (named "FMJ", created 2026-06-14) - so no new key needed, just billing.
+Added GOOGLE_AI_API_KEY and DEEPSEEK_API_KEY as placeholders to local .env; user
+filled in real values themselves (and confirmed cPanel's env already had both
+keys installed from an earlier session). A first live test still 429'd - error
+body was `RESOURCE_EXHAUSTED: "Your prepayment credits are depleted"`, which
+pointed at something Cloud Billing linkage doesn't touch: AI Studio's own
+"Billing" page (distinct from GCP Cloud Console billing) showed a separate
+"Cloud Prepay 01868E-DA635A-296B0A" wallet at $0.00 balance. That wallet, not the
+Cloud Billing link, was the actual remaining blocker. With user approval (amount
+and auto-reload both confirmed via AskUserQuestion first), bought $25 of prepay
+credit on the Visa on file, with auto-reload on (refills $25 whenever balance
+drops below $10; no monthly cap was set - flagged as a next-session spot-check).
+Verified end-to-end twice: a direct curl to the Gemini API returned 200 immediately
+after the purchase, then a manual run triggered in the app itself (client
+Camphouse Country Landscaping, run #160, Gemini-only) initially failed all 12
+(fired before the purchase settled) but came back 12/12 complete on retry, with
+real substantive responses tagged gemini-3.5-flash. DeepSeek was confirmed healthy
+and unaffected throughout this whole investigation (1810+ complete, 0 failures
+all-time) - this was purely a Gemini-side billing gap. TD-16 stale-worker check
+(routine ritual) found duplicate lsnode workers on BOTH apps this session, not
+just portal: portal had two (since Aug 27 and Aug 29), mcp had two (since Aug 21
+and that morning) - killed the older PID on each, confirmed single fresh worker
+on each afterward.
+
+Thread B - v1.100.1, a small human-readability fix the user asked for directly
+after seeing it live: the "Not comparable" banner on a run's detail page rendered
+platform mismatches as raw numeric ids (`platforms [1, 3, 4, 5, 7, 8] -> [5]`).
+Root cause: `compareManifests()` (server/services/comparability.ts) only ever
+saw platform ids, with no name-resolution path. Fix: it now takes an optional
+`platformNames: Map<number, string>`; both callers in server/routes/runs.ts (the
+`/comparability` route backing this banner, and the measurement-health rollup)
+build that map from `platformStore.list()` and pass it through, falling back to
+`#id` for anything unmapped. Now renders as `platforms [Perplexity, ChatGPT
+(OpenAI), Claude (Anthropic), Gemini (Google), Mistral, DeepSeek] -> [Gemini
+(Google)]`. Incidental find while diffing: comparability.ts already had two
+stray null bytes (from some earlier, unrelated tool mishap) in `compareBrands`'s
+alias-join separators, which made git treat the entire file as binary and hid
+real diffs on it - fixed those to plain spaces in the same commit. TDD: two new
+tests added first (confirmed failing on the raw-id output), then the
+implementation; also had to add a default `mockResolvedValue([])` to
+runs.routes.test.ts's platformStore mock, which the new code path exercises for
+the first time. Full suite 1716 -> 1718, all green; lint, typecheck clean.
+Shipped via commit 30c1826, tag v1.100.1, `npm run package`, then deployed over
+SSH: uploaded the tarball, extracted into the app root, and used
+`cloudlinux-selector install-modules` / `restart --interpreter nodejs --app-root
+<path>` (the CLI cPanel's Node.js Selector UI calls internally) instead of the
+documented File Manager click-through - confirmed live in-browser (banner text
+and the v1.100.1 footer) and TD-16-clean single fresh worker post-restart. This
+CLI path is worth using again for future routine deploys; it's faster than the
+manual cPanel UI steps and produces the identical result.
 
 Session 2026-08-19 (part 19): v1.100.0 - client-experience sequence plan
 item 4, Admin Alerts. New `/admin/alerts` page (super_admin only, linked
