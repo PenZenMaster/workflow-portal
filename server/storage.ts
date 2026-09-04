@@ -32,6 +32,7 @@ import { JobStore } from "./storage/jobStore";
 import { WorkflowInputValueStore } from "./storage/workflowInputValueStore";
 import { FactoryJobStore } from "./storage/factoryJobStore";
 import { ManifestStore } from "./storage/manifestStore";
+import { GrowthPlanRunStore } from "./storage/growthPlanRunStore";
 import { PromptGenerationRunStore } from "./storage/promptGenerationRunStore";
 
 export type { IWorkflowStore } from "./storage/workflowStore";
@@ -105,6 +106,7 @@ export const SCHEMA_SQL = `
     accepts_file_upload INTEGER NOT NULL DEFAULT 0,
     ai_adapter_slug TEXT,
     rankrocket_mcp_enabled INTEGER NOT NULL DEFAULT 0,
+    growth_plan_enabled INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
@@ -469,6 +471,14 @@ export const SCHEMA_SQL = `
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS growth_plan_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    input_hash TEXT NOT NULL,
+    markdown TEXT NOT NULL,
+    priority_actions TEXT NOT NULL DEFAULT '[]',
+    created_at INTEGER NOT NULL
+  );
 `;
 
 const rawPath = process.env.DATA_DB_PATH || "data.db";
@@ -576,4 +586,5 @@ export const jobStore = new JobStore(db);
 export const workflowInputValueStore = new WorkflowInputValueStore(db);
 export const factoryJobStore = new FactoryJobStore(db);
 export const manifestStore = new ManifestStore(db);
+export const growthPlanRunStore = new GrowthPlanRunStore(db);
 export const promptGenerationRunStore = new PromptGenerationRunStore(db);

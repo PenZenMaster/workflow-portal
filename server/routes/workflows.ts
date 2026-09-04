@@ -20,16 +20,21 @@
 
 import express, { type Express } from "express";
 import { z } from "zod";
-import { storage, workflowInputValueStore } from "../storage";
+import { storage, workflowInputValueStore, clientStore, growthPlanRunStore } from "../storage";
 import { insertWorkflowSchema, saveInputValuesSchema } from "@shared/schema";
 import { requireAuth } from "../auth";
 import { runWorkflowWithCsv, MAX_CSV_BYTES } from "../services/workflowFileRun";
 import { runWorkflowPrompt } from "../services/workflowPromptRun";
+import {
+  runRankingGrowthPlan,
+  mapOptionalInputsFromLabels,
+} from "../services/factory/rankingGrowthPlanCell";
 import { getCachedRankRocketSites } from "../mcp/sitesCache";
 
 const runWithFileJsonSchema = z.object({
   csv: z.string(),
   inputValues: z.array(z.string()).default([]),
+  clientId: z.number().int().positive().optional(),
 });
 
 const runPromptJsonSchema = z.object({
@@ -146,6 +151,7 @@ export function registerWorkflowRoutes(app: Express): void {
 
       let csvText = "";
       let inputValues: string[] = [];
+      let clientId: number | undefined;
       if (typeof req.body === "string") {
         csvText = req.body;
       } else {
@@ -159,6 +165,7 @@ export function registerWorkflowRoutes(app: Express): void {
         }
         csvText = parsed.data.csv;
         inputValues = parsed.data.inputValues;
+        clientId = parsed.data.clientId;
       }
 
       if (csvText.trim().length === 0) {
@@ -166,6 +173,47 @@ export function registerWorkflowRoutes(app: Express): void {
           error: "CSV file is empty",
           code: "EMPTY_FILE",
         });
+      }
+
+      // Client-scoped growth-plan path: resolves the chosen client's
+      // RankRocket site key and GBP mapping automatically instead of the
+      // client-agnostic <PASTE>-token pattern below.
+      if (workflow.growthPlanEnabled) {
+        if (clientId === undefined) {
+          return res.status(400).json({
+            error: "A client must be selected to run this workflow",
+            code: "CLIENT_ID_REQUIRED",
+          });
+        }
+        try {
+          // inputValues is [...requiredValues, ...optionalValues] (the
+          // client sends both in that order regardless of how many
+          // required inputs this workflow has) - take just the tail that
+          // aligns with optionalInputs.
+          const optionalValues = inputValues.slice(
+            inputValues.length - workflow.optionalInputs.length
+          );
+          const result = await runRankingGrowthPlan(
+            clientId,
+            {
+              rankingCsv: csvText,
+              ...mapOptionalInputsFromLabels(workflow.optionalInputs, optionalValues),
+            },
+            { clientStore, growthPlanRunStore }
+          );
+          return res.json({
+            data: {
+              response: result.markdown,
+              modelVariant: null,
+              latencyMs: null,
+            },
+          });
+        } catch (err) {
+          return res.status(400).json({
+            error: err instanceof Error ? err.message : "Growth plan run failed",
+            code: "GROWTH_PLAN_RUN_FAILED",
+          });
+        }
       }
 
       const filename =

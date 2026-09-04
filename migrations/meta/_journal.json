@@ -232,6 +232,13 @@
       "when": 1787098759395,
       "tag": "0032_light_tyger_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1788484947628,
+      "tag": "0033_harsh_vanisher",
+      "breakpoints": true
     }
   ]
 }

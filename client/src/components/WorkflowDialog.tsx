@@ -56,6 +56,7 @@ type FormValues = {
   acceptsFileUpload: boolean;
   aiAdapterSlug: string;
   rankrocketMcpEnabled: boolean;
+  growthPlanEnabled: boolean;
 };
 
 // The form keeps inputs/tags as raw text and we split on submit.
@@ -74,6 +75,7 @@ const localSchema = z.object({
   // "" = default (first configured adapter)
   aiAdapterSlug: z.string().default(""),
   rankrocketMcpEnabled: z.boolean().default(false),
+  growthPlanEnabled: z.boolean().default(false),
 });
 
 export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
@@ -94,6 +96,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
       acceptsFileUpload: false,
       aiAdapterSlug: "",
       rankrocketMcpEnabled: false,
+      growthPlanEnabled: false,
     },
   });
 
@@ -121,6 +124,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
           acceptsFileUpload: editing.acceptsFileUpload,
           aiAdapterSlug: editing.aiAdapterSlug ?? "",
           rankrocketMcpEnabled: editing.rankrocketMcpEnabled,
+          growthPlanEnabled: editing.growthPlanEnabled,
         });
       } else {
         form.reset({
@@ -137,6 +141,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
           acceptsFileUpload: false,
           aiAdapterSlug: "",
           rankrocketMcpEnabled: false,
+          growthPlanEnabled: false,
         });
       }
     }
@@ -167,6 +172,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
         acceptsFileUpload: values.acceptsFileUpload,
         aiAdapterSlug: values.aiAdapterSlug ? values.aiAdapterSlug : null,
         rankrocketMcpEnabled: values.rankrocketMcpEnabled,
+        growthPlanEnabled: values.growthPlanEnabled,
       };
       if (editing) {
         return apiRequest("PUT", `/api/workflows/${editing.id}`, payload);
@@ -330,6 +336,37 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
                     Shows a Run action that answers questions using
                     rankrocket-mcp's read-only tools directly, instead of
                     launching an external AI chat. No write tools are used.
+                  </FormDescription>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="growthPlanEnabled"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <FormLabel>Ranking growth plan (client-scoped)</FormLabel>
+                  <FormControl>
+                    <div className="flex items-center gap-2 h-10">
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-growth-plan"
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {field.value
+                          ? "Runs in-app, scoped to a chosen client"
+                          : "No growth-plan run"}
+                      </span>
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    Shows a client picker and a CSV upload. Resolves the
+                    chosen client's RankRocket site key and GBP location
+                    automatically instead of pasted WordPress credentials,
+                    and remembers prior runs to avoid re-recommending
+                    completed work.
                   </FormDescription>
                 </FormItem>
               )}

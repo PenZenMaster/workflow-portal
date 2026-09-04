@@ -52,14 +52,17 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
   // values can fill the prompt's <PASTE> tokens server-side (B-21).
   const handleRunWithFile = () => {
     if (!csvFile) return;
-    if (workflow.inputs.length + workflow.optionalInputs.length > 0) {
+    if (
+      workflow.inputs.length + workflow.optionalInputs.length > 0 ||
+      workflow.growthPlanEnabled
+    ) {
       setRunDialogOpen(true);
       return;
     }
     void executeRun();
   };
 
-  const executeRun = async (inputValues?: string[]) => {
+  const executeRun = async (inputValues?: string[], clientId?: number) => {
     if (!csvFile) return;
     setAiRunning(true);
     try {
@@ -69,11 +72,15 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
         `?filename=${encodeURIComponent(csvFile.name)}`;
       const res = await fetch(
         url,
-        inputValues
+        inputValues || clientId !== undefined
           ? {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ csv: text, inputValues }),
+              body: JSON.stringify({
+                csv: text,
+                inputValues: inputValues ?? [],
+                ...(clientId !== undefined && { clientId }),
+              }),
               credentials: "include",
             }
           : {
@@ -436,13 +443,13 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
         />
       )}
 
-      {workflow.acceptsFileUpload && hasLaunchInputs && (
+      {workflow.acceptsFileUpload && (hasLaunchInputs || workflow.growthPlanEnabled) && (
         <LaunchInputsDialog
           workflow={workflow}
           open={runDialogOpen}
           onOpenChange={setRunDialogOpen}
           mode="ai-run"
-          onRun={(values) => void executeRun(values)}
+          onRun={(values, clientId) => void executeRun(values, clientId)}
         />
       )}
 

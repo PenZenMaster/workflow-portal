@@ -41,6 +41,7 @@ const WORKFLOW: Workflow = {
   acceptsFileUpload: false,
   aiAdapterSlug: null,
   rankrocketMcpEnabled: false,
+  growthPlanEnabled: false,
   createdAt: 1,
   updatedAt: 1,
 };
@@ -531,5 +532,91 @@ describe("LaunchInputsDialog - RankRocket MCP dropdowns", () => {
     expect(
       fetchMock.mock.calls.some(([url]) => String(url).endsWith("/rankrocket-question-options"))
     ).toBe(false);
+  });
+});
+
+describe("LaunchInputsDialog - growth-plan client picker", () => {
+  const GROWTH_PLAN_WORKFLOW: Workflow = {
+    ...WORKFLOW,
+    id: 20,
+    name: "Ranking Audit and Improvement Suite",
+    inputs: [],
+    optionalInputs: ["Target service areas"],
+    acceptsFileUpload: true,
+    growthPlanEnabled: true,
+  };
+
+  function mockClientsFetch(clients: Array<{ id: number; name: string }>) {
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (method === "GET" && String(url).endsWith("/api/clients")) {
+        const body = { data: clients };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => body,
+          text: async () => JSON.stringify(body),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: {} }),
+        text: async () => "{}",
+      } as Response;
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  }
+
+  it("renders a client picker and fetches the client list", async () => {
+    mockClientsFetch([{ id: 4, name: "Trevor Aspiranti" }]);
+    render(
+      <LaunchInputsDialog
+        workflow={GROWTH_PLAN_WORKFLOW}
+        open={true}
+        onOpenChange={vi.fn()}
+        mode="ai-run"
+        onRun={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("launch-client-picker")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/api/clients"))).toBe(
+        true
+      )
+    );
+  });
+
+  it("does not fetch the client list for a non-growth-plan workflow", () => {
+    renderDialog(WORKFLOW);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/api/clients"))).toBe(
+      false
+    );
+  });
+
+  it("disables Run with AI until a client is selected, then passes clientId to onRun", async () => {
+    mockClientsFetch([{ id: 4, name: "Trevor Aspiranti" }]);
+    const onRun = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <LaunchInputsDialog
+        workflow={GROWTH_PLAN_WORKFLOW}
+        open={true}
+        onOpenChange={vi.fn()}
+        mode="ai-run"
+        onRun={onRun}
+      />
+    );
+
+    expect(screen.getByTestId("button-run-confirm")).toBeDisabled();
+
+    await user.click(screen.getByTestId("launch-client-picker"));
+    await user.click(await screen.findByText("Trevor Aspiranti"));
+
+    expect(screen.getByTestId("button-run-confirm")).not.toBeDisabled();
+    await user.click(screen.getByTestId("button-run-confirm"));
+
+    expect(onRun).toHaveBeenCalledWith([""], 4);
   });
 });

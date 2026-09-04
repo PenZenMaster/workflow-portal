@@ -15,6 +15,7 @@ export type SeedRow = {
   acceptsFileUpload?: boolean;
   aiAdapterSlug?: string | null;
   rankrocketMcpEnabled?: boolean;
+  growthPlanEnabled?: boolean;
 };
 
 // TD-12: exported so server/services/seedDiff.ts (and script/seedDiff.ts)
@@ -514,15 +515,23 @@ Generate one SEO-optimized location page per target city/service area, matching 
     category: "Audit",
     description:
       "Create a markdown SEO and local SEO growth plan from a keyword ranking CSV, website URL, WordPress credentials, Rank Math REST Bridge access, and a Google Business Profile share link or structured GBP snapshot. Built to reuse scan, remediation, and reporting patterns from an existing SEO audit system while restoring reliable GBP-aware planning. Filters the union (OR) of keywords with exact Tag = Root Keyword and keywords with strict numeric search volume greater than 10000 after cleaning. Drafts implementation assets including title tags, meta descriptions, H1S, H2S, FAQ ideas, schema recommendations, internal links, GBP services, GBP post topics, and review themes. Uses a persistent project knowledge store and avoids duplicate scans.",
-    inputs: [
-      "Ranking CSV (attach the file in Perplexity)",
-      "Website URL",
-      "GBP share link or snapshot",
-      "WP Username",
-      "WP App Password",
-      "RankMath REST Bridge Base URL",
-      "Project Knowledge Store",
+    // Empty: runs client-scoped via runRankingGrowthPlan (growthPlanEnabled
+    // below), which resolves the chosen client's RankRocket site key and
+    // GBP location automatically instead of pasted WP credentials. The
+    // launchUrl/prompt below remain as a manual Perplexity fallback for any
+    // client not yet mapped to a RankRocket site key.
+    inputs: [],
+    optionalInputs: [
+      "target_service_areas",
+      "core_services",
+      "target_competitors",
+      "existing_location_pages",
+      "preferred_brand_terminology",
+      "prior_seo_changes",
+      "schema_policies",
     ],
+    acceptsFileUpload: true,
+    growthPlanEnabled: true,
     tags: ["audit"],
     prompt: `Run the seo-rank-and-gbp-growth-planner skill.
 
@@ -623,6 +632,7 @@ export function seedIfEmpty() {
         acceptsFileUpload: row.acceptsFileUpload ? 1 : 0,
         aiAdapterSlug: row.aiAdapterSlug ?? null,
         rankrocketMcpEnabled: row.rankrocketMcpEnabled ? 1 : 0,
+        growthPlanEnabled: row.growthPlanEnabled ? 1 : 0,
         createdAt: now,
         updatedAt: now,
       })

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { Workflow, RankrocketQuestionOption } from "@shared/schema";
+import type { Workflow, RankrocketQuestionOption, Client } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -38,7 +38,9 @@ type Props = {
   // prompt; "ai-run" only collects the input values and hands them to onRun
   // (used by the Run with AI CSV flow - B-21).
   mode?: "launch" | "ai-run";
-  onRun?: (values: string[]) => void;
+  // clientId is only populated for growthPlanEnabled workflows (the client
+  // picker below); every other onRun caller ignores the second argument.
+  onRun?: (values: string[], clientId?: number) => void;
 };
 
 type LaunchedState = {
@@ -59,6 +61,8 @@ export function LaunchInputsDialog({
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [rankrocketSites, setRankrocketSites] = useState<string[]>([]);
   const [rankrocketQuestionOptions, setRankrocketQuestionOptions] = useState<string[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -67,8 +71,29 @@ export function LaunchInputsDialog({
       setOptionalValues(workflow.optionalInputs.map(() => ""));
       setLaunched(null);
       setTemplateFile(null);
+      setSelectedClientId(null);
     }
   }, [open, workflow.inputs, workflow.optionalInputs]);
+
+  // Growth-plan workflows are client-scoped (server resolves the chosen
+  // client's RankRocket site key and GBP mapping) instead of the
+  // client-agnostic <PASTE>-token pattern every other workflow uses.
+  useEffect(() => {
+    if (!open || !workflow.growthPlanEnabled) return;
+    let cancelled = false;
+    fetch("/api/clients", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { data?: Client[] } | null) => {
+        if (cancelled) return;
+        setClients(Array.isArray(json?.data) ? json.data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setClients([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, workflow.growthPlanEnabled]);
 
   // Prefill from the shared last-used values (B-23). Only fills fields the
   // user has not already typed into, so a slow response never clobbers input.
@@ -217,7 +242,7 @@ export function LaunchInputsDialog({
 
   const handleRunConfirm = () => {
     persistValues();
-    onRun?.(allValues);
+    onRun?.(allValues, selectedClientId ?? undefined);
     onOpenChange(false);
   };
 
@@ -313,6 +338,38 @@ export function LaunchInputsDialog({
           </div>
         ) : (
         <div className="space-y-4 py-2">
+          {workflow.growthPlanEnabled && (
+            <div className="space-y-1.5">
+              <Label htmlFor="launch-client-picker">Client</Label>
+              <Select
+                value={selectedClientId !== null ? String(selectedClientId) : ""}
+                onValueChange={(v) => setSelectedClientId(Number(v))}
+              >
+                <SelectTrigger
+                  id="launch-client-picker"
+                  data-testid="launch-client-picker"
+                  disabled={clients.length === 0}
+                >
+                  <SelectValue
+                    placeholder={
+                      clients.length === 0 ? "No clients available" : "Select a client"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={String(client.id)}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Resolves this client&apos;s RankRocket site key and GBP
+                location automatically - no pasted credentials needed.
+              </p>
+            </div>
+          )}
           {workflow.inputs.map((label, i) => (
             <div key={i} className="space-y-1.5">
               <Label htmlFor={`launch-input-${i}`}>{label}</Label>
@@ -429,7 +486,11 @@ export function LaunchInputsDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleRunConfirm} data-testid="button-run-confirm">
+              <Button
+                onClick={handleRunConfirm}
+                disabled={workflow.growthPlanEnabled && selectedClientId === null}
+                data-testid="button-run-confirm"
+              >
                 <FileUp className="h-4 w-4 mr-1.5" />
                 Run with AI
               </Button>

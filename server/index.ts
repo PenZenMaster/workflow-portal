@@ -14,7 +14,7 @@ import { registerFactoryJobHandlers } from "./jobs/factory";
 import { createReportingMonthlyPipelineCell } from "./services/factory/reportingCell";
 import { createRankingGrowthPlanCell } from "./services/factory/rankingGrowthPlanCell";
 import { createGbpSnapshotCell } from "./services/factory/gbpSnapshotCell";
-import { integrationStore, clientStore } from "./storage";
+import { integrationStore, clientStore, growthPlanRunStore } from "./storage";
 import { Ga4Service } from "./services/ga4";
 import { serveStatic } from "./static";
 import { createServer } from "node:http";
@@ -99,7 +99,7 @@ app.use((req, res, next) => {
       integrationStore,
       ga4: new Ga4Service(),
     }),
-    createRankingGrowthPlanCell({ clientStore }),
+    createRankingGrowthPlanCell({ clientStore, growthPlanRunStore }),
     createGbpSnapshotCell({ clientStore }),
   ]);
   // TD-16: self-eviction - cPanel's Application Root is always this

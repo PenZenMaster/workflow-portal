@@ -23,6 +23,12 @@ export const workflows = sqliteTable("workflows", {
   // Runs in-app via the RankRocket MCP connector (Anthropic adapter, no CSV,
   // no external launch) instead of the copy/launch-to-Perplexity pattern.
   rankrocketMcpEnabled: integer("rankrocket_mcp_enabled").notNull().default(0),
+  // Runs in-app via runRankingGrowthPlan (server/services/factory/
+  // rankingGrowthPlanCell.ts): client-scoped, resolves the client's
+  // RankRocket site key and GBP mapping automatically instead of pasted
+  // WP credentials, and remembers prior runs (server/storage/
+  // growthPlanRunStore.ts) instead of re-analyzing unchanged input.
+  growthPlanEnabled: integer("growth_plan_enabled").notNull().default(0),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -57,6 +63,7 @@ export const insertWorkflowSchema = createInsertSchema(workflows)
     acceptsFileUpload: z.boolean().default(false),
     aiAdapterSlug: z.string().nullable().default(null),
     rankrocketMcpEnabled: z.boolean().default(false),
+    growthPlanEnabled: z.boolean().default(false),
     name: z.string().min(1, "Name is required"),
     category: z.string().min(1, "Category is required"),
     description: z.string().min(1, "Description is required"),
@@ -83,6 +90,7 @@ export type Workflow = {
   acceptsFileUpload: boolean;
   aiAdapterSlug: string | null;
   rankrocketMcpEnabled: boolean;
+  growthPlanEnabled: boolean;
   createdAt: number;
   updatedAt: number;
 };
@@ -1156,6 +1164,39 @@ export type MeasurementRunManifest = {
   expectedResponseCount: number;
   configSnapshot: string;
   configHash: string;
+  createdAt: number;
+};
+
+// Cross-run memory for the ranking growth-plan workflow (server/services/
+// factory/rankingGrowthPlanCell.ts): one immutable row per run, modeled on
+// measurementRunManifests above. inputHash lets a repeat run with identical
+// inputs (ranking CSV + optional context + GBP snapshot) skip re-analysis;
+// priorityActions carries the model's recommended actions forward so the
+// next run can mark each done/still-open/superseded instead of
+// re-recommending completed work.
+export const growthPlanRuns = sqliteTable("growth_plan_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  inputHash: text("input_hash").notNull(),
+  markdown: text("markdown").notNull(),
+  priorityActions: text("priority_actions").notNull().default("[]"), // JSON GrowthPlanPriorityAction[]
+  createdAt: integer("created_at").notNull(),
+});
+
+export const GROWTH_PLAN_ACTION_STATUSES = ["open", "done", "superseded"] as const;
+export type GrowthPlanActionStatus = (typeof GROWTH_PLAN_ACTION_STATUSES)[number];
+
+export type GrowthPlanPriorityAction = {
+  text: string;
+  status: GrowthPlanActionStatus;
+};
+
+export type GrowthPlanRun = {
+  id: number;
+  clientId: number;
+  inputHash: string;
+  markdown: string;
+  priorityActions: GrowthPlanPriorityAction[];
   createdAt: number;
 };
 

@@ -40,6 +40,7 @@ const BASE_WORKFLOW: Workflow = {
   acceptsFileUpload: true,
   aiAdapterSlug: null,
   rankrocketMcpEnabled: false,
+  growthPlanEnabled: false,
   createdAt: 1,
   updatedAt: 1,
 };

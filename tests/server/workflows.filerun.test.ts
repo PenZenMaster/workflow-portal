@@ -28,9 +28,13 @@ const mockStorage = {
   updateWorkflow: vi.fn(),
   deleteWorkflow: vi.fn(),
 };
+const mockClientStore = { get: vi.fn() };
+const mockGrowthPlanRunStore = { getPreviousRun: vi.fn(), create: vi.fn() };
 vi.mock("../../server/storage", () => ({
   storage: mockStorage,
   workflowInputValueStore: { getByWorkflow: vi.fn(), upsertMany: vi.fn() },
+  clientStore: mockClientStore,
+  growthPlanRunStore: mockGrowthPlanRunStore,
 }));
 
 const mockGetAdapter = vi.fn();
@@ -41,6 +45,17 @@ vi.mock("../../server/adapters/registry", () => ({
   getUtilityAdapter: (slug: string) => mockGetAdapter(slug),
   getConfiguredSlugs: () => [],
 }));
+
+const mockRunRankingGrowthPlan = vi.fn();
+vi.mock("../../server/services/factory/rankingGrowthPlanCell", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../server/services/factory/rankingGrowthPlanCell")
+  >("../../server/services/factory/rankingGrowthPlanCell");
+  return {
+    ...actual,
+    runRankingGrowthPlan: (...args: unknown[]) => mockRunRankingGrowthPlan(...args),
+  };
+});
 
 const { registerWorkflowRoutes } = await import("../../server/routes/workflows");
 const { AppError } = await import("../../server/errors");
@@ -268,5 +283,108 @@ describe("POST /api/workflows/:id/run-with-file", () => {
     expect(sentPrompt).not.toContain("<PASTE>");
     expect(sentPrompt).not.toContain("Client Name:");
     expect(sentPrompt).toContain("Analyze the export.");
+  });
+});
+
+describe("POST /api/workflows/:id/run-with-file — growthPlanEnabled branch", () => {
+  const GROWTH_PLAN_WORKFLOW = {
+    ...WORKFLOW,
+    growthPlanEnabled: true,
+    inputs: [],
+    optionalInputs: ["target_service_areas", "core_services"],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockStorage.getWorkflow.mockResolvedValue(GROWTH_PLAN_WORKFLOW);
+  });
+
+  it("returns 400 CLIENT_ID_REQUIRED when no clientId is provided", async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/workflows/1/run-with-file")
+      .set("Content-Type", "application/json")
+      .send({ csv: CSV, inputValues: [] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("CLIENT_ID_REQUIRED");
+    expect(mockRunRankingGrowthPlan).not.toHaveBeenCalled();
+  });
+
+  it("calls runRankingGrowthPlan with the CSV, mapped optional inputs, and clientId", async () => {
+    mockRunRankingGrowthPlan.mockResolvedValue({
+      markdown: "# Keyword Ranking Growth Plan\n...",
+      sources: { rankrocketMcp: "ok" },
+      skippedUnchanged: false,
+    });
+
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/workflows/1/run-with-file")
+      .set("Content-Type", "application/json")
+      .send({
+        csv: CSV,
+        inputValues: ["Springfield, Shelbyville", "roof repair"],
+        clientId: 4,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.response).toBe("# Keyword Ranking Growth Plan\n...");
+    expect(mockRunRankingGrowthPlan).toHaveBeenCalledWith(
+      4,
+      {
+        rankingCsv: CSV,
+        targetServiceAreas: "Springfield, Shelbyville",
+        coreServices: "roof repair",
+      },
+      { clientStore: mockClientStore, growthPlanRunStore: mockGrowthPlanRunStore }
+    );
+  });
+
+  it("slices only the optional-input tail even when the workflow also has required inputs", async () => {
+    mockStorage.getWorkflow.mockResolvedValue({
+      ...GROWTH_PLAN_WORKFLOW,
+      inputs: ["Some Required Field"],
+    });
+    mockRunRankingGrowthPlan.mockResolvedValue({
+      markdown: "ok",
+      sources: {},
+      skippedUnchanged: false,
+    });
+
+    const app = buildApp();
+    await request(app)
+      .post("/api/workflows/1/run-with-file")
+      .set("Content-Type", "application/json")
+      .send({
+        csv: CSV,
+        inputValues: ["required value", "Springfield, Shelbyville", "roof repair"],
+        clientId: 4,
+      });
+
+    expect(mockRunRankingGrowthPlan).toHaveBeenCalledWith(
+      4,
+      expect.objectContaining({
+        targetServiceAreas: "Springfield, Shelbyville",
+        coreServices: "roof repair",
+      }),
+      expect.anything()
+    );
+  });
+
+  it("returns 400 GROWTH_PLAN_RUN_FAILED with the underlying error message on failure", async () => {
+    mockRunRankingGrowthPlan.mockRejectedValue(
+      new Error("No RankRocket site key configured for client 4")
+    );
+
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/workflows/1/run-with-file")
+      .set("Content-Type", "application/json")
+      .send({ csv: CSV, inputValues: [], clientId: 4 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("GROWTH_PLAN_RUN_FAILED");
+    expect(res.body.error).toContain("No RankRocket site key configured");
   });
 });
