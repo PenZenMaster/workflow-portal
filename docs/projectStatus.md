@@ -5,11 +5,12 @@ right after part 20's billing fix closed out - v1.101.0)
 Previous code session: 2026-08-19 (continued from 2026-08-18)
 Branch: main | Version: v1.101.0 | Committed and packaged (workflow-portal-v1.101.0.tar.gz
 built same session) but this doc was never updated to record it at the time -
-this entry is a 2026-09-09 catch-up written from git history (commit 992b6f1),
-not a live session note. DEPLOY STATUS UNCONFIRMED - verify live version/footer
-and run the TD-16 stale-worker check before trusting production is on v1.101.0;
-treat as NEXT SESSION item 0 until confirmed. v1.100.1 (part 20 below) was
-DEPLOYED and live-verified in browser (banner text + footer version both
+the part 21 entry below is a 2026-09-09 catch-up written from git history
+(commit 992b6f1), not a live session note. DEPLOYED - user confirmed
+2026-09-09 that v1.101.0 is live on portal.fullmetaljacketseo.com (footer
+version check); TD-16 stale-worker check still not re-run this session, do
+it next time regardless of deploy per the standing ritual. v1.100.1 (part 20
+below) was DEPLOYED and live-verified in browser (banner text + footer version both
 confirmed post-deploy; TD-16 clean single fresh worker on portal immediately
 after that session's restart). v1.100.0's Admin Alerts (part 19) also DEPLOYED
 and user-confirmed. v1.99.1/v1.99.0 also DEPLOYED and user-confirmed fixed live
@@ -41,8 +42,9 @@ re-recommending completed work. New workflows.growthPlanEnabled flag
 a site-key dropdown) gates the new path; the existing Perplexity launchUrl
 stays as a manual fallback for any client not yet mapped to a RankRocket site
 key. TDD throughout - full suite 1718 -> 1735, lint and typecheck clean (per
-commit 992b6f1). Not deployed/verified within this doc - see DEPLOY STATUS
-UNCONFIRMED note above.
+commit 992b6f1). DEPLOYED - user confirmed live on portal.fullmetaljacketseo.com
+2026-09-09 (footer version check); TD-16 stale-worker check not re-run this
+session.
 
 Session 2026-09-03 (part 20): closed out NEXT SESSION item 1 from the 2026-08-21
 note below - see full narrative in part 20 detail further down. Short version: the
@@ -66,10 +68,9 @@ used a new faster deploy path: SSH + `cloudlinux-selector install-modules`/`rest
 UI steps in this doc's Deployment section - same effect, scriptable, no manual
 upload/extract/click-through needed.
 
-NEXT SESSION (top 4):
-0. (Added 2026-09-09 catch-up) Confirm whether v1.101.0 (part 21, growth-plan runs) actually made it to production - it was committed and packaged same day as v1.100.1 but no deploy/live-verify was ever recorded in this doc. Check the footer version at portal.fullmetaljacketseo.com; if it still shows v1.100.1, v1.101.0 needs its normal deploy (tarball workflow-portal-v1.101.0.tar.gz already exists in the repo root, may just need the SSH install-modules/restart steps). Full suite re-confirmed green at HEAD (135 files, 1735 tests) on 2026-09-09.
-1. Client-experience sequence plan items 2-3 (Client Settings consolidation, Archive with frozen snapshot) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Item 4 (Admin Alerts) shipped 2026-08-19, minus its deferred measurement-health signal (see part 19). Ask the user before starting #2.
-2. TD-16 check is clean as of the 2026-09-03 checkpoint on BOTH portal and mcp apps (see part 20 detail - stale duplicate workers were found and killed on both this session, not just portal) - keep doing it every session per the standing ritual, even ones with no deploy. Not re-checked on 2026-09-09 (no deploy this session).
+NEXT SESSION (top 3):
+1. TD-16 stale-worker check on BOTH portal and mcp apps - last actually run 2026-09-03 (part 20, clean). Not re-run on 2026-09-09 despite v1.101.0's deploy being confirmed live that day - do it next session even though this one had no code changes, per the standing ritual.
+2. Client-experience sequence plan items 2-3 (Client Settings consolidation, Archive with frozen snapshot) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Item 4 (Admin Alerts) shipped 2026-08-19, minus its deferred measurement-health signal (see part 19). Ask the user before starting #2.
 3. Spot-check the Gemini prepay wallet (AI Studio > Billing, project Full Metal Jacket) in a session or two - confirm auto-reload actually fires when balance drops below $10, and that spend looks sane given no monthly cap is set.
 
 Also open, lower priority (no action needed yet):
