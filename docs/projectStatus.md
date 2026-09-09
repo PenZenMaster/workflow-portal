@@ -1,16 +1,48 @@
 ## Resume From
 
-Last session: 2026-09-03 (GCP/Gemini billing saga fully closed out, plus a small
-shippable fix - v1.100.1)
+Last session: 2026-09-03 (client-scoped Claude+MCP growth-plan runs, shipped
+right after part 20's billing fix closed out - v1.101.0)
 Previous code session: 2026-08-19 (continued from 2026-08-18)
-Branch: main | Version: v1.100.1 | DEPLOYED and live-verified in browser (banner text
-+ footer version both confirmed post-deploy; TD-16 clean single fresh worker on
-portal immediately after this session's restart). v1.100.0's Admin Alerts (part 19)
-also DEPLOYED and user-confirmed. v1.99.1/v1.99.0 also DEPLOYED and user-confirmed
-fixed live that session (two Help-page bugs). v1.98.1/v1.98.0 also DEPLOYED and
-confirmed good by the user. v1.97.1/v1.97.0 DEPLOYED and verified that session - see
+Branch: main | Version: v1.101.0 | Committed and packaged (workflow-portal-v1.101.0.tar.gz
+built same session) but this doc was never updated to record it at the time -
+this entry is a 2026-09-09 catch-up written from git history (commit 992b6f1),
+not a live session note. DEPLOY STATUS UNCONFIRMED - verify live version/footer
+and run the TD-16 stale-worker check before trusting production is on v1.101.0;
+treat as NEXT SESSION item 0 until confirmed. v1.100.1 (part 20 below) was
+DEPLOYED and live-verified in browser (banner text + footer version both
+confirmed post-deploy; TD-16 clean single fresh worker on portal immediately
+after that session's restart). v1.100.0's Admin Alerts (part 19) also DEPLOYED
+and user-confirmed. v1.99.1/v1.99.0 also DEPLOYED and user-confirmed fixed live
+that session (two Help-page bugs). v1.98.1/v1.98.0 also DEPLOYED and confirmed
+good by the user. v1.97.1/v1.97.0 DEPLOYED and verified that session - see
 B-20's backlog entry for the `planning.gbp-snapshot` production verification trail.
 rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes.
+
+Session 2026-09-03 (part 21): v1.101.0 - client-scoped Claude+MCP growth-plan
+runs. Full-parity conversion of the "Ranking Audit and Improvement Suite"
+workflow card: it used to launch Perplexity with a prompt that opens "Run the
+seo-rank-and-gbp-growth-planner skill" - Claude Skills terminology Perplexity
+has no way to honor, the likely direct cause of the "unexpected results" that
+prompted this work. Extracts runRankingGrowthPlan from the existing
+planning.ranking-growth-plan Factory Cell (built 2026-08-18, previously
+reachable only via a raw POST /api/factory/jobs call) so the in-app "Run with
+AI" button can drive the same Claude + live read-only RankRocket-MCP tool loop
+interactively, resolving the chosen client's RankRocket site key and GBP
+location automatically instead of pasted WordPress credentials. Closes the two
+gaps the pilot deliberately deferred: GBP data now folds the client's live
+getLocationSnapshot (server/services/gbp.ts) into the prompt when
+gbpLocationName is mapped, still labeling GBP-dependent items
+verification-needed otherwise; cross-run memory via new growth_plan_runs table
+(server/storage/growthPlanRunStore.ts) skips re-analysis when nothing changed
+since the client's last run and carries the prior run's priority actions
+forward so Claude marks each done/still-open/superseded instead of
+re-recommending completed work. New workflows.growthPlanEnabled flag
+(client-scoped, like rankrocketMcpEnabled but with a client picker instead of
+a site-key dropdown) gates the new path; the existing Perplexity launchUrl
+stays as a manual fallback for any client not yet mapped to a RankRocket site
+key. TDD throughout - full suite 1718 -> 1735, lint and typecheck clean (per
+commit 992b6f1). Not deployed/verified within this doc - see DEPLOY STATUS
+UNCONFIRMED note above.
 
 Session 2026-09-03 (part 20): closed out NEXT SESSION item 1 from the 2026-08-21
 note below - see full narrative in part 20 detail further down. Short version: the
@@ -34,9 +66,10 @@ used a new faster deploy path: SSH + `cloudlinux-selector install-modules`/`rest
 UI steps in this doc's Deployment section - same effect, scriptable, no manual
 upload/extract/click-through needed.
 
-NEXT SESSION (top 3):
+NEXT SESSION (top 4):
+0. (Added 2026-09-09 catch-up) Confirm whether v1.101.0 (part 21, growth-plan runs) actually made it to production - it was committed and packaged same day as v1.100.1 but no deploy/live-verify was ever recorded in this doc. Check the footer version at portal.fullmetaljacketseo.com; if it still shows v1.100.1, v1.101.0 needs its normal deploy (tarball workflow-portal-v1.101.0.tar.gz already exists in the repo root, may just need the SSH install-modules/restart steps). Full suite re-confirmed green at HEAD (135 files, 1735 tests) on 2026-09-09.
 1. Client-experience sequence plan items 2-3 (Client Settings consolidation, Archive with frozen snapshot) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Item 4 (Admin Alerts) shipped 2026-08-19, minus its deferred measurement-health signal (see part 19). Ask the user before starting #2.
-2. TD-16 check is clean as of this 2026-09-03 checkpoint on BOTH portal and mcp apps (see part 20 detail - stale duplicate workers were found and killed on both this session, not just portal) - keep doing it every session per the standing ritual, even ones with no deploy.
+2. TD-16 check is clean as of the 2026-09-03 checkpoint on BOTH portal and mcp apps (see part 20 detail - stale duplicate workers were found and killed on both this session, not just portal) - keep doing it every session per the standing ritual, even ones with no deploy. Not re-checked on 2026-09-09 (no deploy this session).
 3. Spot-check the Gemini prepay wallet (AI Studio > Billing, project Full Metal Jacket) in a session or two - confirm auto-reload actually fires when balance drops below $10, and that spend looks sane given no monthly cap is set.
 
 Also open, lower priority (no action needed yet):
