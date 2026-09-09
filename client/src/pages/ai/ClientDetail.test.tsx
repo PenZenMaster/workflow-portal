@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
@@ -20,7 +20,22 @@ const API_RESPONSES: Record<string, unknown> = {
     user: { id: 1, username: "admin", email: null, role: "analyst" },
     config: { perplexityConfigured: true, googleOAuthConfigured: false, configuredPlatforms: ["perplexity"] },
   },
-  "/api/clients/4": { data: { id: 4, name: "Acme", primaryDomain: "acme.com", geographies: [] } },
+  "/api/clients/4": {
+    data: {
+      id: 4,
+      name: "Acme",
+      primaryDomain: "acme.com",
+      geographies: [],
+      exclusions: [],
+      coreServices: [],
+      ownerUserId: null,
+      rankrocketSiteKey: null,
+      gbpLocationName: null,
+      createdAt: 1,
+      updatedAt: 1,
+    },
+  },
+  "/api/rankrocket-mcp/sites": { data: ["trevoraspiranti", "camphouse-landscaping"] },
   "/api/clients/4/brands": { data: [] },
   "/api/clients/4/readiness": {
     data: {
@@ -61,19 +76,19 @@ const API_RESPONSES: Record<string, unknown> = {
   },
 };
 
+let fetchMock: ReturnType<typeof vi.fn>;
+
 beforeEach(() => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string) => {
-      const body = API_RESPONSES[url] ?? { data: null };
-      return {
-        ok: true,
-        status: 200,
-        json: async () => body,
-        text: async () => JSON.stringify(body),
-      } as Response;
-    }),
-  );
+  fetchMock = vi.fn(async (url: string) => {
+    const body = API_RESPONSES[url] ?? { data: null };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    } as Response;
+  });
+  vi.stubGlobal("fetch", fetchMock);
 });
 
 function renderClientDetail() {
@@ -203,5 +218,87 @@ describe("ClientDetail (consolidated AI visibility page)", () => {
 
     expect(document.getElementById("platform-breakdown-section")).toBeInTheDocument();
     expect(document.getElementById("mentions-section")).toBeInTheDocument();
+  });
+});
+
+describe("ClientDetail — RankRocket site key picker", () => {
+  it("renders the picker populated from the registered sites, with the client's current value selected", async () => {
+    renderClientDetail();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Acme" })).toBeInTheDocument());
+
+    const picker = await screen.findByTestId("rankrocket-site-key-picker");
+    expect(picker).toBeInTheDocument();
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/api/rankrocket-mcp/sites"))).toBe(
+        true
+      )
+    );
+    expect(within(picker).getByText("None")).toBeInTheDocument();
+  });
+
+  it("PATCHes the client with the full current fields plus the newly selected site key", async () => {
+    const user = userEvent.setup();
+    renderClientDetail();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Acme" })).toBeInTheDocument());
+
+    const picker = await screen.findByTestId("rankrocket-site-key-picker");
+    await user.click(picker);
+    await user.click(await screen.findByText("trevoraspiranti"));
+
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find(
+        ([url, init]) => String(url).endsWith("/api/clients/4") && (init as RequestInit | undefined)?.method === "PATCH"
+      );
+      expect(patchCall).toBeDefined();
+    });
+    const [, init] = fetchMock.mock.calls.find(
+      ([url, reqInit]) => String(url).endsWith("/api/clients/4") && (reqInit as RequestInit | undefined)?.method === "PATCH"
+    ) as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({
+      name: "Acme",
+      primaryDomain: "acme.com",
+      geographies: [],
+      exclusions: [],
+      coreServices: [],
+      ownerUserId: null,
+      rankrocketSiteKey: "trevoraspiranti",
+      gbpLocationName: null,
+    });
+  });
+
+  it("PATCHes with rankrocketSiteKey null when 'None' is selected", async () => {
+    API_RESPONSES["/api/clients/4"] = {
+      data: {
+        id: 4,
+        name: "Acme",
+        primaryDomain: "acme.com",
+        geographies: [],
+        exclusions: [],
+        coreServices: [],
+        ownerUserId: null,
+        rankrocketSiteKey: "trevoraspiranti",
+        gbpLocationName: null,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    };
+    const user = userEvent.setup();
+    renderClientDetail();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Acme" })).toBeInTheDocument());
+
+    const picker = await screen.findByTestId("rankrocket-site-key-picker");
+    await user.click(picker);
+    await user.click(await screen.findByText("None"));
+
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find(
+        ([url, init]) => String(url).endsWith("/api/clients/4") && (init as RequestInit | undefined)?.method === "PATCH"
+      );
+      expect(patchCall).toBeDefined();
+    });
+    const [, init] = fetchMock.mock.calls.find(
+      ([url, reqInit]) => String(url).endsWith("/api/clients/4") && (reqInit as RequestInit | undefined)?.method === "PATCH"
+    ) as [string, RequestInit];
+    expect(JSON.parse(init.body as string).rankrocketSiteKey).toBeNull();
   });
 });

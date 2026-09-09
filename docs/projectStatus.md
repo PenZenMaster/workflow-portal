@@ -1,10 +1,28 @@
 ## Resume From
 
-Last session: 2026-09-09 (Location Page Builder conversion, cross-repo -
+Last session: 2026-09-09 (RankRocket site key picker on ClientDetail - v1.103.0)
+Previous code session: 2026-09-09 (Location Page Builder conversion, cross-repo -
 v1.102.0)
-Previous code session: 2026-09-03 (client-scoped Claude+MCP growth-plan runs,
-v1.101.0)
-Branch: main | Version: v1.102.0 | Committed, pushed, packaged, and DEPLOYED
+Branch: main | Version: v1.103.0 | Committed, pushed, packaged, and DEPLOYED
+via SSH 2026-09-09. rank_rocket_seo_plugin's v3.15.0 release was pushed live
+by the user directly (confirmed updated on rankrocket.co) - closing out the
+NEXT SESSION blocker from part 22. That surfaced a second gap, also fixed
+this session: Location Page Builder still launched in Perplexity in
+production even after the plugin update, because a code deploy never
+touches data - the production workflows row for that card still had
+location_page_builder_enabled=0 and the old pasted-credential inputs (dev's
+row had been fixed via seed:diff earlier, prod's never was). Fixed via a
+direct-SQL UPDATE against production's persistent/data.db (same
+TD-22-precedent technique, user-confirmed before running) - verified live
+afterward (location_page_builder_enabled=1, inputs/optional_inputs match the
+current card). No app restart needed (workflowStore reads the table live per
+request).
+
+v1.102.0 (part 22 below) DEPLOYED and remains live. rankrocket-mcp
+(E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.12.0, DEPLOYED and
+confirmed live - no rankrocket-mcp changes this session.
+
+Previous: v1.102.0 | Committed, pushed, packaged, and DEPLOYED
 via SSH 2026-09-09 - live-verified (deployed JS bundle hash matches the local
 build exactly). TD-16 clean single fresh worker on portal post-deploy (the old
 v1.101.0 worker self-evicted on its own, first real proof of that fix firing a
@@ -36,6 +54,40 @@ user-confirmed fixed live that session (two Help-page bugs). v1.98.1/v1.98.0
 also DEPLOYED and confirmed good by the user. v1.97.1/v1.97.0 DEPLOYED and
 verified that session - see B-20's backlog entry for the
 `planning.gbp-snapshot` production verification trail.
+
+Session 2026-09-09 (part 23): v1.103.0 - RankRocket site key picker on
+ClientDetail. Prompted directly by testing part 22's Location Page Builder
+work: the user asked where/how `clients.rankrocketSiteKey` gets configured
+and it turned out there was no UI for it at all (confirmed via source
+search - neither `ClientDetail.tsx` nor any admin page had a field for it;
+only the *registry* of available site keys was manageable, via
+`/admin/rankrocket-site-insights`). New `<Select>` on ClientDetail.tsx,
+directly under the Geographies line: populated from the existing
+`GET /api/rankrocket-mcp/sites` cache, "None" option to clear the mapping,
+pre-selected to the client's current value. Saves via `PATCH /api/clients/:id`
+(the client's full current fields plus the new key - that route has always
+been a full-replace, not a partial merge). Found and fixed a real latent
+bug while wiring this up, not just a test-mock issue: `insertClientSchema`'s
+`rankrocketSiteKey`/`gbpLocationName`/`ownerUserId` were `.optional()` but
+not `.nullable()`, so explicitly clearing an already-set value to `null`
+(the "None" flow) would have failed server-side validation even though the
+underlying DB/TS types are `string | null` / `number | null` - added
+`.nullable()` to all three. TDD throughout (RED confirmed on the new
+ClientDetail picker tests and the new `insertClientSchema` nullable-fields
+tests before implementing either). Full suite 1762 -> 1769, all green;
+lint/typecheck clean.
+
+Also closed out this session: rank_rocket_seo_plugin's v3.15.0 release
+(deferred at the end of part 22) was pushed live by the user directly,
+confirmed updated on rankrocket.co. That surfaced production's Location
+Page Builder card still launching in Perplexity even after the plugin
+update - root cause was the data-vs-code-deploy gap documented in the
+add-workflow-card skill (a code deploy never touches an already-seeded
+table): dev's `workflows` row had been fixed via `seed:diff` during part 22,
+but production's never was. Fixed via a direct-SQL `UPDATE` against
+production's `persistent/data.db` (TD-22-precedent technique, confirmed
+with the user before running), verified live immediately after (no restart
+needed - `workflowStore` reads the table on every request).
 
 Session 2026-09-09 (part 22): v1.102.0 - Location Page Builder workflow card
 conversion away from its raw Perplexity-launch prompt, cross-repo (same root
@@ -132,12 +184,12 @@ UI steps in this doc's Deployment section - same effect, scriptable, no manual
 upload/extract/click-through needed.
 
 NEXT SESSION (top 2):
-1. rank_rocket_seo_plugin v3.15.0 is committed/pushed but NOT released - user explicitly declined to push a release this session (publishing one triggers POST /self-update on live client WordPress sites). Location Page Builder cannot work on any real client site until a release ships and self-update runs on the target site - ask the user before doing this, don't treat "commit and push" as implying it.
-2. Live-verify a real Location Page Builder run end-to-end against a test client once the plugin release above ships - workflow-portal (v1.102.0) and rankrocket-mcp (v0.12.0) are both already deployed and live-verified (2026-09-09), only the plugin side is the remaining blocker.
+1. Live-verify a real Location Page Builder run end-to-end against a real client (Trevor Aspiranti, id 13, is the only client with a rankrocketSiteKey mapped in production as of 2026-09-09 - use the new picker on ClientDetail, part 23, to map others). All three repos are deployed and the production data-drift bug is fixed - this is the first real end-to-end test, not yet done.
+2. Check whether any other client should get a rankrocketSiteKey mapped now that the picker exists (part 23) - previously the only way to set it was direct SQL, so it's plausible other clients were skipped simply because there was no UI, not because they don't need one.
 
 Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot): the Business Information API piece is now DONE and live (see below) - what's left is the legacy v4.9 Reviews/Q&A APIs (unverified, not attempted) and mapping any of the other 13 GBP accounts under flight-deck-476019 to workflow-portal clients beyond the 2 already mapped (Salvo Metal Works, United Structural Systems). Not urgent - pick up only if the user wants more clients wired in or the Reviews data specifically.
-- Card 1 ("SEO Audit via Rank Rocket SEO Plugin") remains an unconverted Perplexity-launch card, explicitly deferred per user decision (2026-09-09) - needs its own separate plan once the live-browser-rendering approach (Google PageSpeed Insights API, chosen over self-hosting headless Chrome given shared cPanel/CloudLinux resource limits) is designed in detail. Card 2 ("Location Page Builder") shipped and deployed this session (v1.102.0, see part 22) - see NEXT SESSION items above for the one remaining blocker (plugin release).
+- Card 1 ("SEO Audit via Rank Rocket SEO Plugin") remains an unconverted Perplexity-launch card, explicitly deferred per user decision (2026-09-09) - needs its own separate plan once the live-browser-rendering approach (Google PageSpeed Insights API, chosen over self-hosting headless Chrome given shared cPanel/CloudLinux resource limits) is designed in detail. Card 2 ("Location Page Builder") shipped and deployed (v1.102.0/v1.103.0, parts 22-23) - fully live now, no known blockers.
 - B-24's launch-dialog input-field tooltips (116+ fields, no per-field metadata in the schema) remain deferred pending the user's own "what is it / where to find it / example" copy - not a task to pick up unprompted.
 
 Session 2026-09-03 (part 20): Two unrelated threads closed out in one session.

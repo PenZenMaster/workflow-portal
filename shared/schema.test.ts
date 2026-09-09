@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   insertWorkflowSchema,
+  insertClientSchema,
   loginSchema,
   createUserSchema,
 } from "./schema";
@@ -144,5 +145,41 @@ describe("createUserSchema", () => {
       createUserSchema.safeParse({ username: "alice", password: "short" })
         .success
     ).toBe(false);
+  });
+});
+
+describe("insertClientSchema", () => {
+  const VALID = {
+    name: "Acme",
+    primaryDomain: "acme.com",
+  };
+
+  it("accepts a minimal client (only required fields)", () => {
+    expect(insertClientSchema.safeParse(VALID).success).toBe(true);
+  });
+
+  it("accepts explicit null for rankrocketSiteKey, gbpLocationName, and ownerUserId (clearing an already-set value, not just omitting it)", () => {
+    const result = insertClientSchema.safeParse({
+      ...VALID,
+      rankrocketSiteKey: null,
+      gbpLocationName: null,
+      ownerUserId: null,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.rankrocketSiteKey).toBeNull();
+      expect(result.data.gbpLocationName).toBeNull();
+      expect(result.data.ownerUserId).toBeNull();
+    }
+  });
+
+  it("still accepts a real rankrocketSiteKey value", () => {
+    const result = insertClientSchema.safeParse({ ...VALID, rankrocketSiteKey: "trevoraspiranti" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.rankrocketSiteKey).toBe("trevoraspiranti");
+  });
+
+  it("still rejects an empty-string rankrocketSiteKey", () => {
+    expect(insertClientSchema.safeParse({ ...VALID, rankrocketSiteKey: "" }).success).toBe(false);
   });
 });

@@ -246,9 +246,13 @@ export const insertClientSchema = z.object({
   geographies: z.array(z.string()).default([]),
   exclusions: z.array(z.string()).default([]),
   coreServices: z.array(z.string()).default([]),
-  ownerUserId: z.number().int().optional(),
-  rankrocketSiteKey: z.string().min(1).optional(),
-  gbpLocationName: z.string().min(1).optional(),
+  // Nullable, not just optional: a PATCH must be able to explicitly clear an
+  // already-set value back to null (e.g. unmapping a RankRocket site key),
+  // not merely omit the field - this endpoint always writes a full replace
+  // (clientStore.update), never a partial merge.
+  ownerUserId: z.number().int().nullable().optional(),
+  rankrocketSiteKey: z.string().min(1).nullable().optional(),
+  gbpLocationName: z.string().min(1).nullable().optional(),
 });
 
 export const insertBrandSchema = z.object({
