@@ -1,23 +1,79 @@
 ## Resume From
 
-Last session: 2026-09-03 (client-scoped Claude+MCP growth-plan runs, shipped
-right after part 20's billing fix closed out - v1.101.0)
-Previous code session: 2026-08-19 (continued from 2026-08-18)
-Branch: main | Version: v1.101.0 | Committed and packaged (workflow-portal-v1.101.0.tar.gz
-built same session) but this doc was never updated to record it at the time -
-the part 21 entry below is a 2026-09-09 catch-up written from git history
-(commit 992b6f1), not a live session note. DEPLOYED - user confirmed
-2026-09-09 that v1.101.0 is live on portal.fullmetaljacketseo.com (footer
-version check); TD-16 stale-worker check still not re-run this session, do
-it next time regardless of deploy per the standing ritual. v1.100.1 (part 20
-below) was DEPLOYED and live-verified in browser (banner text + footer version both
-confirmed post-deploy; TD-16 clean single fresh worker on portal immediately
-after that session's restart). v1.100.0's Admin Alerts (part 19) also DEPLOYED
-and user-confirmed. v1.99.1/v1.99.0 also DEPLOYED and user-confirmed fixed live
-that session (two Help-page bugs). v1.98.1/v1.98.0 also DEPLOYED and confirmed
-good by the user. v1.97.1/v1.97.0 DEPLOYED and verified that session - see
-B-20's backlog entry for the `planning.gbp-snapshot` production verification trail.
-rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.11.0 - DEPLOYED and confirmed live. No rankrocket-mcp changes.
+Last session: 2026-09-09 (Location Page Builder conversion, cross-repo -
+v1.102.0)
+Previous code session: 2026-09-03 (client-scoped Claude+MCP growth-plan runs,
+v1.101.0)
+Branch: main | Version: v1.102.0 | Committed and pushed 2026-09-09; deploy in
+progress this session (package + SSH). rankrocket-mcp (E:\projects\rankrocket-mcp,
+separate repo/deploy) bumped to v0.12.0 same session - committed, pushed, and
+packaged (rankrocket-mcp-deploy-0.12.0.tar.gz), but the actual cPanel
+upload/restart on mcp.fullmetaljacketseo.com stays a manual step per this
+project's standing convention for that repo, unlike workflow-portal's own
+SSH-deploy authorization - not done automatically here. rank_rocket_seo_plugin
+(E:\projects\rank_rocket_seo_plugin, separate repo, WordPress plugin) bumped to
+v3.15.0 - committed and pushed, but publishing an actual release (zip +
+update-manifest.json + POST /self-update on live client WordPress sites) was
+deliberately NOT done this session pending explicit confirmation, since that
+step pushes updates to real client production sites, not just AMS's own admin
+tooling.
+v1.101.0 (part 21 below) DEPLOYED - user confirmed 2026-09-09 that it's live on
+portal.fullmetaljacketseo.com (footer version check); TD-16 stale-worker check
+still not re-run this session (no deploy that session), do it next time
+regardless of deploy per the standing ritual - carries forward, still open.
+v1.100.1 (part 20 below) was DEPLOYED and live-verified in browser (banner text
++ footer version both confirmed post-deploy; TD-16 clean single fresh worker on
+portal immediately after that session's restart). v1.100.0's Admin Alerts (part
+19) also DEPLOYED and user-confirmed. v1.99.1/v1.99.0 also DEPLOYED and
+user-confirmed fixed live that session (two Help-page bugs). v1.98.1/v1.98.0
+also DEPLOYED and confirmed good by the user. v1.97.1/v1.97.0 DEPLOYED and
+verified that session - see B-20's backlog entry for the
+`planning.gbp-snapshot` production verification trail.
+
+Session 2026-09-09 (part 22): v1.102.0 - Location Page Builder workflow card
+conversion away from its raw Perplexity-launch prompt, cross-repo (same root
+cause and pattern as v1.101.0's growth-plan conversion: Perplexity has no way
+to honor the card's original "location-page-builder" skill reference).
+Investigated first and found no "create a WordPress page" capability existed
+anywhere in the stack - the plugin's Elementor tool only sets layout on an
+*existing* post. User confirmed the approach (extend the plugin's Action
+Engine, mirror create_redirect exactly) and one deliberate policy exception:
+this is the one workflow in this app where Claude's own tool loop is allowed
+to write to a live site directly, because the pages it creates are always
+drafts (never published) and reversible via the plugin's new rollback
+(trashes the page, not a hard delete) - every other in-app run (including the
+growth-plan card) stays strictly read-only, regression-tested to confirm no
+leak. Cross-repo build: rank_rocket_seo_plugin v3.15.0 adds the create_page
+action type (includes/class-rrseo-pages.php, mirrors create_redirect's
+validate/apply/rollback shape 1:1); rankrocket-mcp v0.12.0 adds a narrow
+dedicated tool pair (rankrocket_pages / rankrocket_pages_write) wrapping it via
+the generic /actions/dry-run and /actions/execute routes with action_type
+fixed to create_page, rather than exposing the fully generic
+rankrocket_action_execute (which also covers delete_redirect/update_setting/
+etc - too wide a blast radius for this one card); workflow-portal adds the
+new `locationPageBuilderEnabled` workflow flag (schema migration
+0034_complex_valeria_richards.sql), `runLocationPageBuilder`
+(server/services/factory/locationPageBuilderCell.ts, mirrors
+rankingGrowthPlanCell.ts's client-scoped pattern minus CSV/GBP), a new
+explicitly-named `RANKROCKET_PAGE_BUILDER_TOOLS` allowlist
+(server/mcp/toolBridge.ts) used only by this one card's tool-loop entry point
+(`runRankRocketPageBuilderPrompt`, server/mcp/rankrocketToolRun.ts - the
+existing `runRankRocketReadOnlyPrompt` used by growth-plan is untouched), and
+extended the existing client-picker UI (LaunchInputsDialog.tsx's
+`isClientScoped` now covers both growthPlanEnabled and
+locationPageBuilderEnabled) plus a matching admin-dialog toggle
+(WorkflowDialog.tsx) rather than leaving the new flag admin-UI-invisible.
+The card's own row in dev's data.db was updated via `npm run seed:diff
+--apply=seed-to-db` (TD-12's tool, reviewed before applying) since a seed.ts
+edit alone never touches an already-seeded table. TDD throughout across all
+three repos - every new function/route/component had a RED test confirmed
+before implementation. Full suites: plugin 437/437, rankrocket-mcp 145/145,
+workflow-portal 1762/1762 (up from 1735), lint/typecheck clean.
+Card 1 ("SEO Audit via Rank Rocket SEO Plugin") remains explicitly deferred
+per user decision - its live-browser-rendering gap needs its own separate
+plan (Google PageSpeed Insights API chosen over self-hosting headless Chrome
+on the shared cPanel host, to avoid CloudLinux LVE resource-limit risk) - not
+started this session.
 
 Session 2026-09-03 (part 21): v1.101.0 - client-scoped Claude+MCP growth-plan
 runs. Full-parity conversion of the "Ranking Audit and Improvement Suite"
@@ -68,14 +124,15 @@ used a new faster deploy path: SSH + `cloudlinux-selector install-modules`/`rest
 UI steps in this doc's Deployment section - same effect, scriptable, no manual
 upload/extract/click-through needed.
 
-NEXT SESSION (top 3):
-1. TD-16 stale-worker check on BOTH portal and mcp apps - last actually run 2026-09-03 (part 20, clean). Not re-run on 2026-09-09 despite v1.101.0's deploy being confirmed live that day - do it next session even though this one had no code changes, per the standing ritual.
-2. Client-experience sequence plan items 2-3 (Client Settings consolidation, Archive with frozen snapshot) remain - full sequence detail lives in the session's plan file, not yet transcribed into this doc's Backlog section. Item 4 (Admin Alerts) shipped 2026-08-19, minus its deferred measurement-health signal (see part 19). Ask the user before starting #2.
-3. Spot-check the Gemini prepay wallet (AI Studio > Billing, project Full Metal Jacket) in a session or two - confirm auto-reload actually fires when balance drops below $10, and that spend looks sane given no monthly cap is set.
+NEXT SESSION (top 4):
+1. Finish the v1.102.0 deploy in progress: workflow-portal package+SSH deploy (this session), then confirm live in-browser (footer version + a real Location Page Builder run against a test client) same as every prior version's precedent.
+2. rankrocket-mcp v0.12.0 is committed/pushed/packaged (tarball built) but the cPanel upload/restart on mcp.fullmetaljacketseo.com was deliberately left as the standing manual step for that repo - do it (or confirm the user has) before Location Page Builder can work end-to-end, since workflow-portal's new tool calls depend on it.
+3. rank_rocket_seo_plugin v3.15.0 is committed/pushed but NOT released - publishing an actual release (zip + update-manifest.json + POST /self-update) pushes updates to live client WordPress sites, so this was deliberately left for explicit confirmation rather than done automatically. Location Page Builder cannot work on any real client site until this happens.
+4. TD-16 stale-worker check on BOTH portal and mcp apps - last actually run 2026-09-03 (part 20, clean). Do it as part of this session's deploy, and every session per the standing ritual even when it isn't.
 
 Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot): the Business Information API piece is now DONE and live (see below) - what's left is the legacy v4.9 Reviews/Q&A APIs (unverified, not attempted) and mapping any of the other 13 GBP accounts under flight-deck-476019 to workflow-portal clients beyond the 2 already mapped (Salvo Metal Works, United Structural Systems). Not urgent - pick up only if the user wants more clients wired in or the Reviews data specifically.
-- Cards 1 ("SEO Audit via Rank Rocket SEO Plugin") and 2 ("Location Page Builder") remain unconverted Perplexity-launch cards - Card 2 needs a net-new "create WordPress page" tool built in the separate rankrocket-mcp repo first (confirmed via source search: doesn't exist today); Card 1 needs a scope decision about its live browser-scan + apply-fix loop, which RankRocket-MCP cannot replace. Not a task to pick up unprompted - both are real follow-up planning exercises.
+- Card 1 ("SEO Audit via Rank Rocket SEO Plugin") remains an unconverted Perplexity-launch card, explicitly deferred per user decision (2026-09-09) - needs its own separate plan once the live-browser-rendering approach (Google PageSpeed Insights API, chosen over self-hosting headless Chrome given shared cPanel/CloudLinux resource limits) is designed in detail. Card 2 ("Location Page Builder") shipped this session (v1.102.0, see part 22) - see NEXT SESSION items 1-3 for what's still needed before it works live.
 - B-24's launch-dialog input-field tooltips (116+ fields, no per-field metadata in the schema) remain deferred pending the user's own "what is it / where to find it / example" copy - not a task to pick up unprompted.
 
 Session 2026-09-03 (part 20): Two unrelated threads closed out in one session.

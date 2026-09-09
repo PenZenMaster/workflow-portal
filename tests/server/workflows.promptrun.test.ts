@@ -32,15 +32,29 @@ const mockStorage = {
   updateWorkflow: vi.fn(),
   deleteWorkflow: vi.fn(),
 };
+const mockClientStore = { get: vi.fn() };
 vi.mock("../../server/storage", () => ({
   storage: mockStorage,
   workflowInputValueStore: { getByWorkflow: vi.fn(), upsertMany: vi.fn() },
+  clientStore: mockClientStore,
+  growthPlanRunStore: { getPreviousRun: vi.fn(), create: vi.fn() },
 }));
 
 const mockRunWorkflowPrompt = vi.fn();
 vi.mock("../../server/services/workflowPromptRun", () => ({
   runWorkflowPrompt: (...args: unknown[]) => mockRunWorkflowPrompt(...args),
 }));
+
+const mockRunLocationPageBuilder = vi.fn();
+vi.mock("../../server/services/factory/locationPageBuilderCell", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../server/services/factory/locationPageBuilderCell")
+  >("../../server/services/factory/locationPageBuilderCell");
+  return {
+    ...actual,
+    runLocationPageBuilder: (...args: unknown[]) => mockRunLocationPageBuilder(...args),
+  };
+});
 
 const { registerWorkflowRoutes } = await import("../../server/routes/workflows");
 const { AppError } = await import("../../server/errors");
@@ -178,5 +192,70 @@ describe("POST /api/workflows/:id/run", () => {
 
     expect(res.status).toBe(200);
     expect(mockRunWorkflowPrompt).toHaveBeenCalledWith(WORKFLOW.prompt, []);
+  });
+});
+
+describe("POST /api/workflows/:id/run — locationPageBuilderEnabled branch", () => {
+  const LOCATION_PAGE_BUILDER_WORKFLOW = {
+    ...WORKFLOW,
+    rankrocketMcpEnabled: false,
+    locationPageBuilderEnabled: true,
+    inputs: ["Target city or service area(s)"],
+    optionalInputs: [
+      "Business name",
+      "Primary service / money page URL",
+      "Page template / content style preferences",
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockStorage.getWorkflow.mockResolvedValue(LOCATION_PAGE_BUILDER_WORKFLOW);
+  });
+
+  it("returns 400 CLIENT_ID_REQUIRED when no clientId is provided", async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/workflows/1/run")
+      .send({ inputValues: ["Austin, Dallas"] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("CLIENT_ID_REQUIRED");
+    expect(mockRunLocationPageBuilder).not.toHaveBeenCalled();
+  });
+
+  it("calls runLocationPageBuilder with clientId and mapped inputs, returns the markdown", async () => {
+    mockRunLocationPageBuilder.mockResolvedValue({
+      markdown: "Created 1 draft page: Austin Landscaping (id 101)",
+    });
+
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/workflows/1/run")
+      .send({
+        inputValues: ["Austin, Dallas", "Camphouse Country Landscaping", "", ""],
+        clientId: 4,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.response).toBe("Created 1 draft page: Austin Landscaping (id 101)");
+    expect(mockRunLocationPageBuilder).toHaveBeenCalledWith(
+      4,
+      {
+        targetCitiesOrServiceAreas: "Austin, Dallas",
+        businessName: "Camphouse Country Landscaping",
+      },
+      { clientStore: mockClientStore }
+    );
+  });
+
+  it("returns 400 when the mapped inputs are missing the required target cities field", async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/workflows/1/run")
+      .send({ inputValues: ["", "", "", ""], clientId: 4 });
+
+    expect(res.status).toBe(400);
+    expect(mockRunLocationPageBuilder).not.toHaveBeenCalled();
   });
 });

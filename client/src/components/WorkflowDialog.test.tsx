@@ -149,6 +149,7 @@ describe("WorkflowDialog - AI model selection (B-22)", () => {
       aiAdapterSlug: "anthropic",
       rankrocketMcpEnabled: false,
       growthPlanEnabled: false,
+      locationPageBuilderEnabled: false,
       createdAt: 1,
       updatedAt: 1,
     };

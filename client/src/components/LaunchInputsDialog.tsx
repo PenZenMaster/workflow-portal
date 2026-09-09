@@ -75,11 +75,14 @@ export function LaunchInputsDialog({
     }
   }, [open, workflow.inputs, workflow.optionalInputs]);
 
-  // Growth-plan workflows are client-scoped (server resolves the chosen
-  // client's RankRocket site key and GBP mapping) instead of the
-  // client-agnostic <PASTE>-token pattern every other workflow uses.
+  // Growth-plan and location-page-builder workflows are client-scoped
+  // (server resolves the chosen client's RankRocket site key, and for
+  // growth-plan, GBP mapping too) instead of the client-agnostic
+  // <PASTE>-token pattern every other workflow uses.
+  const isClientScoped = workflow.growthPlanEnabled || workflow.locationPageBuilderEnabled;
+
   useEffect(() => {
-    if (!open || !workflow.growthPlanEnabled) return;
+    if (!open || !isClientScoped) return;
     let cancelled = false;
     fetch("/api/clients", { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
@@ -93,7 +96,7 @@ export function LaunchInputsDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, workflow.growthPlanEnabled]);
+  }, [open, isClientScoped]);
 
   // Prefill from the shared last-used values (B-23). Only fills fields the
   // user has not already typed into, so a slow response never clobbers input.
@@ -338,7 +341,7 @@ export function LaunchInputsDialog({
           </div>
         ) : (
         <div className="space-y-4 py-2">
-          {workflow.growthPlanEnabled && (
+          {isClientScoped && (
             <div className="space-y-1.5">
               <Label htmlFor="launch-client-picker">Client</Label>
               <Select
@@ -365,8 +368,9 @@ export function LaunchInputsDialog({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Resolves this client&apos;s RankRocket site key and GBP
-                location automatically - no pasted credentials needed.
+                {workflow.growthPlanEnabled
+                  ? "Resolves this client's RankRocket site key and GBP location automatically - no pasted credentials needed."
+                  : "Resolves this client's RankRocket site key automatically - no pasted credentials needed."}
               </p>
             </div>
           )}
@@ -488,7 +492,7 @@ export function LaunchInputsDialog({
               </Button>
               <Button
                 onClick={handleRunConfirm}
-                disabled={workflow.growthPlanEnabled && selectedClientId === null}
+                disabled={isClientScoped && selectedClientId === null}
                 data-testid="button-run-confirm"
               >
                 <FileUp className="h-4 w-4 mr-1.5" />

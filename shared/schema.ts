@@ -29,6 +29,13 @@ export const workflows = sqliteTable("workflows", {
   // WP credentials, and remembers prior runs (server/storage/
   // growthPlanRunStore.ts) instead of re-analyzing unchanged input.
   growthPlanEnabled: integer("growth_plan_enabled").notNull().default(0),
+  // Runs in-app via runLocationPageBuilder (server/services/factory/
+  // locationPageBuilderCell.ts): client-scoped like growthPlanEnabled, but
+  // its Claude tool loop is allowed to call rankrocket_pages_write directly
+  // (server/mcp/toolBridge.ts's RANKROCKET_PAGE_BUILDER_TOOLS) to create
+  // draft WordPress pages -- the one workflow in this app where Claude
+  // writes to a live site itself rather than only producing a report.
+  locationPageBuilderEnabled: integer("location_page_builder_enabled").notNull().default(0),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -64,6 +71,7 @@ export const insertWorkflowSchema = createInsertSchema(workflows)
     aiAdapterSlug: z.string().nullable().default(null),
     rankrocketMcpEnabled: z.boolean().default(false),
     growthPlanEnabled: z.boolean().default(false),
+    locationPageBuilderEnabled: z.boolean().default(false),
     name: z.string().min(1, "Name is required"),
     category: z.string().min(1, "Category is required"),
     description: z.string().min(1, "Description is required"),
@@ -91,6 +99,7 @@ export type Workflow = {
   aiAdapterSlug: string | null;
   rankrocketMcpEnabled: boolean;
   growthPlanEnabled: boolean;
+  locationPageBuilderEnabled: boolean;
   createdAt: number;
   updatedAt: number;
 };

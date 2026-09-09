@@ -57,6 +57,7 @@ type FormValues = {
   aiAdapterSlug: string;
   rankrocketMcpEnabled: boolean;
   growthPlanEnabled: boolean;
+  locationPageBuilderEnabled: boolean;
 };
 
 // The form keeps inputs/tags as raw text and we split on submit.
@@ -76,6 +77,7 @@ const localSchema = z.object({
   aiAdapterSlug: z.string().default(""),
   rankrocketMcpEnabled: z.boolean().default(false),
   growthPlanEnabled: z.boolean().default(false),
+  locationPageBuilderEnabled: z.boolean().default(false),
 });
 
 export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
@@ -97,6 +99,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
       aiAdapterSlug: "",
       rankrocketMcpEnabled: false,
       growthPlanEnabled: false,
+      locationPageBuilderEnabled: false,
     },
   });
 
@@ -125,6 +128,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
           aiAdapterSlug: editing.aiAdapterSlug ?? "",
           rankrocketMcpEnabled: editing.rankrocketMcpEnabled,
           growthPlanEnabled: editing.growthPlanEnabled,
+          locationPageBuilderEnabled: editing.locationPageBuilderEnabled,
         });
       } else {
         form.reset({
@@ -142,6 +146,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
           aiAdapterSlug: "",
           rankrocketMcpEnabled: false,
           growthPlanEnabled: false,
+          locationPageBuilderEnabled: false,
         });
       }
     }
@@ -173,6 +178,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
         aiAdapterSlug: values.aiAdapterSlug ? values.aiAdapterSlug : null,
         rankrocketMcpEnabled: values.rankrocketMcpEnabled,
         growthPlanEnabled: values.growthPlanEnabled,
+        locationPageBuilderEnabled: values.locationPageBuilderEnabled,
       };
       if (editing) {
         return apiRequest("PUT", `/api/workflows/${editing.id}`, payload);
@@ -367,6 +373,37 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
                     automatically instead of pasted WordPress credentials,
                     and remembers prior runs to avoid re-recommending
                     completed work.
+                  </FormDescription>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="locationPageBuilderEnabled"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <FormLabel>Location page builder (client-scoped, writes)</FormLabel>
+                  <FormControl>
+                    <div className="flex items-center gap-2 h-10">
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-location-page-builder"
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {field.value
+                          ? "Runs in-app, creates draft WordPress pages"
+                          : "No location-page-builder run"}
+                      </span>
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    Shows a client picker. Unlike every other in-app run in
+                    this app, Claude is allowed to create draft WordPress
+                    pages directly (never published) via the chosen
+                    client's RankRocket site key -- reversible through the
+                    plugin's own rollback.
                   </FormDescription>
                 </FormItem>
               )}

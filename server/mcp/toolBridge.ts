@@ -46,3 +46,23 @@ export const RANKROCKET_READONLY_TOOLS = new Set([
 export function filterRankRocketReadOnlyTools(tools: McpTool[]): McpTool[] {
   return tools.filter((t) => RANKROCKET_READONLY_TOOLS.has(t.name));
 }
+
+// Every other write tool in rankrocket-mcp is deliberately excluded from
+// Claude's own tool loop (see RANKROCKET_READONLY_TOOLS above) - Claude only
+// ever reads data and produces a report a human acts on. This is the one
+// narrow, deliberate exception: the Location Page Builder workflow card is
+// allowed to call rankrocket_pages_write directly, because the pages it
+// creates are always drafts (never published) and reversible via the
+// plugin's own rollback (trashes the page, not a hard delete). Used only by
+// server/mcp/rankrocketToolRun.ts's runRankRocketPageBuilderPrompt - every
+// other in-app run (including the growth-plan card) keeps using
+// RANKROCKET_READONLY_TOOLS/filterRankRocketReadOnlyTools unchanged.
+export const RANKROCKET_PAGE_BUILDER_TOOLS = new Set([
+  ...Array.from(RANKROCKET_READONLY_TOOLS),
+  "rankrocket_pages",
+  "rankrocket_pages_write",
+]);
+
+export function filterRankRocketPageBuilderTools(tools: McpTool[]): McpTool[] {
+  return tools.filter((t) => RANKROCKET_PAGE_BUILDER_TOOLS.has(t.name));
+}

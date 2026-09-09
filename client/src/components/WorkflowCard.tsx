@@ -145,6 +145,45 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
     }
   };
 
+  // Location Page Builder in-app run - same no-CSV /run endpoint as the
+  // RankRocket MCP pattern above, but client-scoped (a clientId, resolved
+  // via the client picker in LaunchInputsDialog) instead of a site-key
+  // dropdown. This card always has inputs (target cities is required), so
+  // it always opens the dialog rather than running immediately.
+  const handleRunLocationPageBuilder = () => {
+    setRunDialogOpen(true);
+  };
+
+  const executeLocationPageBuilderRun = async (inputValues?: string[], clientId?: number) => {
+    setAiRunning(true);
+    try {
+      const res = await fetch(`/api/workflows/${workflow.id}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          inputValues: inputValues ?? [],
+          ...(clientId !== undefined && { clientId }),
+        }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(err?.error ?? `Request failed (${res.status})`);
+      }
+      const json = (await res.json()) as { data: { response: string } };
+      setAiResponse(json.data.response);
+    } catch (e) {
+      toast({
+        title: "AI run failed",
+        description: e instanceof Error ? e.message : "Please try again.",
+      });
+    } finally {
+      setAiRunning(false);
+    }
+  };
+
   const handleCopy = async () => {
     if (!workflow.prompt) {
       toast({ title: "No prompt to copy", description: "Edit this workflow to add a prompt." });
@@ -368,6 +407,27 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
           </div>
         )}
 
+        {workflow.locationPageBuilderEnabled && (
+          <div className="space-y-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={aiRunning}
+              onClick={handleRunLocationPageBuilder}
+              data-testid={`button-run-location-page-builder-${workflow.id}`}
+            >
+              {aiRunning ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  Running...
+                </>
+              ) : (
+                "Run"
+              )}
+            </Button>
+          </div>
+        )}
+
         {aiResponse !== null && (
           <div
             className="relative rounded-md border border-card-border bg-muted/40 p-3"
@@ -460,6 +520,16 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
           onOpenChange={setRunDialogOpen}
           mode="ai-run"
           onRun={(values) => void executePromptRun(values)}
+        />
+      )}
+
+      {workflow.locationPageBuilderEnabled && hasLaunchInputs && (
+        <LaunchInputsDialog
+          workflow={workflow}
+          open={runDialogOpen}
+          onOpenChange={setRunDialogOpen}
+          mode="ai-run"
+          onRun={(values, clientId) => void executeLocationPageBuilderRun(values, clientId)}
         />
       )}
     </Card>

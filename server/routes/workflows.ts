@@ -29,6 +29,11 @@ import {
   runRankingGrowthPlan,
   mapOptionalInputsFromLabels,
 } from "../services/factory/rankingGrowthPlanCell";
+import {
+  runLocationPageBuilder,
+  mapLocationPageBuilderInputsFromLabels,
+  locationPageBuilderInputSchema,
+} from "../services/factory/locationPageBuilderCell";
 import { getCachedRankRocketSites } from "../mcp/sitesCache";
 
 const runWithFileJsonSchema = z.object({
@@ -39,6 +44,7 @@ const runWithFileJsonSchema = z.object({
 
 const runPromptJsonSchema = z.object({
   inputValues: z.array(z.string()).default([]),
+  clientId: z.number().int().positive().optional(),
 });
 
 export function registerWorkflowRoutes(app: Express): void {
@@ -249,7 +255,7 @@ export function registerWorkflowRoutes(app: Express): void {
     if (!workflow) {
       return res.status(404).json({ error: "Not found" });
     }
-    if (!workflow.rankrocketMcpEnabled) {
+    if (!workflow.rankrocketMcpEnabled && !workflow.locationPageBuilderEnabled) {
       return res.status(400).json({
         error: "This workflow does not have RankRocket MCP enabled",
         code: "RANKROCKET_MCP_NOT_ENABLED",
@@ -263,6 +269,49 @@ export function registerWorkflowRoutes(app: Express): void {
         code: "VALIDATION_ERROR",
         details: parsed.error.flatten(),
       });
+    }
+
+    // Client-scoped location-page-builder path: resolves the chosen
+    // client's RankRocket site key automatically instead of the
+    // client-agnostic <PASTE>-token pattern below. Unlike every other
+    // in-app run, Claude's own tool loop is allowed to write draft pages
+    // directly - see runLocationPageBuilder's own doc comment for why.
+    if (workflow.locationPageBuilderEnabled) {
+      if (parsed.data.clientId === undefined) {
+        return res.status(400).json({
+          error: "A client must be selected to run this workflow",
+          code: "CLIENT_ID_REQUIRED",
+        });
+      }
+      const mapped = mapLocationPageBuilderInputsFromLabels(
+        [...workflow.inputs, ...workflow.optionalInputs],
+        parsed.data.inputValues
+      );
+      const inputValidation = locationPageBuilderInputSchema.safeParse(mapped);
+      if (!inputValidation.success) {
+        return res.status(400).json({
+          error: "Validation failed",
+          code: "VALIDATION_ERROR",
+          details: inputValidation.error.flatten(),
+        });
+      }
+      try {
+        const result = await runLocationPageBuilder(parsed.data.clientId, inputValidation.data, {
+          clientStore,
+        });
+        return res.json({
+          data: {
+            response: result.markdown,
+            modelVariant: null,
+            latencyMs: null,
+          },
+        });
+      } catch (err) {
+        return res.status(400).json({
+          error: err instanceof Error ? err.message : "Location page builder run failed",
+          code: "LOCATION_PAGE_BUILDER_RUN_FAILED",
+        });
+      }
     }
 
     const response = await runWorkflowPrompt(workflow.prompt, parsed.data.inputValues);

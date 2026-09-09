@@ -41,6 +41,7 @@ const BASE_WORKFLOW: Workflow = {
   aiAdapterSlug: null,
   rankrocketMcpEnabled: false,
   growthPlanEnabled: false,
+  locationPageBuilderEnabled: false,
   createdAt: 1,
   updatedAt: 1,
 };
@@ -315,6 +316,85 @@ describe("WorkflowCard - RankRocket MCP run", () => {
     expect(url).toBe("/api/workflows/7/run");
     expect(JSON.parse(init.body as string)).toEqual({
       inputValues: ["tristate-hvac"],
+    });
+  });
+});
+
+describe("WorkflowCard - Location Page Builder run", () => {
+  const LOCATION_PAGE_BUILDER_WORKFLOW: Workflow = {
+    ...BASE_WORKFLOW,
+    acceptsFileUpload: false,
+    locationPageBuilderEnabled: true,
+    inputs: ["Target city or service area(s)"],
+  };
+
+  function mockClientsAndRunFetch() {
+    fetchMock = vi.fn(async (url: string) => {
+      if (String(url).endsWith("/api/clients")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [{ id: 4, name: "Camphouse Country Landscaping" }] }),
+          text: async () => "",
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: { response: "Created 1 draft page: Austin Landscaping (id 101)" },
+        }),
+        text: async () => "",
+      } as Response;
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  }
+
+  it("shows a Run button (no file input) when locationPageBuilderEnabled is true", () => {
+    renderCard(LOCATION_PAGE_BUILDER_WORKFLOW);
+    expect(screen.getByTestId("button-run-location-page-builder-7")).toBeInTheDocument();
+    expect(screen.queryByTestId("input-file-7")).not.toBeInTheDocument();
+  });
+
+  it("hides the Run button when locationPageBuilderEnabled is false", () => {
+    renderCard(BASE_WORKFLOW);
+    expect(screen.queryByTestId("button-run-location-page-builder-7")).not.toBeInTheDocument();
+  });
+
+  it("opens the inputs dialog with a client picker instead of running immediately", async () => {
+    mockClientsAndRunFetch();
+    const user = userEvent.setup();
+    renderCard(LOCATION_PAGE_BUILDER_WORKFLOW);
+
+    await user.click(screen.getByTestId("button-run-location-page-builder-7"));
+
+    expect(await screen.findByTestId("launch-client-picker")).toBeInTheDocument();
+    const runCalls = fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/run"));
+    expect(runCalls).toHaveLength(0);
+  });
+
+  it("POSTs JSON with the collected inputValues and selected clientId after the dialog is confirmed", async () => {
+    mockClientsAndRunFetch();
+    const user = userEvent.setup();
+    renderCard(LOCATION_PAGE_BUILDER_WORKFLOW);
+
+    await user.click(screen.getByTestId("button-run-location-page-builder-7"));
+    await user.type(await screen.findByTestId("launch-input-0"), "Austin, Dallas");
+    await user.click(screen.getByTestId("launch-client-picker"));
+    await user.click(await screen.findByText("Camphouse Country Landscaping"));
+    await user.click(screen.getByTestId("button-run-confirm"));
+
+    expect(
+      await screen.findByText(/Created 1 draft page/)
+    ).toBeInTheDocument();
+
+    const runCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/run"));
+    expect(runCall).toBeDefined();
+    const [url, init] = runCall as [string, RequestInit];
+    expect(url).toBe("/api/workflows/7/run");
+    expect(JSON.parse(init.body as string)).toEqual({
+      inputValues: ["Austin, Dallas"],
+      clientId: 4,
     });
   });
 });

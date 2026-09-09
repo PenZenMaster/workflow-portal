@@ -107,6 +107,7 @@ export const SCHEMA_SQL = `
     ai_adapter_slug TEXT,
     rankrocket_mcp_enabled INTEGER NOT NULL DEFAULT 0,
     growth_plan_enabled INTEGER NOT NULL DEFAULT 0,
+    location_page_builder_enabled INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );

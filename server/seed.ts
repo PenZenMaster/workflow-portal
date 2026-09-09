@@ -16,6 +16,7 @@ export type SeedRow = {
   aiAdapterSlug?: string | null;
   rankrocketMcpEnabled?: boolean;
   growthPlanEnabled?: boolean;
+  locationPageBuilderEnabled?: boolean;
 };
 
 // TD-12: exported so server/services/seedDiff.ts (and script/seedDiff.ts)
@@ -478,18 +479,21 @@ Return:
     name: "Location Page Builder (Rank Rocket + WordPress)",
     category: "Local SEO",
     description:
-      'Builds and publishes SEO-optimized location landing pages via the Rank Rocket SEO plugin\'s WordPress REST API. Uses the "location-page-builder" skill to generate on-brand, locally-relevant page content per target city or service area, then publishes drafts through Rank Rocket\'s REST endpoints for review before going live.',
-    inputs: [
-      "WordPress site URL",
-      "RankMath REST Bridge Base URL - your site's REST API namespace URL, e.g. https://yoursite.com/wp-json/rankrocket-seo/v1 (older plugin versions use /wp-json/rankmath-bridge/v1)",
+      "Creates one new WordPress page per target city or service area, client-scoped: resolves the chosen client's RankRocket site key automatically instead of pasted WordPress credentials, then drives a Claude + RankRocket-MCP tool loop that generates on-brand, locally-relevant content per city and creates each page as a draft for review - never published directly.",
+    // Empty except the one truly required field: runs client-scoped via
+    // runLocationPageBuilder (locationPageBuilderEnabled below), which
+    // resolves the chosen client's RankRocket site key automatically
+    // instead of pasted WP credentials. The launchUrl/prompt below remain
+    // as a manual Perplexity fallback for any client not yet mapped to a
+    // RankRocket site key.
+    inputs: ["Target city or service area(s)"],
+    optionalInputs: [
       "Business name",
-      "Target city or service area(s)",
       "Primary service / money page URL",
       "Page template / content style preferences",
-      "WP Username",
-      "WP App Password",
     ],
-    tags: ["local-seo", "rankrocket", "wordpress", "skill", "location-pages", "rest-api"],
+    locationPageBuilderEnabled: true,
+    tags: ["local-seo", "rankrocket", "wordpress", "location-pages"],
     prompt: `Use the "location-page-builder" skill.
 
 WordPress site URL: <PASTE>
@@ -633,6 +637,7 @@ export function seedIfEmpty() {
         aiAdapterSlug: row.aiAdapterSlug ?? null,
         rankrocketMcpEnabled: row.rankrocketMcpEnabled ? 1 : 0,
         growthPlanEnabled: row.growthPlanEnabled ? 1 : 0,
+        locationPageBuilderEnabled: row.locationPageBuilderEnabled ? 1 : 0,
         createdAt: now,
         updatedAt: now,
       })

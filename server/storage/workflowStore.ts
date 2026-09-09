@@ -58,6 +58,7 @@ function hydrate(row: Row): Workflow {
     aiAdapterSlug: row.aiAdapterSlug ?? null,
     rankrocketMcpEnabled: !!row.rankrocketMcpEnabled,
     growthPlanEnabled: !!row.growthPlanEnabled,
+    locationPageBuilderEnabled: !!row.locationPageBuilderEnabled,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -108,6 +109,7 @@ export class WorkflowStore implements IWorkflowStore {
         aiAdapterSlug: data.aiAdapterSlug ?? null,
         rankrocketMcpEnabled: data.rankrocketMcpEnabled ? 1 : 0,
         growthPlanEnabled: data.growthPlanEnabled ? 1 : 0,
+        locationPageBuilderEnabled: data.locationPageBuilderEnabled ? 1 : 0,
         createdAt: now,
         updatedAt: now,
       })
@@ -141,6 +143,7 @@ export class WorkflowStore implements IWorkflowStore {
         aiAdapterSlug: data.aiAdapterSlug ?? null,
         rankrocketMcpEnabled: data.rankrocketMcpEnabled ? 1 : 0,
         growthPlanEnabled: data.growthPlanEnabled ? 1 : 0,
+        locationPageBuilderEnabled: data.locationPageBuilderEnabled ? 1 : 0,
         updatedAt: now,
       })
       .where(eq(workflows.id, id))

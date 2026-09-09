@@ -20,19 +20,25 @@
  *         planning.ranking-growth-plan factory cell.
  */
 
+import type { McpTool } from "./mcpClient";
 import type { RawResponse } from "../adapters/types";
 import { getRankRocketMcpConfig } from "../adapters/registry";
 import { runAnthropicWithTools } from "../adapters/anthropicToolLoop";
 import { connectMcpClient } from "./mcpClient";
-import { filterRankRocketReadOnlyTools, mcpToolToAnthropicTool } from "./toolBridge";
+import {
+  filterRankRocketReadOnlyTools,
+  filterRankRocketPageBuilderTools,
+  mcpToolToAnthropicTool,
+} from "./toolBridge";
 import { AppError } from "../errors";
 
 export function isRankRocketMcpConfigured(): boolean {
   return getRankRocketMcpConfig() !== undefined;
 }
 
-export async function runRankRocketReadOnlyPrompt(
+async function runRankRocketPrompt(
   prompt: string,
+  toolFilter: (tools: McpTool[]) => McpTool[],
   opts: { maxIterations?: number; maxTokens?: number; timeoutMs?: number } = {}
 ): Promise<RawResponse> {
   const config = getRankRocketMcpConfig();
@@ -47,7 +53,7 @@ export async function runRankRocketReadOnlyPrompt(
   const mcpClient = await connectMcpClient(config.url, config.token);
   try {
     const allTools = await mcpClient.listTools();
-    const tools = filterRankRocketReadOnlyTools(allTools).map(mcpToolToAnthropicTool);
+    const tools = toolFilter(allTools).map(mcpToolToAnthropicTool);
 
     const maxIterations = opts.maxIterations;
     const maxTokens = opts.maxTokens ?? config.maxTokens;
@@ -68,4 +74,22 @@ export async function runRankRocketReadOnlyPrompt(
   } finally {
     await mcpClient.close();
   }
+}
+
+export async function runRankRocketReadOnlyPrompt(
+  prompt: string,
+  opts: { maxIterations?: number; maxTokens?: number; timeoutMs?: number } = {}
+): Promise<RawResponse> {
+  return runRankRocketPrompt(prompt, filterRankRocketReadOnlyTools, opts);
+}
+
+// The one workflow (Location Page Builder) where Claude's own tool loop is
+// allowed to write to the live site directly - see RANKROCKET_PAGE_BUILDER_TOOLS
+// (server/mcp/toolBridge.ts) for why this is safe: draft-only, never
+// published, reversible via the plugin's own rollback.
+export async function runRankRocketPageBuilderPrompt(
+  prompt: string,
+  opts: { maxIterations?: number; maxTokens?: number; timeoutMs?: number } = {}
+): Promise<RawResponse> {
+  return runRankRocketPrompt(prompt, filterRankRocketPageBuilderTools, opts);
 }

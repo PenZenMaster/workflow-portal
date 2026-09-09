@@ -57,6 +57,7 @@ const COMPARED_FIELDS = [
   "aiAdapterSlug",
   "rankrocketMcpEnabled",
   "growthPlanEnabled",
+  "locationPageBuilderEnabled",
 ] as const;
 
 type ComparedField = (typeof COMPARED_FIELDS)[number];
@@ -82,6 +83,7 @@ function normalize(row: SeedRow | Workflow): Record<ComparedField, unknown> {
     aiAdapterSlug: row.aiAdapterSlug ?? null,
     rankrocketMcpEnabled: !!row.rankrocketMcpEnabled,
     growthPlanEnabled: !!row.growthPlanEnabled,
+    locationPageBuilderEnabled: !!row.locationPageBuilderEnabled,
   };
 }
 
@@ -133,7 +135,7 @@ export function generateSyncSql(diff: SeedDiffResult, seedRows: SeedRow[]): stri
     if (!row) continue;
     const now = Date.now();
     lines.push(
-      `INSERT INTO workflows (name, category, description, inputs, optional_inputs, tags, prompt, launch_url, launch_label, pinned, accepts_file_upload, ai_adapter_slug, rankrocket_mcp_enabled, growth_plan_enabled, created_at, updated_at) VALUES (${sqlString(row.name)}, ${sqlString(row.category)}, ${sqlString(row.description)}, ${sqlString(row.inputs)}, ${sqlString(row.optionalInputs ?? [])}, ${sqlString(row.tags)}, ${sqlString(row.prompt)}, ${sqlString(row.launchUrl)}, ${sqlString(row.launchLabel)}, ${sqlString(!!row.pinned)}, ${sqlString(!!row.acceptsFileUpload)}, ${sqlString(row.aiAdapterSlug ?? null)}, ${sqlString(!!row.rankrocketMcpEnabled)}, ${sqlString(!!row.growthPlanEnabled)}, ${now}, ${now});`
+      `INSERT INTO workflows (name, category, description, inputs, optional_inputs, tags, prompt, launch_url, launch_label, pinned, accepts_file_upload, ai_adapter_slug, rankrocket_mcp_enabled, growth_plan_enabled, location_page_builder_enabled, created_at, updated_at) VALUES (${sqlString(row.name)}, ${sqlString(row.category)}, ${sqlString(row.description)}, ${sqlString(row.inputs)}, ${sqlString(row.optionalInputs ?? [])}, ${sqlString(row.tags)}, ${sqlString(row.prompt)}, ${sqlString(row.launchUrl)}, ${sqlString(row.launchLabel)}, ${sqlString(!!row.pinned)}, ${sqlString(!!row.acceptsFileUpload)}, ${sqlString(row.aiAdapterSlug ?? null)}, ${sqlString(!!row.rankrocketMcpEnabled)}, ${sqlString(!!row.growthPlanEnabled)}, ${sqlString(!!row.locationPageBuilderEnabled)}, ${now}, ${now});`
     );
   }
 
@@ -151,6 +153,7 @@ export function generateSyncSql(diff: SeedDiffResult, seedRows: SeedRow[]): stri
     aiAdapterSlug: "ai_adapter_slug",
     rankrocketMcpEnabled: "rankrocket_mcp_enabled",
     growthPlanEnabled: "growth_plan_enabled",
+    locationPageBuilderEnabled: "location_page_builder_enabled",
   };
 
   for (const entry of diff.differing) {
@@ -185,6 +188,9 @@ export function generateSeedArrayLiteral(dbRows: Workflow[]): string {
       ...(row.aiAdapterSlug !== null ? [`aiAdapterSlug: ${JSON.stringify(row.aiAdapterSlug)}`] : []),
       ...(row.rankrocketMcpEnabled ? [`rankrocketMcpEnabled: ${row.rankrocketMcpEnabled}`] : []),
       ...(row.growthPlanEnabled ? [`growthPlanEnabled: ${row.growthPlanEnabled}`] : []),
+      ...(row.locationPageBuilderEnabled
+        ? [`locationPageBuilderEnabled: ${row.locationPageBuilderEnabled}`]
+        : []),
     ];
     return `  {\n    ${fields.join(",\n    ")},\n  }`;
   });

@@ -17,7 +17,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { mcpToolToAnthropicTool, filterRankRocketReadOnlyTools } from "../../../server/mcp/toolBridge";
+import {
+  mcpToolToAnthropicTool,
+  filterRankRocketReadOnlyTools,
+  filterRankRocketPageBuilderTools,
+} from "../../../server/mcp/toolBridge";
 import type { McpTool } from "../../../server/mcp/mcpClient";
 
 describe("mcpToolToAnthropicTool", () => {
@@ -73,5 +77,38 @@ describe("filterRankRocketReadOnlyTools", () => {
     ];
     const filtered = filterRankRocketReadOnlyTools(tools);
     expect(filtered.map((t) => t.name)).toEqual(["rankrocket_status"]);
+  });
+
+  it("drops rankrocket_pages_write - it is only ever allowed via the page-builder allowlist", () => {
+    const tools: McpTool[] = [
+      { name: "rankrocket_status", description: "", inputSchema: {} },
+      { name: "rankrocket_pages", description: "", inputSchema: {} },
+      { name: "rankrocket_pages_write", description: "", inputSchema: {} },
+    ];
+    const filtered = filterRankRocketReadOnlyTools(tools);
+    expect(filtered.map((t) => t.name)).toEqual(["rankrocket_status"]);
+  });
+});
+
+describe("filterRankRocketPageBuilderTools", () => {
+  it("keeps every read-only tool plus rankrocket_pages and rankrocket_pages_write", () => {
+    const tools: McpTool[] = [
+      { name: "rankrocket_status", description: "", inputSchema: {} },
+      { name: "rankrocket_pages", description: "", inputSchema: {} },
+      { name: "rankrocket_pages_write", description: "", inputSchema: {} },
+    ];
+    const filtered = filterRankRocketPageBuilderTools(tools);
+    expect(filtered.map((t) => t.name).sort()).toEqual(
+      ["rankrocket_pages", "rankrocket_pages_write", "rankrocket_status"].sort()
+    );
+  });
+
+  it("still drops every other write tool (narrow exception, not a general write allowlist)", () => {
+    const writeTools: McpTool[] = [
+      { name: "rankrocket_action_execute", description: "", inputSchema: {} },
+      { name: "rankrocket_redirects_write", description: "", inputSchema: {} },
+      { name: "rankrocket_elementor_write", description: "", inputSchema: {} },
+    ];
+    expect(filterRankRocketPageBuilderTools(writeTools)).toHaveLength(0);
   });
 });

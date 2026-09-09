@@ -1,0 +1,1 @@
+ALTER TABLE `workflows` ADD `location_page_builder_enabled` integer DEFAULT 0 NOT NULL;
