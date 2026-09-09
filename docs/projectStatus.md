@@ -4,18 +4,25 @@ Last session: 2026-09-09 (Location Page Builder conversion, cross-repo -
 v1.102.0)
 Previous code session: 2026-09-03 (client-scoped Claude+MCP growth-plan runs,
 v1.101.0)
-Branch: main | Version: v1.102.0 | Committed and pushed 2026-09-09; deploy in
-progress this session (package + SSH). rankrocket-mcp (E:\projects\rankrocket-mcp,
-separate repo/deploy) bumped to v0.12.0 same session - committed, pushed, and
-packaged (rankrocket-mcp-deploy-0.12.0.tar.gz), but the actual cPanel
-upload/restart on mcp.fullmetaljacketseo.com stays a manual step per this
-project's standing convention for that repo, unlike workflow-portal's own
-SSH-deploy authorization - not done automatically here. rank_rocket_seo_plugin
-(E:\projects\rank_rocket_seo_plugin, separate repo, WordPress plugin) bumped to
-v3.15.0 - committed and pushed, but publishing an actual release (zip +
-update-manifest.json + POST /self-update on live client WordPress sites) was
-deliberately NOT done this session pending explicit confirmation, since that
-step pushes updates to real client production sites, not just AMS's own admin
+Branch: main | Version: v1.102.0 | Committed, pushed, packaged, and DEPLOYED
+via SSH 2026-09-09 - live-verified (deployed JS bundle hash matches the local
+build exactly). TD-16 clean single fresh worker on portal post-deploy (the old
+v1.101.0 worker self-evicted on its own, first real proof of that fix firing a
+second time). rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy)
+bumped to v0.12.0 same session - user extended the SSH-deploy authorization to
+this repo too (previously cPanel upload/restart was manual-only here); DEPLOYED
+via SSH and live-verified (401 on an unauthenticated /mcp request confirms the
+app booted). TD-16 also found and fixed on the mcp host this session: two
+stale duplicate workers (Sep 2 and Sep 4, both predating this deploy) plus a
+third transient one from the restart itself (a bare cloudlinux-selector
+restart does not reliably kill the pre-restart worker on this stack, same
+pattern as portal but this repo has no self-eviction code - it's a stateless
+per-request MCP server) - all manually killed, single fresh worker confirmed
+afterward. rank_rocket_seo_plugin (E:\projects\rank_rocket_seo_plugin, separate
+repo, WordPress plugin) bumped to v3.15.0 - committed and pushed, but user
+explicitly declined to push an actual release (zip + update-manifest.json +
+POST /self-update on live client WordPress sites) this session - that step
+pushes updates to real client production sites, not just AMS's own admin
 tooling.
 v1.101.0 (part 21 below) DEPLOYED - user confirmed 2026-09-09 that it's live on
 portal.fullmetaljacketseo.com (footer version check); TD-16 stale-worker check
@@ -124,15 +131,13 @@ used a new faster deploy path: SSH + `cloudlinux-selector install-modules`/`rest
 UI steps in this doc's Deployment section - same effect, scriptable, no manual
 upload/extract/click-through needed.
 
-NEXT SESSION (top 4):
-1. Finish the v1.102.0 deploy in progress: workflow-portal package+SSH deploy (this session), then confirm live in-browser (footer version + a real Location Page Builder run against a test client) same as every prior version's precedent.
-2. rankrocket-mcp v0.12.0 is committed/pushed/packaged (tarball built) but the cPanel upload/restart on mcp.fullmetaljacketseo.com was deliberately left as the standing manual step for that repo - do it (or confirm the user has) before Location Page Builder can work end-to-end, since workflow-portal's new tool calls depend on it.
-3. rank_rocket_seo_plugin v3.15.0 is committed/pushed but NOT released - publishing an actual release (zip + update-manifest.json + POST /self-update) pushes updates to live client WordPress sites, so this was deliberately left for explicit confirmation rather than done automatically. Location Page Builder cannot work on any real client site until this happens.
-4. TD-16 stale-worker check on BOTH portal and mcp apps - last actually run 2026-09-03 (part 20, clean). Do it as part of this session's deploy, and every session per the standing ritual even when it isn't.
+NEXT SESSION (top 2):
+1. rank_rocket_seo_plugin v3.15.0 is committed/pushed but NOT released - user explicitly declined to push a release this session (publishing one triggers POST /self-update on live client WordPress sites). Location Page Builder cannot work on any real client site until a release ships and self-update runs on the target site - ask the user before doing this, don't treat "commit and push" as implying it.
+2. Live-verify a real Location Page Builder run end-to-end against a test client once the plugin release above ships - workflow-portal (v1.102.0) and rankrocket-mcp (v0.12.0) are both already deployed and live-verified (2026-09-09), only the plugin side is the remaining blocker.
 
 Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot): the Business Information API piece is now DONE and live (see below) - what's left is the legacy v4.9 Reviews/Q&A APIs (unverified, not attempted) and mapping any of the other 13 GBP accounts under flight-deck-476019 to workflow-portal clients beyond the 2 already mapped (Salvo Metal Works, United Structural Systems). Not urgent - pick up only if the user wants more clients wired in or the Reviews data specifically.
-- Card 1 ("SEO Audit via Rank Rocket SEO Plugin") remains an unconverted Perplexity-launch card, explicitly deferred per user decision (2026-09-09) - needs its own separate plan once the live-browser-rendering approach (Google PageSpeed Insights API, chosen over self-hosting headless Chrome given shared cPanel/CloudLinux resource limits) is designed in detail. Card 2 ("Location Page Builder") shipped this session (v1.102.0, see part 22) - see NEXT SESSION items 1-3 for what's still needed before it works live.
+- Card 1 ("SEO Audit via Rank Rocket SEO Plugin") remains an unconverted Perplexity-launch card, explicitly deferred per user decision (2026-09-09) - needs its own separate plan once the live-browser-rendering approach (Google PageSpeed Insights API, chosen over self-hosting headless Chrome given shared cPanel/CloudLinux resource limits) is designed in detail. Card 2 ("Location Page Builder") shipped and deployed this session (v1.102.0, see part 22) - see NEXT SESSION items above for the one remaining blocker (plugin release).
 - B-24's launch-dialog input-field tooltips (116+ fields, no per-field metadata in the schema) remain deferred pending the user's own "what is it / where to find it / example" copy - not a task to pick up unprompted.
 
 Session 2026-09-03 (part 20): Two unrelated threads closed out in one session.
