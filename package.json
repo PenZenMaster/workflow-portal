@@ -78,7 +78,7 @@
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
     "next-themes": "^0.4.6",
-    "nodemailer": "^9.0.3",
+    "nodemailer": "^9.1.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
     "psl": "^1.15.0",
