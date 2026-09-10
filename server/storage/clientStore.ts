@@ -15,7 +15,7 @@
 
 import { clients } from "@shared/schema";
 import type { Client, InsertClient } from "@shared/schema";
-import { asc, eq, isNull, sql } from "drizzle-orm";
+import { asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -39,10 +39,12 @@ function hydrate(row: Row): Client {
 
 export interface IClientStore {
   list(): Promise<Client[]>;
+  listArchived(): Promise<Client[]>;
   get(id: number): Promise<Client | undefined>;
   create(data: InsertClient): Promise<Client>;
   update(id: number, data: InsertClient): Promise<Client | undefined>;
   delete(id: number): Promise<boolean>;
+  restore(id: number): Promise<Client | undefined>;
 }
 
 export class ClientStore implements IClientStore {
@@ -53,6 +55,16 @@ export class ClientStore implements IClientStore {
       .select()
       .from(clients)
       .where(isNull(clients.deletedAt))
+      .orderBy(asc(sql`lower(${clients.name})`))
+      .all();
+    return rows.map(hydrate);
+  }
+
+  async listArchived(): Promise<Client[]> {
+    const rows = this._db
+      .select()
+      .from(clients)
+      .where(isNotNull(clients.deletedAt))
       .orderBy(asc(sql`lower(${clients.name})`))
       .all();
     return rows.map(hydrate);
@@ -129,5 +141,21 @@ export class ClientStore implements IClientStore {
       .where(eq(clients.id, id))
       .run();
     return true;
+  }
+
+  async restore(id: number): Promise<Client | undefined> {
+    const existing = this._db
+      .select()
+      .from(clients)
+      .where(eq(clients.id, id))
+      .get();
+    if (!existing || existing.deletedAt === null) return undefined;
+    const row = this._db
+      .update(clients)
+      .set({ deletedAt: null, updatedAt: Date.now() })
+      .where(eq(clients.id, id))
+      .returning()
+      .get();
+    return hydrate(row);
   }
 }

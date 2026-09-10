@@ -52,20 +52,29 @@ const READINESS = [
   },
 ];
 
+const ARCHIVED_CLIENTS = [
+  { id: 3, name: "Gamma LLC", primaryDomain: "gamma.com", geographies: [], exclusions: [], ownerUserId: null, createdAt: 0, updatedAt: 0 },
+];
+
 let clientsResponse: unknown;
 let readinessResponse: unknown;
+let archivedResponse: unknown;
 
 const API_RESPONSES: Record<string, () => unknown> = {
   "/api/auth/status": () => AUTH_STATUS,
   "/api/clients": () => clientsResponse,
   "/api/clients/readiness": () => readinessResponse,
+  "/api/clients/archived": () => archivedResponse,
 };
+
+let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   clientsResponse = { data: [] };
   readinessResponse = { data: [] };
+  archivedResponse = { data: [] };
 
-  const fetchMock = vi.fn(async (url: string) => {
+  fetchMock = vi.fn(async (url: string) => {
     const body = API_RESPONSES[url] ? API_RESPONSES[url]() : { data: null };
     return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
   });
@@ -118,6 +127,44 @@ describe("ClientsList — readiness badges", () => {
 
     const promptsLink = screen.getByRole("link", { name: "No active prompt collection with prompts" });
     expect(promptsLink).toHaveAttribute("href", "/ai/clients/2/prompts");
+  });
+});
+
+describe("ClientsList — archive / restore", () => {
+  it("archives a client via its Archive button", async () => {
+    clientsResponse = { data: CLIENTS };
+    readinessResponse = { data: READINESS };
+
+    renderClientsList();
+    await screen.findByText("Acme Corp");
+
+    await userEvent.click(screen.getByRole("button", { name: /archive acme corp/i }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/clients/1",
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
+
+  it("shows archived clients when the archived-clients toggle is opened, with a Restore action", async () => {
+    clientsResponse = { data: CLIENTS };
+    readinessResponse = { data: READINESS };
+    archivedResponse = { data: ARCHIVED_CLIENTS };
+
+    renderClientsList();
+    await screen.findByText("Acme Corp");
+
+    await userEvent.click(screen.getByRole("button", { name: /view archived clients/i }));
+
+    expect(await screen.findByText("Gamma LLC")).toBeInTheDocument();
+    const restoreButton = screen.getByRole("button", { name: /restore gamma llc/i });
+
+    await userEvent.click(restoreButton);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/clients/3/restore",
+      expect.objectContaining({ method: "POST" })
+    );
   });
 });
 

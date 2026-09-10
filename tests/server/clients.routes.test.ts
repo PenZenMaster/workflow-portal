@@ -7,10 +7,12 @@ import { buildAuthApp } from "./_helpers/buildAuthApp";
 
 const mockClientStore = {
   list: vi.fn(),
+  listArchived: vi.fn(),
   get: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
   delete: vi.fn(),
+  restore: vi.fn(),
 };
 const mockBrandStore = {
   listByClient: vi.fn(),
@@ -288,6 +290,59 @@ describe("DELETE /api/clients/:id", () => {
     mockClientStore.delete.mockResolvedValue(true);
     const res = await request(buildApp("agency_admin")).delete("/api/clients/1");
     expect(res.status).toBe(204);
+  });
+});
+
+describe("GET /api/clients/archived", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).get("/api/clients/archived");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for analyst", async () => {
+    const res = await request(buildApp("analyst")).get("/api/clients/archived");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 200 with archived clients", async () => {
+    mockClientStore.listArchived.mockResolvedValue([SAMPLE_CLIENT]);
+    const res = await request(buildApp("agency_admin")).get("/api/clients/archived");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+  });
+});
+
+describe("POST /api/clients/:id/restore", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp()).post("/api/clients/1/restore");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for analyst", async () => {
+    const res = await request(buildApp("analyst")).post("/api/clients/1/restore");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when not found or not archived", async () => {
+    mockClientStore.restore.mockResolvedValue(false);
+    const res = await request(buildApp("agency_admin")).post("/api/clients/999/restore");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 200 with the restored client", async () => {
+    mockClientStore.restore.mockResolvedValue(SAMPLE_CLIENT);
+    const res = await request(buildApp("agency_admin")).post("/api/clients/1/restore");
+    expect(res.status).toBe(200);
+    expect(res.body.data.name).toBe("Acme Corp");
+  });
+
+  it("returns 400 for non-numeric id", async () => {
+    const res = await request(buildApp("agency_admin")).post("/api/clients/abc/restore");
+    expect(res.status).toBe(400);
   });
 });
 

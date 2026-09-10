@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, X, AlertCircle } from "lucide-react";
+import { Plus, X, AlertCircle, Archive, RotateCcw } from "lucide-react";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 export default function ClientsList() {
@@ -19,6 +19,7 @@ export default function ClientsList() {
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
   const [expandedReadinessId, setExpandedReadinessId] = useState<number | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const { data, isLoading, isError } = useQuery<{ data: Client[] }>({
     queryKey: ["/api/clients"],
@@ -26,6 +27,40 @@ export default function ClientsList() {
 
   const { data: readinessData } = useQuery<{ data: ClientReadiness[] }>({
     queryKey: ["/api/clients/readiness"],
+  });
+
+  const { data: archivedData, isLoading: isArchivedLoading } = useQuery<{ data: Client[] }>({
+    queryKey: ["/api/clients/archived"],
+    enabled: showArchived,
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/clients/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clients/archived"] });
+      toast({ title: "Client archived" });
+    },
+    onError: (err) => {
+      toast({ title: "Failed to archive client", description: String(err), variant: "destructive" });
+    },
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/clients/${id}/restore`);
+      return res.json() as Promise<{ data: Client }>;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clients/archived"] });
+      toast({ title: `Client "${result.data.name}" restored` });
+    },
+    onError: (err) => {
+      toast({ title: "Failed to restore client", description: String(err), variant: "destructive" });
+    },
   });
 
   const createMutation = useMutation({
@@ -72,12 +107,21 @@ export default function ClientsList() {
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Clients</h1>
-        {!showForm && (
-          <Button size="sm" onClick={() => setShowForm(true)}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            New Client
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowArchived((v) => !v)}
+          >
+            {showArchived ? "Hide archived clients" : "View archived clients"}
           </Button>
-        )}
+          {!showForm && (
+            <Button size="sm" onClick={() => setShowForm(true)}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              New Client
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* New Client Form */}
@@ -162,6 +206,38 @@ export default function ClientsList() {
         </div>
       )}
 
+      {/* Archived clients */}
+      {showArchived && (
+        <div className="mb-6 border rounded-lg p-4">
+          <h2 className="font-medium mb-3">Archived clients</h2>
+          {isArchivedLoading ? (
+            <p className="text-muted-foreground text-sm">Loading archived clients...</p>
+          ) : (archivedData?.data ?? []).length === 0 ? (
+            <p className="text-muted-foreground text-sm">No archived clients.</p>
+          ) : (
+            <ul className="space-y-2">
+              {(archivedData?.data ?? []).map((c) => (
+                <li key={c.id} className="flex items-center border rounded-lg p-3">
+                  <span className="font-medium">{c.name}</span>
+                  <span className="text-muted-foreground text-sm ml-3">{c.primaryDomain}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => restoreMutation.mutate(c.id)}
+                    disabled={restoreMutation.isPending}
+                    className="ml-auto"
+                    aria-label={`Restore ${c.name}`}
+                    title="Restore client"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {/* Client list */}
       {clients.length === 0 ? (
         <div className="border border-dashed rounded-lg p-8 text-center">
@@ -203,6 +279,17 @@ export default function ClientsList() {
                       </button>
                     )
                   )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => archiveMutation.mutate(c.id)}
+                    disabled={archiveMutation.isPending}
+                    className="text-muted-foreground hover:text-destructive"
+                    aria-label={`Archive ${c.name}`}
+                    title="Archive client"
+                  >
+                    <Archive className="h-4 w-4" />
+                  </Button>
                 </div>
                 {readiness && !readiness.ready && expanded && (
                   <ul className="mt-2 ml-1 list-disc list-inside text-xs space-y-0.5">

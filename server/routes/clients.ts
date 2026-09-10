@@ -63,6 +63,16 @@ export function registerClientRoutes(app: Express): void {
     ok(res, data);
   });
 
+  // Registered before /api/clients/:id so "archived" isn't parsed as an id.
+  app.get(
+    "/api/clients/archived",
+    requireRole(...ADMIN_ROLES),
+    async (_req, res) => {
+      const data = await clientStore.listArchived();
+      ok(res, data);
+    }
+  );
+
   app.get("/api/clients/:id", requireAuth, async (req, res) => {
     const id = Number(req.params.id);
     if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
@@ -105,6 +115,18 @@ export function registerClientRoutes(app: Express): void {
       const deleted = await clientStore.delete(id);
       if (!deleted) throw new AppError(404, "Client not found", "CLIENT_NOT_FOUND");
       noContent(res);
+    }
+  );
+
+  app.post(
+    "/api/clients/:id/restore",
+    requireRole(...ADMIN_ROLES),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+      const client = await clientStore.restore(id);
+      if (!client) throw new AppError(404, "Archived client not found", "CLIENT_NOT_FOUND");
+      ok(res, client);
     }
   );
 
