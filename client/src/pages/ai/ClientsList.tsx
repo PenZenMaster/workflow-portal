@@ -8,7 +8,15 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, X, AlertCircle, Archive, RotateCcw } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Plus, X, AlertCircle, Archive, RotateCcw, Trash2 } from "lucide-react";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 export default function ClientsList() {
@@ -20,6 +28,8 @@ export default function ClientsList() {
   const [domain, setDomain] = useState("");
   const [expandedReadinessId, setExpandedReadinessId] = useState<number | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
+  const [confirmName, setConfirmName] = useState("");
 
   const { data, isLoading, isError } = useQuery<{ data: Client[] }>({
     queryKey: ["/api/clients"],
@@ -60,6 +70,25 @@ export default function ClientsList() {
     },
     onError: (err) => {
       toast({ title: "Failed to restore client", description: String(err), variant: "destructive" });
+    },
+  });
+
+  const permanentDeleteMutation = useMutation({
+    mutationFn: async ({ id, confirmName: name }: { id: number; confirmName: string }) => {
+      await apiRequest("DELETE", `/api/clients/${id}/permanent`, { confirmName: name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients/archived"] });
+      toast({ title: "Client permanently deleted" });
+      setDeleteTarget(null);
+      setConfirmName("");
+    },
+    onError: (err) => {
+      toast({
+        title: "Failed to permanently delete client",
+        description: String(err),
+        variant: "destructive",
+      });
     },
   });
 
@@ -231,6 +260,16 @@ export default function ClientsList() {
                   >
                     <RotateCcw className="h-4 w-4" />
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setDeleteTarget(c); setConfirmName(""); }}
+                    className="text-destructive hover:text-destructive"
+                    aria-label={`Delete ${c.name} permanently`}
+                    title="Delete permanently"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -309,6 +348,57 @@ export default function ClientsList() {
           })}
         </ul>
       )}
+
+      {/* Permanent delete confirmation */}
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setConfirmName(""); } }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Permanently delete {deleteTarget?.name}?</DialogTitle>
+            <DialogDescription>
+              This deletes the client and every prompt, run, response, metric, and report
+              tied to it. This cannot be undone. Type the client's name to confirm.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="confirm-delete-name">
+              Type the client name to confirm: <strong>{deleteTarget?.name}</strong>
+            </Label>
+            <Input
+              id="confirm-delete-name"
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => { setDeleteTarget(null); setConfirmName(""); }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={
+                !deleteTarget ||
+                confirmName !== deleteTarget.name ||
+                permanentDeleteMutation.isPending
+              }
+              onClick={() =>
+                deleteTarget &&
+                permanentDeleteMutation.mutate({ id: deleteTarget.id, confirmName })
+              }
+            >
+              {permanentDeleteMutation.isPending ? "Deleting…" : "Permanently delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

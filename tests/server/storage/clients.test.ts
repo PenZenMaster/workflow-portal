@@ -125,6 +125,52 @@ describe("ClientStore", () => {
   it("returns false when deleting non-existent id", async () => {
     expect(await store.delete(9999)).toBe(false);
   });
+
+  it("lists archived clients and excludes active ones", async () => {
+    const active = await store.create(SAMPLE_CLIENT);
+    const archived = await store.create({ ...SAMPLE_CLIENT, name: "Zed Co" });
+    await store.delete(archived.id);
+
+    const archivedList = await store.listArchived();
+    expect(archivedList.map((c) => c.id)).toEqual([archived.id]);
+    expect(archivedList.map((c) => c.id)).not.toContain(active.id);
+  });
+
+  it("restores an archived client", async () => {
+    const c = await store.create(SAMPLE_CLIENT);
+    await store.delete(c.id);
+
+    const restored = await store.restore(c.id);
+    expect(restored?.id).toBe(c.id);
+    expect(await store.get(c.id)).toBeDefined();
+    expect(await store.listArchived()).toHaveLength(0);
+  });
+
+  it("returns undefined restoring a client that isn't archived", async () => {
+    const c = await store.create(SAMPLE_CLIENT);
+    expect(await store.restore(c.id)).toBeUndefined();
+  });
+
+  it("returns undefined restoring a non-existent client", async () => {
+    expect(await store.restore(9999)).toBeUndefined();
+  });
+
+  it("getArchived returns an archived client by id", async () => {
+    const c = await store.create(SAMPLE_CLIENT);
+    await store.delete(c.id);
+    const found = await store.getArchived(c.id);
+    expect(found?.id).toBe(c.id);
+    expect(found?.name).toBe("Acme Corp");
+  });
+
+  it("getArchived returns undefined for an active (non-archived) client", async () => {
+    const c = await store.create(SAMPLE_CLIENT);
+    expect(await store.getArchived(c.id)).toBeUndefined();
+  });
+
+  it("getArchived returns undefined for an unknown id", async () => {
+    expect(await store.getArchived(9999)).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

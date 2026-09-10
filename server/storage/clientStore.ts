@@ -41,6 +41,7 @@ export interface IClientStore {
   list(): Promise<Client[]>;
   listArchived(): Promise<Client[]>;
   get(id: number): Promise<Client | undefined>;
+  getArchived(id: number): Promise<Client | undefined>;
   create(data: InsertClient): Promise<Client>;
   update(id: number, data: InsertClient): Promise<Client | undefined>;
   delete(id: number): Promise<boolean>;
@@ -77,6 +78,16 @@ export class ClientStore implements IClientStore {
       .where(eq(clients.id, id))
       .get();
     if (!row || row.deletedAt !== null) return undefined;
+    return hydrate(row);
+  }
+
+  async getArchived(id: number): Promise<Client | undefined> {
+    const row = this._db
+      .select()
+      .from(clients)
+      .where(eq(clients.id, id))
+      .get();
+    if (!row || row.deletedAt === null) return undefined;
     return hydrate(row);
   }
 

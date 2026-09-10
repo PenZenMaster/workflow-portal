@@ -65,6 +65,7 @@ const API_RESPONSES: Record<string, () => unknown> = {
   "/api/clients": () => clientsResponse,
   "/api/clients/readiness": () => readinessResponse,
   "/api/clients/archived": () => archivedResponse,
+  "/api/clients/3/permanent": () => ({ data: null }),
 };
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -164,6 +165,52 @@ describe("ClientsList — archive / restore", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/clients/3/restore",
       expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("keeps the permanent-delete confirm button disabled until the typed name matches exactly", async () => {
+    clientsResponse = { data: CLIENTS };
+    readinessResponse = { data: READINESS };
+    archivedResponse = { data: ARCHIVED_CLIENTS };
+
+    renderClientsList();
+    await screen.findByText("Acme Corp");
+    await userEvent.click(screen.getByRole("button", { name: /view archived clients/i }));
+    await screen.findByText("Gamma LLC");
+
+    await userEvent.click(screen.getByRole("button", { name: /delete gamma llc permanently/i }));
+
+    const confirmButton = screen.getByRole("button", { name: /permanently delete/i });
+    expect(confirmButton).toBeDisabled();
+
+    const nameInput = screen.getByLabelText(/type the client name to confirm/i);
+    await userEvent.type(nameInput, "Gamma L");
+    expect(confirmButton).toBeDisabled();
+
+    await userEvent.type(nameInput, "LC");
+    expect(confirmButton).not.toBeDisabled();
+  });
+
+  it("permanently deletes once the exact name is typed and confirmed", async () => {
+    clientsResponse = { data: CLIENTS };
+    readinessResponse = { data: READINESS };
+    archivedResponse = { data: ARCHIVED_CLIENTS };
+
+    renderClientsList();
+    await screen.findByText("Acme Corp");
+    await userEvent.click(screen.getByRole("button", { name: /view archived clients/i }));
+    await screen.findByText("Gamma LLC");
+
+    await userEvent.click(screen.getByRole("button", { name: /delete gamma llc permanently/i }));
+    await userEvent.type(screen.getByLabelText(/type the client name to confirm/i), "Gamma LLC");
+    await userEvent.click(screen.getByRole("button", { name: /permanently delete/i }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/clients/3/permanent",
+      expect.objectContaining({
+        method: "DELETE",
+        body: JSON.stringify({ confirmName: "Gamma LLC" }),
+      })
     );
   });
 });

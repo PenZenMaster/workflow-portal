@@ -9,11 +9,17 @@ const mockClientStore = {
   list: vi.fn(),
   listArchived: vi.fn(),
   get: vi.fn(),
+  getArchived: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
   delete: vi.fn(),
   restore: vi.fn(),
 };
+
+const mockHardDeleteClient = vi.fn();
+vi.mock("../../server/services/clientHardDelete", () => ({
+  hardDeleteClient: mockHardDeleteClient,
+}));
 const mockBrandStore = {
   listByClient: vi.fn(),
   get: vi.fn(),
@@ -49,6 +55,7 @@ vi.mock("../../server/storage", () => ({
   aliasStore: mockAliasStore,
   competitorStore: mockCompetitorStore,
   clientUserStore: mockClientUserStore,
+  db: {},
 }));
 
 const mockComputeReadinessForAllClients = vi.fn();
@@ -342,6 +349,65 @@ describe("POST /api/clients/:id/restore", () => {
 
   it("returns 400 for non-numeric id", async () => {
     const res = await request(buildApp("agency_admin")).post("/api/clients/abc/restore");
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("DELETE /api/clients/:id/permanent", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(buildApp())
+      .delete("/api/clients/1/permanent")
+      .send({ confirmName: "Acme Corp" });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for analyst", async () => {
+    const res = await request(buildApp("analyst"))
+      .delete("/api/clients/1/permanent")
+      .send({ confirmName: "Acme Corp" });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when the client is not archived", async () => {
+    mockClientStore.getArchived.mockResolvedValue(undefined);
+    const res = await request(buildApp("agency_admin"))
+      .delete("/api/clients/1/permanent")
+      .send({ confirmName: "Acme Corp" });
+    expect(res.status).toBe(404);
+    expect(mockHardDeleteClient).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when confirmName does not match the client's actual name", async () => {
+    mockClientStore.getArchived.mockResolvedValue(SAMPLE_CLIENT);
+    const res = await request(buildApp("agency_admin"))
+      .delete("/api/clients/1/permanent")
+      .send({ confirmName: "wrong name" });
+    expect(res.status).toBe(400);
+    expect(mockHardDeleteClient).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when confirmName is missing", async () => {
+    mockClientStore.getArchived.mockResolvedValue(SAMPLE_CLIENT);
+    const res = await request(buildApp("agency_admin")).delete("/api/clients/1/permanent");
+    expect(res.status).toBe(400);
+  });
+
+  it("permanently deletes when confirmName matches exactly", async () => {
+    mockClientStore.getArchived.mockResolvedValue(SAMPLE_CLIENT);
+    mockHardDeleteClient.mockReturnValue(true);
+    const res = await request(buildApp("agency_admin"))
+      .delete("/api/clients/1/permanent")
+      .send({ confirmName: "Acme Corp" });
+    expect(res.status).toBe(204);
+    expect(mockHardDeleteClient).toHaveBeenCalledWith(expect.anything(), 1);
+  });
+
+  it("returns 400 for non-numeric id", async () => {
+    const res = await request(buildApp("agency_admin"))
+      .delete("/api/clients/abc/permanent")
+      .send({ confirmName: "Acme Corp" });
     expect(res.status).toBe(400);
   });
 });

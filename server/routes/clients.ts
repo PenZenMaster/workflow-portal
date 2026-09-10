@@ -21,6 +21,7 @@ import {
   aliasStore,
   competitorStore,
   clientUserStore,
+  db,
 } from "../storage";
 import {
   insertClientSchema,
@@ -33,6 +34,7 @@ import { requireAuth, requireRole } from "../auth";
 import { ok, created, noContent } from "../response";
 import { AppError } from "../errors";
 import { computeReadiness, computeReadinessForAllClients } from "../services/clientReadiness";
+import { hardDeleteClient } from "../services/clientHardDelete";
 
 const ADMIN_ROLES = ["super_admin", "agency_admin"] as const;
 const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
@@ -127,6 +129,35 @@ export function registerClientRoutes(app: Express): void {
       const client = await clientStore.restore(id);
       if (!client) throw new AppError(404, "Archived client not found", "CLIENT_NOT_FOUND");
       ok(res, client);
+    }
+  );
+
+  // Permanently deletes an already-archived client and every row that
+  // transitively references it (server/services/clientHardDelete.ts) -
+  // irreversible. Only reachable for a client already soft-deleted via
+  // DELETE /api/clients/:id; an active client 404s here the same as an
+  // unknown one. Requires the client's exact current name as confirmName -
+  // a server-side re-check of the same confirmation the UI's dialog
+  // requires, not trusted from the client alone.
+  app.delete(
+    "/api/clients/:id/permanent",
+    requireRole(...ADMIN_ROLES),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+      const client = await clientStore.getArchived(id);
+      if (!client) throw new AppError(404, "Archived client not found", "CLIENT_NOT_FOUND");
+      const confirmName = typeof req.body?.confirmName === "string" ? req.body.confirmName : "";
+      if (confirmName !== client.name) {
+        throw new AppError(
+          400,
+          "Confirmation name does not match the client's name",
+          "CONFIRM_NAME_MISMATCH"
+        );
+      }
+      const deleted = hardDeleteClient(db, id);
+      if (!deleted) throw new AppError(404, "Archived client not found", "CLIENT_NOT_FOUND");
+      noContent(res);
     }
   );
 
