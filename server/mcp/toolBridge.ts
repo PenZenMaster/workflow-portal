@@ -41,6 +41,7 @@ export const RANKROCKET_READONLY_TOOLS = new Set([
   "rankrocket_perf_cache",
   "rankrocket_images",
   "rankrocket_elementor",
+  "rankrocket_elementor_read",
 ]);
 
 export function filterRankRocketReadOnlyTools(tools: McpTool[]): McpTool[] {

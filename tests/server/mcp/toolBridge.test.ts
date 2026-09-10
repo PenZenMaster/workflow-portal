@@ -88,18 +88,30 @@ describe("filterRankRocketReadOnlyTools", () => {
     const filtered = filterRankRocketReadOnlyTools(tools);
     expect(filtered.map((t) => t.name)).toEqual(["rankrocket_status"]);
   });
+
+  it("keeps rankrocket_elementor_read - read-only, same tier as rankrocket_elementor", () => {
+    const tools: McpTool[] = [
+      { name: "rankrocket_status", description: "", inputSchema: {} },
+      { name: "rankrocket_elementor_read", description: "", inputSchema: {} },
+    ];
+    const filtered = filterRankRocketReadOnlyTools(tools);
+    expect(filtered.map((t) => t.name).sort()).toEqual(
+      ["rankrocket_elementor_read", "rankrocket_status"].sort()
+    );
+  });
 });
 
 describe("filterRankRocketPageBuilderTools", () => {
   it("keeps every read-only tool plus rankrocket_pages and rankrocket_pages_write", () => {
     const tools: McpTool[] = [
       { name: "rankrocket_status", description: "", inputSchema: {} },
+      { name: "rankrocket_elementor_read", description: "", inputSchema: {} },
       { name: "rankrocket_pages", description: "", inputSchema: {} },
       { name: "rankrocket_pages_write", description: "", inputSchema: {} },
     ];
     const filtered = filterRankRocketPageBuilderTools(tools);
     expect(filtered.map((t) => t.name).sort()).toEqual(
-      ["rankrocket_pages", "rankrocket_pages_write", "rankrocket_status"].sort()
+      ["rankrocket_elementor_read", "rankrocket_pages", "rankrocket_pages_write", "rankrocket_status"].sort()
     );
   });
 

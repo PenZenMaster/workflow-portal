@@ -111,6 +111,17 @@ describe("runLocationPageBuilder", () => {
     expect(prompt).toMatch(/never publish/i);
   });
 
+  it("instructs the model to read a sibling page's Elementor layout and match it via rankrocket_elementor_write", async () => {
+    const deps = makeDeps();
+    deps.clientStore.get.mockResolvedValue(CLIENT_WITH_SITE_KEY);
+
+    await runLocationPageBuilder(4, { targetCitiesOrServiceAreas: "Austin" }, deps);
+
+    const [prompt] = mockRunRankRocketPageBuilderPrompt.mock.calls[0] as [string];
+    expect(prompt).toContain("rankrocket_elementor_read");
+    expect(prompt).toContain("rankrocket_elementor_write");
+  });
+
   it("requests extra tool-loop iteration headroom, matching the growth-plan card's proven overrides", async () => {
     const deps = makeDeps();
     deps.clientStore.get.mockResolvedValue(CLIENT_WITH_SITE_KEY);

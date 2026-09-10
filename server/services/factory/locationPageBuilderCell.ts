@@ -20,11 +20,22 @@
  * reversible via the plugin's own rollback (trashes the page, not a hard
  * delete).
  *
+ * As of rank_rocket_seo_plugin v3.16.0 / rankrocket-mcp v0.13.0, the prompt
+ * also has rankrocket_elementor_read available (read-only, in the general
+ * RANKROCKET_READONLY_TOOLS set) and instructs the model to read a sibling
+ * location page's stored Elementor layout and reapply it (via
+ * rankrocket_elementor_write) on the newly created page, so it visually
+ * matches the rest of the site instead of rendering as a plain,
+ * hero-image-less page. Fixes a gap found live on trevoraspiranti.com:
+ * rankrocket_pages_write has no Elementor concept, and there was previously
+ * no way to read an existing page's layout to clone even if it did.
+ *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-09-09
- * Last Modified Date: 2026-09-09
+ * Last Modified Date: 2026-09-10
  * Comments:
  * - v1.00 Initial implementation
+ * - v1.01 Prompt now reads and reapplies a sibling page's Elementor layout
  */
 
 import { z } from "zod";
@@ -100,14 +111,16 @@ Primary service / money page URL: ${input.primaryServiceUrl || "(not provided)"}
 Page template / content style preferences: ${input.templatePreferences || "(none specified - match the site's existing tone)"}
 
 For each target city/service area:
-1. Call rankrocket_pages first to preview the page and review any validation errors/warnings.
-2. Once the preview looks correct, call rankrocket_pages_write with confirm: true to actually create it.
-3. Generate on-brand, locally-relevant content for that city - do not just template-swap the city name into identical copy.
+1. Find an existing sibling location page for this site (e.g. via rankrocket_content_audit's broken_links listing or the site's own sitemap) and call rankrocket_elementor_read on it to see its current Elementor layout - hero section, image reference, structure. If no sibling page exists yet, skip this step and fall back to plain content only.
+2. Call rankrocket_pages first to preview the page and review any validation errors/warnings.
+3. Once the preview looks correct, call rankrocket_pages_write with confirm: true to actually create it.
+4. Generate on-brand, locally-relevant content for that city - do not just template-swap the city name into identical copy.
+5. If step 1 found a sibling layout, adapt it for the new page (reuse its hero image and section structure, swap in the new city's content) and call rankrocket_elementor_write with confirm: true and operation: set_data on the page created in step 3, so the new page visually matches the rest of the site instead of rendering as a plain, unstyled page.
 
 Requirements:
 - Every page is created as a draft - never request or suggest status: publish, and never publish live without the operator's own explicit review.
 - Match the existing site's tone and template where discoverable from other RankRocket tools.
-- Return the list of created pages with their id, title, and edit_url for review.`;
+- Return the list of created pages with their id, title, and edit_url for review, and note whether their Elementor layout was matched to a sibling page or left as plain content (no sibling found).`;
 }
 
 export async function runLocationPageBuilder(
