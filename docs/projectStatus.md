@@ -2,7 +2,11 @@
 
 Last session: 2026-09-10 (site-key domain-match safety fix, cross-cutting - v1.104.0)
 Branch: main | Version: v1.104.0 | Committed, pushed, packaged, and DEPLOYED
-via SSH 2026-09-10 - see part 24 below for full detail. Short version: v1.103.0's
+via SSH 2026-09-10 - live-verified (deployed JS bundle hash matches the local
+build exactly, 200 response). TD-16 clean single fresh worker on BOTH portal
+and mcp apps, checked this session (not just portal - the standing ritual
+was fully done, not partially, this time). See part 24 below for full detail.
+Short version: v1.103.0's
 new ClientDetail site-key picker (shipped 2026-09-09) let an admin assign ANY
 registered RankRocket site key to ANY client with no validation - user live-tested
 it and successfully mismatched tristate-hvac's site key onto "Overhead Door
@@ -34,17 +38,12 @@ verified that session - see B-20's backlog entry for the
 `planning.gbp-snapshot` production verification trail.
 
 NEXT SESSION (3 bullets, per shutdown):
-1. TD-16 stale-worker check on BOTH portal and mcp apps - not re-run this
-   session despite the v1.104.0 deploy (checked/confirmed single worker on
-   portal only, per the deploy verification itself; mcp app untouched this
-   session, not re-checked). Do it next session regardless of deploy, per
-   the standing ritual - carries forward, still open.
-2. Live-verify a real Location Page Builder run end-to-end against Trevor
+1. Live-verify a real Location Page Builder run end-to-end against Trevor
    Aspiranti (client 13, id 13) - still not actually done. All three repos
    are deployed, the plugin is live on rankrocket.co, and the one client
    with a legitimate site-key mapping exists - this is now genuinely
    unblocked and just needs a real test run.
-3. Map any other client that needs Location Page Builder / growth-plan
+2. Map any other client that needs Location Page Builder / growth-plan
    access to a RankRocket site key - now that manual assignment is gone,
    the only way to create the mapping is to register that client's actual
    WordPress site via /admin/rankrocket-site-insights with a baseUrl
@@ -52,6 +51,10 @@ NEXT SESSION (3 bullets, per shutdown):
    slash are normalized, nothing else) - if the client's primaryDomain
    field itself is wrong or missing, fix that first or site creation will
    be rejected.
+3. Continue the TD-16 stale-worker check every session regardless of
+   deploy, per the standing ritual - clean on both portal and mcp as of
+   this session's check (2026-09-10), but that's a point-in-time result,
+   not a guarantee for next time.
 
 Session 2026-09-10 (part 24): v1.104.0 - site-key domain-match safety fix.
 Directly prompted by the user live-testing part 23's new ClientDetail picker
