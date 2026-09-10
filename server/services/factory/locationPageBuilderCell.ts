@@ -40,6 +40,7 @@
 
 import { z } from "zod";
 import { runRankRocketPageBuilderPrompt } from "../../mcp/rankrocketToolRun";
+import type { FactoryCell } from "../../jobs/factory";
 
 export const locationPageBuilderInputSchema = z.object({
   targetCitiesOrServiceAreas: z.string().min(1, "targetCitiesOrServiceAreas is required"),
@@ -147,4 +148,30 @@ export async function runLocationPageBuilder(
   });
 
   return { markdown: response.text };
+}
+
+// Async wrapper for the interactive "Run" button's POST /api/workflows/:id/run
+// handler (server/routes/workflows.ts). The two-step tool loop this prompt
+// now drives (read a sibling page's Elementor layout, then write the new
+// page's layout to match - added for the "pages come out unstyled" fix) can
+// run past the reverse-proxy request timeout in front of this app when run
+// synchronously in the HTTP request itself; routing it through the existing
+// Factory Cell / job-runner infrastructure (server/jobs/factory.ts, already
+// used by the Lights-Out SEO Factory's other cells) instead makes the run
+// itself immune to any single request's timeout - the route only has to
+// create the job row and return, and the client polls
+// GET /api/factory/jobs/:id for the result.
+export const LOCATION_PAGE_BUILDER_JOB_TYPE = "content.location-page-builder";
+
+export function createLocationPageBuilderCell(
+  deps: RunLocationPageBuilderDeps
+): FactoryCell {
+  return {
+    jobType: LOCATION_PAGE_BUILDER_JOB_TYPE,
+    async run(job) {
+      const input = locationPageBuilderInputSchema.parse(job.input);
+      const result = await runLocationPageBuilder(job.clientId, input, deps);
+      return { markdown: result.markdown };
+    },
+  };
 }

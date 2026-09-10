@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { pollFactoryJob } from "@/lib/factoryJobPoll";
 import { LaunchInputsDialog } from "@/components/LaunchInputsDialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -154,6 +155,12 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
     setRunDialogOpen(true);
   };
 
+  // Creates an async factory job (server/jobs/factory.ts) rather than
+  // waiting on the response inline - the tool loop this workflow drives
+  // (read a sibling page's Elementor layout, then write the new page's
+  // layout to match) can run past the reverse-proxy timeout in front of
+  // this app, so the route only creates the job and returns; the actual
+  // result is polled for via GET /api/factory/jobs/:id.
   const executeLocationPageBuilderRun = async (inputValues?: string[], clientId?: number) => {
     setAiRunning(true);
     try {
@@ -172,8 +179,9 @@ export function WorkflowCard({ workflow, onEdit, onDelete, onTogglePin }: Props)
           | null;
         throw new Error(err?.error ?? `Request failed (${res.status})`);
       }
-      const json = (await res.json()) as { data: { response: string } };
-      setAiResponse(json.data.response);
+      const json = (await res.json()) as { data: { factoryJobId: number } };
+      const markdown = await pollFactoryJob(json.data.factoryJobId);
+      setAiResponse(markdown);
     } catch (e) {
       toast({
         title: "AI run failed",

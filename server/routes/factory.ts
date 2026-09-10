@@ -22,7 +22,7 @@ import type { FactoryJobStatus } from "@shared/schema";
 import { factoryJobSchema } from "@shared/factory/job-contract";
 import { factoryJobStore, clientStore } from "../storage";
 import { jobRunner } from "../jobs/runner";
-import { requireRole } from "../auth";
+import { requireAuth, requireRole } from "../auth";
 import { ok, created } from "../response";
 import { AppError } from "../errors";
 
@@ -97,6 +97,24 @@ export function registerFactoryRoutes(app: Express): void {
       return ok(res, approved);
     }
   );
+
+  // Single-job fetch for interactive polling (e.g. the Location Page
+  // Builder workflow card, which now creates a factory job instead of
+  // running inline - server/routes/workflows.ts). Deliberately requireAuth
+  // only, not ADMIN_ROLES like the list/approve routes above: this powers
+  // the same "Run" button every authenticated user could already trigger
+  // synchronously, so it must stay at least as permissive as that route
+  // was.
+  app.get("/api/factory/jobs/:id", requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) throw new AppError(400, "Invalid id", "INVALID_ID");
+
+    const job = await factoryJobStore.get(id);
+    if (!job) {
+      throw new AppError(404, "Factory job not found", "FACTORY_JOB_NOT_FOUND");
+    }
+    return ok(res, job);
+  });
 
   app.get(
     "/api/factory/jobs",

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { FactoryJobRecord } from "../../../../shared/schema";
 
 const mockRunRankRocketPageBuilderPrompt = vi.fn();
 vi.mock("../../../../server/mcp/rankrocketToolRun", () => ({
@@ -11,6 +12,8 @@ const {
   buildLocationPageBuilderPrompt,
   mapLocationPageBuilderInputsFromLabels,
   locationPageBuilderInputSchema,
+  createLocationPageBuilderCell,
+  LOCATION_PAGE_BUILDER_JOB_TYPE,
 } = await import("../../../../server/services/factory/locationPageBuilderCell");
 
 function makeDeps() {
@@ -171,6 +174,74 @@ describe("locationPageBuilderInputSchema", () => {
     expect(
       locationPageBuilderInputSchema.safeParse({ targetCitiesOrServiceAreas: "Austin" }).success
     ).toBe(true);
+  });
+});
+
+describe("createLocationPageBuilderCell", () => {
+  function sampleJob(overrides: Partial<FactoryJobRecord> = {}): FactoryJobRecord {
+    return {
+      id: 1,
+      jobId: "lpb-abc123",
+      clientId: 4,
+      contractVersion: "1.0",
+      jobType: LOCATION_PAGE_BUILDER_JOB_TYPE,
+      priority: "normal",
+      input: { targetCitiesOrServiceAreas: "Austin" },
+      dryRun: false,
+      approvalRequired: false,
+      status: "queued",
+      lastError: null,
+      output: null,
+      approvedBy: null,
+      approvedAt: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRunRankRocketPageBuilderPrompt.mockResolvedValue({
+      text: "Created 1 draft page: Austin Landscaping (id 101)",
+      summaryBlock: null,
+      citations: [],
+      requestedModel: "claude-opus-5",
+      modelVariant: "claude-opus-5",
+      latencyMs: 1,
+      rawPayload: {},
+      usage: null,
+    });
+  });
+
+  it("reports LOCATION_PAGE_BUILDER_JOB_TYPE as its jobType, dot-namespaced", () => {
+    expect(LOCATION_PAGE_BUILDER_JOB_TYPE).toBe("content.location-page-builder");
+    const deps = makeDeps();
+    const cell = createLocationPageBuilderCell(deps);
+    expect(cell.jobType).toBe(LOCATION_PAGE_BUILDER_JOB_TYPE);
+  });
+
+  it("parses job.input and job.clientId, delegates to the same core logic as the interactive run, and returns markdown output", async () => {
+    const deps = makeDeps();
+    deps.clientStore.get.mockResolvedValue(CLIENT_WITH_SITE_KEY);
+    const cell = createLocationPageBuilderCell(deps);
+
+    const output = await cell.run(
+      sampleJob({ clientId: 4, input: { targetCitiesOrServiceAreas: "Austin, Dallas" } })
+    );
+
+    expect(deps.clientStore.get).toHaveBeenCalledWith(4);
+    const [prompt] = mockRunRankRocketPageBuilderPrompt.mock.calls[0] as [string];
+    expect(prompt).toContain("Austin, Dallas");
+    expect(output).toEqual({ markdown: "Created 1 draft page: Austin Landscaping (id 101)" });
+  });
+
+  it("rejects job.input that fails locationPageBuilderInputSchema", async () => {
+    const deps = makeDeps();
+    const cell = createLocationPageBuilderCell(deps);
+
+    await expect(cell.run(sampleJob({ input: {} }))).rejects.toThrow();
+    expect(deps.clientStore.get).not.toHaveBeenCalled();
   });
 });
 

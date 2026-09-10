@@ -25,6 +25,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { WorkflowCard } from "./WorkflowCard";
 import type { Workflow } from "@shared/schema";
 
+const mockPollFactoryJob = vi.fn();
+vi.mock("@/lib/factoryJobPoll", () => ({
+  pollFactoryJob: (...args: unknown[]) => mockPollFactoryJob(...args),
+}));
+
 const BASE_WORKFLOW: Workflow = {
   id: 7,
   name: "Rank Tracker Analysis",
@@ -329,6 +334,7 @@ describe("WorkflowCard - Location Page Builder run", () => {
   };
 
   function mockClientsAndRunFetch() {
+    mockPollFactoryJob.mockResolvedValue("Created 1 draft page: Austin Landscaping (id 101)");
     fetchMock = vi.fn(async (url: string) => {
       if (String(url).endsWith("/api/clients")) {
         return {
@@ -338,12 +344,12 @@ describe("WorkflowCard - Location Page Builder run", () => {
           text: async () => "",
         } as Response;
       }
+      // POST /api/workflows/:id/run now creates an async factory job (202)
+      // instead of returning the markdown inline - see factoryJobPoll.ts.
       return {
         ok: true,
-        status: 200,
-        json: async () => ({
-          data: { response: "Created 1 draft page: Austin Landscaping (id 101)" },
-        }),
+        status: 202,
+        json: async () => ({ data: { factoryJobId: 101, status: "queued" } }),
         text: async () => "",
       } as Response;
     });
@@ -396,6 +402,43 @@ describe("WorkflowCard - Location Page Builder run", () => {
       inputValues: ["Austin, Dallas"],
       clientId: 4,
     });
+
+    expect(mockPollFactoryJob).toHaveBeenCalledWith(101);
+  });
+
+  it("surfaces the poll failure (e.g. a timeout) as the AI run failed toast", async () => {
+    mockPollFactoryJob.mockReset();
+    mockPollFactoryJob.mockRejectedValue(new Error("Timed out waiting for the run to complete"));
+    fetchMock = vi.fn(async (url: string) => {
+      if (String(url).endsWith("/api/clients")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [{ id: 4, name: "Camphouse Country Landscaping" }] }),
+          text: async () => "",
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 202,
+        json: async () => ({ data: { factoryJobId: 101, status: "queued" } }),
+        text: async () => "",
+      } as Response;
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    renderCard(LOCATION_PAGE_BUILDER_WORKFLOW);
+
+    await user.click(screen.getByTestId("button-run-location-page-builder-7"));
+    await user.type(await screen.findByTestId("launch-input-0"), "Austin");
+    await user.click(screen.getByTestId("launch-client-picker"));
+    await user.click(await screen.findByText("Camphouse Country Landscaping"));
+    await user.click(screen.getByTestId("button-run-confirm"));
+
+    const button = await screen.findByTestId("button-run-location-page-builder-7");
+    await waitFor(() => expect(button).not.toBeDisabled());
+    expect(screen.queryByText(/Created 1 draft page/)).not.toBeInTheDocument();
   });
 });
 

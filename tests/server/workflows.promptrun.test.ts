@@ -33,11 +33,18 @@ const mockStorage = {
   deleteWorkflow: vi.fn(),
 };
 const mockClientStore = { get: vi.fn() };
+const mockFactoryJobStore = { create: vi.fn(), get: vi.fn() };
 vi.mock("../../server/storage", () => ({
   storage: mockStorage,
   workflowInputValueStore: { getByWorkflow: vi.fn(), upsertMany: vi.fn() },
   clientStore: mockClientStore,
   growthPlanRunStore: { getPreviousRun: vi.fn(), create: vi.fn() },
+  factoryJobStore: mockFactoryJobStore,
+}));
+
+const mockJobRunnerEnqueue = vi.fn();
+vi.mock("../../server/jobs/runner", () => ({
+  jobRunner: { enqueue: (...args: unknown[]) => mockJobRunnerEnqueue(...args) },
 }));
 
 const mockRunWorkflowPrompt = vi.fn();
@@ -224,9 +231,24 @@ describe("POST /api/workflows/:id/run — locationPageBuilderEnabled branch", ()
     expect(mockRunLocationPageBuilder).not.toHaveBeenCalled();
   });
 
-  it("calls runLocationPageBuilder with clientId and mapped inputs, returns the markdown", async () => {
-    mockRunLocationPageBuilder.mockResolvedValue({
-      markdown: "Created 1 draft page: Austin Landscaping (id 101)",
+  it("creates a queued factory job and enqueues it instead of running synchronously, returning 202", async () => {
+    mockFactoryJobStore.create.mockResolvedValue({
+      id: 42,
+      jobId: "lpb-abc123",
+      clientId: 4,
+      contractVersion: "1.0",
+      jobType: "content.location-page-builder",
+      priority: "normal",
+      input: { targetCitiesOrServiceAreas: "Austin, Dallas" },
+      dryRun: false,
+      approvalRequired: false,
+      status: "queued",
+      lastError: null,
+      output: null,
+      approvedBy: null,
+      approvedAt: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
     });
 
     const app = buildApp();
@@ -237,16 +259,25 @@ describe("POST /api/workflows/:id/run — locationPageBuilderEnabled branch", ()
         clientId: 4,
       });
 
-    expect(res.status).toBe(200);
-    expect(res.body.data.response).toBe("Created 1 draft page: Austin Landscaping (id 101)");
-    expect(mockRunLocationPageBuilder).toHaveBeenCalledWith(
-      4,
-      {
-        targetCitiesOrServiceAreas: "Austin, Dallas",
-        businessName: "Camphouse Country Landscaping",
-      },
-      { clientStore: mockClientStore }
+    expect(res.status).toBe(202);
+    expect(res.body.data.factoryJobId).toBe(42);
+    expect(res.body.data.status).toBe("queued");
+    expect(mockRunLocationPageBuilder).not.toHaveBeenCalled();
+
+    expect(mockFactoryJobStore.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contractVersion: "1.0",
+        clientId: 4,
+        jobType: "content.location-page-builder",
+        priority: "normal",
+        input: {
+          targetCitiesOrServiceAreas: "Austin, Dallas",
+          businessName: "Camphouse Country Landscaping",
+        },
+        execution: { dryRun: false, approvalRequired: false },
+      })
     );
+    expect(mockJobRunnerEnqueue).toHaveBeenCalledWith("factory-run", { factoryJobId: 42 });
   });
 
   it("returns 400 when the mapped inputs are missing the required target cities field", async () => {

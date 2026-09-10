@@ -213,3 +213,33 @@ describe("GET /api/factory/jobs", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("GET /api/factory/jobs/:id", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 401 when unauthenticated", async () => {
+    const res = await request(buildApp()).get("/api/factory/jobs/1");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 for a non-numeric id", async () => {
+    const res = await request(buildApp("client_viewer")).get("/api/factory/jobs/abc");
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when the job does not exist", async () => {
+    mockFactoryJobStore.get.mockResolvedValue(undefined);
+    const res = await request(buildApp("client_viewer")).get("/api/factory/jobs/999");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("FACTORY_JOB_NOT_FOUND");
+  });
+
+  it("returns the job for any authenticated role, not just admins - this powers interactive Run polling", async () => {
+    mockFactoryJobStore.get.mockResolvedValue(sampleRecord({ status: "done", output: { markdown: "ok" } }));
+    const res = await request(buildApp("client_viewer")).get("/api/factory/jobs/1");
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("done");
+    expect(res.body.data.output).toEqual({ markdown: "ok" });
+    expect(mockFactoryJobStore.get).toHaveBeenCalledWith(1);
+  });
+});

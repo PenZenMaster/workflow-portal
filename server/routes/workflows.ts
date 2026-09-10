@@ -20,7 +20,14 @@
 
 import express, { type Express } from "express";
 import { z } from "zod";
-import { storage, workflowInputValueStore, clientStore, growthPlanRunStore } from "../storage";
+import crypto from "node:crypto";
+import {
+  storage,
+  workflowInputValueStore,
+  clientStore,
+  growthPlanRunStore,
+  factoryJobStore,
+} from "../storage";
 import { insertWorkflowSchema, saveInputValuesSchema } from "@shared/schema";
 import { requireAuth } from "../auth";
 import { runWorkflowWithCsv, MAX_CSV_BYTES } from "../services/workflowFileRun";
@@ -30,11 +37,13 @@ import {
   mapOptionalInputsFromLabels,
 } from "../services/factory/rankingGrowthPlanCell";
 import {
-  runLocationPageBuilder,
   mapLocationPageBuilderInputsFromLabels,
   locationPageBuilderInputSchema,
+  LOCATION_PAGE_BUILDER_JOB_TYPE,
 } from "../services/factory/locationPageBuilderCell";
 import { getCachedRankRocketSites } from "../mcp/sitesCache";
+import { jobRunner } from "../jobs/runner";
+import { FACTORY_JOB_CONTRACT_VERSION } from "@shared/factory/job-contract";
 
 const runWithFileJsonSchema = z.object({
   csv: z.string(),
@@ -276,6 +285,13 @@ export function registerWorkflowRoutes(app: Express): void {
     // client-agnostic <PASTE>-token pattern below. Unlike every other
     // in-app run, Claude's own tool loop is allowed to write draft pages
     // directly - see runLocationPageBuilder's own doc comment for why.
+    //
+    // Runs as an async factory job (server/jobs/factory.ts), not inline in
+    // this request, since v1.107.0 the tool loop also reads a sibling
+    // page's Elementor layout before writing the new one (the "pages come
+    // out unstyled" fix) - that extra round trip pushed real runs past the
+    // reverse-proxy timeout in front of this app when run synchronously.
+    // The client polls GET /api/factory/jobs/:id for the result.
     if (workflow.locationPageBuilderEnabled) {
       if (parsed.data.clientId === undefined) {
         return res.status(400).json({
@@ -295,23 +311,20 @@ export function registerWorkflowRoutes(app: Express): void {
           details: inputValidation.error.flatten(),
         });
       }
-      try {
-        const result = await runLocationPageBuilder(parsed.data.clientId, inputValidation.data, {
-          clientStore,
-        });
-        return res.json({
-          data: {
-            response: result.markdown,
-            modelVariant: null,
-            latencyMs: null,
-          },
-        });
-      } catch (err) {
-        return res.status(400).json({
-          error: err instanceof Error ? err.message : "Location page builder run failed",
-          code: "LOCATION_PAGE_BUILDER_RUN_FAILED",
-        });
-      }
+      const record = await factoryJobStore.create({
+        contractVersion: FACTORY_JOB_CONTRACT_VERSION,
+        jobId: `lpb-${crypto.randomUUID()}`,
+        clientId: parsed.data.clientId,
+        jobType: LOCATION_PAGE_BUILDER_JOB_TYPE,
+        priority: "normal",
+        createdAt: new Date().toISOString(),
+        input: inputValidation.data,
+        execution: { dryRun: false, approvalRequired: false },
+      });
+      jobRunner.enqueue("factory-run", { factoryJobId: record.id });
+      return res.status(202).json({
+        data: { factoryJobId: record.id, status: record.status },
+      });
     }
 
     const response = await runWorkflowPrompt(workflow.prompt, parsed.data.inputValues);
