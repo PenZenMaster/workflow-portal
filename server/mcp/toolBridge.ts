@@ -52,16 +52,23 @@ export function filterRankRocketReadOnlyTools(tools: McpTool[]): McpTool[] {
 // Claude's own tool loop (see RANKROCKET_READONLY_TOOLS above) - Claude only
 // ever reads data and produces a report a human acts on. This is the one
 // narrow, deliberate exception: the Location Page Builder workflow card is
-// allowed to call rankrocket_pages_write directly, because the pages it
-// creates are always drafts (never published) and reversible via the
-// plugin's own rollback (trashes the page, not a hard delete). Used only by
-// server/mcp/rankrocketToolRun.ts's runRankRocketPageBuilderPrompt - every
-// other in-app run (including the growth-plan card) keeps using
+// allowed to call rankrocket_pages_write and rankrocket_elementor_write
+// directly, because the pages (and their layout) it creates are always
+// drafts (never published) and reversible via the plugin's own rollback
+// (trashes the page, not a hard delete). rankrocket_elementor_write was
+// missed when the Elementor-styling fix first shipped (v1.107.0) - the
+// prompt already instructed the model to call it, but it wasn't in this
+// allowlist, so every real run could validate a styled layout via dry-run
+// but never had permission to apply it; confirmed live against
+// trevoraspiranti.com (page 4572, Farmington Hills) before this fix. Used
+// only by server/mcp/rankrocketToolRun.ts's runRankRocketPageBuilderPrompt -
+// every other in-app run (including the growth-plan card) keeps using
 // RANKROCKET_READONLY_TOOLS/filterRankRocketReadOnlyTools unchanged.
 export const RANKROCKET_PAGE_BUILDER_TOOLS = new Set([
   ...Array.from(RANKROCKET_READONLY_TOOLS),
   "rankrocket_pages",
   "rankrocket_pages_write",
+  "rankrocket_elementor_write",
 ]);
 
 export function filterRankRocketPageBuilderTools(tools: McpTool[]): McpTool[] {

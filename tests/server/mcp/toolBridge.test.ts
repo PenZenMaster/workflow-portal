@@ -102,16 +102,23 @@ describe("filterRankRocketReadOnlyTools", () => {
 });
 
 describe("filterRankRocketPageBuilderTools", () => {
-  it("keeps every read-only tool plus rankrocket_pages and rankrocket_pages_write", () => {
+  it("keeps every read-only tool plus rankrocket_pages, rankrocket_pages_write, and rankrocket_elementor_write", () => {
     const tools: McpTool[] = [
       { name: "rankrocket_status", description: "", inputSchema: {} },
       { name: "rankrocket_elementor_read", description: "", inputSchema: {} },
       { name: "rankrocket_pages", description: "", inputSchema: {} },
       { name: "rankrocket_pages_write", description: "", inputSchema: {} },
+      { name: "rankrocket_elementor_write", description: "", inputSchema: {} },
     ];
     const filtered = filterRankRocketPageBuilderTools(tools);
     expect(filtered.map((t) => t.name).sort()).toEqual(
-      ["rankrocket_elementor_read", "rankrocket_pages", "rankrocket_pages_write", "rankrocket_status"].sort()
+      [
+        "rankrocket_elementor_read",
+        "rankrocket_elementor_write",
+        "rankrocket_pages",
+        "rankrocket_pages_write",
+        "rankrocket_status",
+      ].sort()
     );
   });
 
@@ -119,7 +126,7 @@ describe("filterRankRocketPageBuilderTools", () => {
     const writeTools: McpTool[] = [
       { name: "rankrocket_action_execute", description: "", inputSchema: {} },
       { name: "rankrocket_redirects_write", description: "", inputSchema: {} },
-      { name: "rankrocket_elementor_write", description: "", inputSchema: {} },
+      { name: "rankrocket_seo_meta_update", description: "", inputSchema: {} },
     ];
     expect(filterRankRocketPageBuilderTools(writeTools)).toHaveLength(0);
   });
