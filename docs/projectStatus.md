@@ -1,59 +1,102 @@
 ## Resume From
 
-Last session: 2026-09-09 (RankRocket site key picker on ClientDetail - v1.103.0)
-Previous code session: 2026-09-09 (Location Page Builder conversion, cross-repo -
-v1.102.0)
-Branch: main | Version: v1.103.0 | Committed, pushed, packaged, and DEPLOYED
-via SSH 2026-09-09. rank_rocket_seo_plugin's v3.15.0 release was pushed live
-by the user directly (confirmed updated on rankrocket.co) - closing out the
-NEXT SESSION blocker from part 22. That surfaced a second gap, also fixed
-this session: Location Page Builder still launched in Perplexity in
-production even after the plugin update, because a code deploy never
-touches data - the production workflows row for that card still had
-location_page_builder_enabled=0 and the old pasted-credential inputs (dev's
-row had been fixed via seed:diff earlier, prod's never was). Fixed via a
-direct-SQL UPDATE against production's persistent/data.db (same
-TD-22-precedent technique, user-confirmed before running) - verified live
-afterward (location_page_builder_enabled=1, inputs/optional_inputs match the
-current card). No app restart needed (workflowStore reads the table live per
-request).
+Last session: 2026-09-10 (site-key domain-match safety fix, cross-cutting - v1.104.0)
+Branch: main | Version: v1.104.0 | Committed, pushed, packaged, and DEPLOYED
+via SSH 2026-09-10 - see part 24 below for full detail. Short version: v1.103.0's
+new ClientDetail site-key picker (shipped 2026-09-09) let an admin assign ANY
+registered RankRocket site key to ANY client with no validation - user live-tested
+it and successfully mismatched tristate-hvac's site key onto "Overhead Door
+Joliet" (client id 7), a real cross-client contamination risk (an AI run for
+that client would have written content to the wrong business's live
+WordPress site). Fixed at the architecture level per user's own proposed
+redesign: removed the manual picker entirely: the client-to-site mapping is
+now derived programmatically by matching a site's baseUrl against every
+client's primaryDomain (server/services/clientDomainMatch.ts) at the moment a
+site is added/updated/deleted in the Site Insights admin page
+(server/mcp/sitesAdmin.ts) - site creation is REJECTED outright (400) if zero
+or more than one client matches, so a mismatched assignment can no longer be
+made at all, by anyone. The bad production mapping the user found while
+testing was cleared via direct SQL (client 7, rankrocket_site_key -> NULL,
+confirmed clean afterward) - Trevor Aspiranti (client 13) remains the only
+mapped client, verified legitimate (domain matches).
 
-v1.102.0 (part 22 below) DEPLOYED and remains live. rankrocket-mcp
-(E:\projects\rankrocket-mcp, separate repo/deploy) is at v0.12.0, DEPLOYED and
-confirmed live - no rankrocket-mcp changes this session.
-
-Previous: v1.102.0 | Committed, pushed, packaged, and DEPLOYED
-via SSH 2026-09-09 - live-verified (deployed JS bundle hash matches the local
-build exactly). TD-16 clean single fresh worker on portal post-deploy (the old
-v1.101.0 worker self-evicted on its own, first real proof of that fix firing a
-second time). rankrocket-mcp (E:\projects\rankrocket-mcp, separate repo/deploy)
-bumped to v0.12.0 same session - user extended the SSH-deploy authorization to
-this repo too (previously cPanel upload/restart was manual-only here); DEPLOYED
-via SSH and live-verified (401 on an unauthenticated /mcp request confirms the
-app booted). TD-16 also found and fixed on the mcp host this session: two
-stale duplicate workers (Sep 2 and Sep 4, both predating this deploy) plus a
-third transient one from the restart itself (a bare cloudlinux-selector
-restart does not reliably kill the pre-restart worker on this stack, same
-pattern as portal but this repo has no self-eviction code - it's a stateless
-per-request MCP server) - all manually killed, single fresh worker confirmed
-afterward. rank_rocket_seo_plugin (E:\projects\rank_rocket_seo_plugin, separate
-repo, WordPress plugin) bumped to v3.15.0 - committed and pushed, but user
-explicitly declined to push an actual release (zip + update-manifest.json +
-POST /self-update on live client WordPress sites) this session - that step
-pushes updates to real client production sites, not just AMS's own admin
-tooling.
-v1.101.0 (part 21 below) DEPLOYED - user confirmed 2026-09-09 that it's live on
-portal.fullmetaljacketseo.com (footer version check); TD-16 stale-worker check
-still not re-run this session (no deploy that session), do it next time
-regardless of deploy per the standing ritual - carries forward, still open.
-v1.100.1 (part 20 below) was DEPLOYED and live-verified in browser (banner text
-+ footer version both confirmed post-deploy; TD-16 clean single fresh worker on
-portal immediately after that session's restart). v1.100.0's Admin Alerts (part
-19) also DEPLOYED and user-confirmed. v1.99.1/v1.99.0 also DEPLOYED and
+v1.103.0/v1.102.0 (parts 22-23) DEPLOYED and remain live. rankrocket-mcp is at
+v0.12.0, DEPLOYED and confirmed live - no rankrocket-mcp changes this session.
+rank_rocket_seo_plugin is at v3.15.0, live on rankrocket.co (user pushed the
+release directly between sessions) - no plugin changes this session.
+v1.100.1 (part 20) was DEPLOYED and live-verified in browser (banner text +
+footer version both confirmed post-deploy; TD-16 clean single fresh worker on
+portal immediately after that session's restart). v1.100.0's Admin Alerts
+(part 19) also DEPLOYED and user-confirmed. v1.99.1/v1.99.0 also DEPLOYED and
 user-confirmed fixed live that session (two Help-page bugs). v1.98.1/v1.98.0
 also DEPLOYED and confirmed good by the user. v1.97.1/v1.97.0 DEPLOYED and
 verified that session - see B-20's backlog entry for the
 `planning.gbp-snapshot` production verification trail.
+
+NEXT SESSION (3 bullets, per shutdown):
+1. TD-16 stale-worker check on BOTH portal and mcp apps - not re-run this
+   session despite the v1.104.0 deploy (checked/confirmed single worker on
+   portal only, per the deploy verification itself; mcp app untouched this
+   session, not re-checked). Do it next session regardless of deploy, per
+   the standing ritual - carries forward, still open.
+2. Live-verify a real Location Page Builder run end-to-end against Trevor
+   Aspiranti (client 13, id 13) - still not actually done. All three repos
+   are deployed, the plugin is live on rankrocket.co, and the one client
+   with a legitimate site-key mapping exists - this is now genuinely
+   unblocked and just needs a real test run.
+3. Map any other client that needs Location Page Builder / growth-plan
+   access to a RankRocket site key - now that manual assignment is gone,
+   the only way to create the mapping is to register that client's actual
+   WordPress site via /admin/rankrocket-site-insights with a baseUrl
+   matching the client's own primaryDomain exactly (protocol/www/trailing-
+   slash are normalized, nothing else) - if the client's primaryDomain
+   field itself is wrong or missing, fix that first or site creation will
+   be rejected.
+
+Session 2026-09-10 (part 24): v1.104.0 - site-key domain-match safety fix.
+Directly prompted by the user live-testing part 23's new ClientDetail picker
+and reporting they were able to assign tristate-hvac's site key to a
+completely unrelated client ("Overhead Door Joliet") with no warning at all -
+a real risk, since an AI run for that client would then write content to the
+wrong business's live WordPress site. Investigated and confirmed the root
+cause: the picker only ever fetched bare site-key strings
+(GET /api/rankrocket-mcp/sites), with zero domain information to validate
+against.
+First proposed a warn-and-confirm UX (show each site's URL, flag a mismatch,
+require explicit override) - user pushed back with a stronger question:
+since the site's baseUrl is already known at creation time, why validate
+after the fact at all? Redesigned per the user's own proposal: removed the
+manual picker entirely. The client-to-site mapping is now derived
+programmatically - a new pure module, server/services/clientDomainMatch.ts
+(normalizeHost + matchClientForBaseUrl: strips protocol/www/trailing-slash,
+otherwise requires an exact host match - a subdomain like
+shop.example.com does NOT match example.com, by user's explicit choice) -
+wired into server/mcp/sitesAdmin.ts's upsertSite/deleteSite: adding or
+updating a site now looks up the single client whose primaryDomain matches
+the site's baseUrl and rejects the operation outright (400 AppError,
+NO_MATCHING_CLIENT / AMBIGUOUS_CLIENT_MATCH) if zero or more than one match
+- no site is created and no client is touched. On success the matched
+client's rankrocketSiteKey is set automatically; on update, if the site's
+domain changed to match a different client, the old client's key is cleared
+and the new one's is set; on delete, whichever client currently holds the
+key gets it cleared. Also fixed a route-layer bug found in the process:
+server/routes/rankrocketAdmin.ts's POST/PATCH/DELETE site handlers wrapped
+every error into a generic 502 "Could not reach RankRocket MCP" regardless
+of cause, which would have silently swallowed the new 400 validation
+messages - added an `if (err instanceof AppError) throw err;` rethrow ahead
+of the generic wrap on all three routes. Removed the ClientDetail.tsx picker
+(component, query, mutation) and its tests entirely, per user's explicit
+"no override" choice - kept the shared/schema.ts `.nullable()` fix from part
+23 (now genuinely exercised by sitesAdmin.ts's own null-clearing writes,
+not just a theoretical gap). TDD throughout - RED confirmed on
+clientDomainMatch.test.ts (new pure-logic tests), the extended
+sitesAdmin.test.ts, and the extended rankrocketAdminSites.routes.test.ts
+before implementing. Full suite 1769 -> 1786, all green; lint/typecheck
+clean.
+Also fixed the specific bad production mapping the user had found while
+testing: client 7 (Overhead Door Joliet)'s rankrocket_site_key was set back
+to NULL via direct SQL (confirmed clean afterward) - this was a live,
+already-created mismatch, not just a prevented-going-forward risk.
 
 Session 2026-09-09 (part 23): v1.103.0 - RankRocket site key picker on
 ClientDetail. Prompted directly by testing part 22's Location Page Builder
@@ -183,13 +226,9 @@ used a new faster deploy path: SSH + `cloudlinux-selector install-modules`/`rest
 UI steps in this doc's Deployment section - same effect, scriptable, no manual
 upload/extract/click-through needed.
 
-NEXT SESSION (top 2):
-1. Live-verify a real Location Page Builder run end-to-end against a real client (Trevor Aspiranti, id 13, is the only client with a rankrocketSiteKey mapped in production as of 2026-09-09 - use the new picker on ClientDetail, part 23, to map others). All three repos are deployed and the production data-drift bug is fixed - this is the first real end-to-end test, not yet done.
-2. Check whether any other client should get a rankrocketSiteKey mapped now that the picker exists (part 23) - previously the only way to set it was direct SQL, so it's plausible other clients were skipped simply because there was no UI, not because they don't need one.
-
 Also open, lower priority (no action needed yet):
 - B-20 (GBP snapshot): the Business Information API piece is now DONE and live (see below) - what's left is the legacy v4.9 Reviews/Q&A APIs (unverified, not attempted) and mapping any of the other 13 GBP accounts under flight-deck-476019 to workflow-portal clients beyond the 2 already mapped (Salvo Metal Works, United Structural Systems). Not urgent - pick up only if the user wants more clients wired in or the Reviews data specifically.
-- Card 1 ("SEO Audit via Rank Rocket SEO Plugin") remains an unconverted Perplexity-launch card, explicitly deferred per user decision (2026-09-09) - needs its own separate plan once the live-browser-rendering approach (Google PageSpeed Insights API, chosen over self-hosting headless Chrome given shared cPanel/CloudLinux resource limits) is designed in detail. Card 2 ("Location Page Builder") shipped and deployed (v1.102.0/v1.103.0, parts 22-23) - fully live now, no known blockers.
+- Card 1 ("SEO Audit via Rank Rocket SEO Plugin") remains an unconverted Perplexity-launch card, explicitly deferred per user decision (2026-09-09) - needs its own separate plan once the live-browser-rendering approach (Google PageSpeed Insights API, chosen over self-hosting headless Chrome given shared cPanel/CloudLinux resource limits) is designed in detail. Card 2 ("Location Page Builder") shipped and deployed (v1.102.0/v1.103.0/v1.104.0, parts 22-24) - fully live now, no known blockers.
 - B-24's launch-dialog input-field tooltips (116+ fields, no per-field metadata in the schema) remain deferred pending the user's own "what is it / where to find it / example" copy - not a task to pick up unprompted.
 
 Session 2026-09-03 (part 20): Two unrelated threads closed out in one session.

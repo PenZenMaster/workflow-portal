@@ -29,9 +29,13 @@
  * - v1.00 RankRocket Site Insights admin CRUD, Part B
  */
 
+import type { Client, InsertClient } from "@shared/schema";
 import { getRankRocketMcpConfig } from "../adapters/registry";
 import { connectMcpClient, type McpClientSource } from "./mcpClient";
 import { refreshRankRocketSitesCache } from "./sitesCache";
+import { clientStore } from "../storage";
+import { matchClientForBaseUrl } from "../services/clientDomainMatch";
+import { AppError } from "../errors";
 
 export interface SiteDetail {
   key: string;
@@ -65,11 +69,66 @@ export async function listSitesDetail(): Promise<SiteDetail[]> {
   });
 }
 
+function toInsertClient(c: Client, overrides: Partial<InsertClient> = {}): InsertClient {
+  return {
+    name: c.name,
+    primaryDomain: c.primaryDomain,
+    geographies: c.geographies,
+    exclusions: c.exclusions,
+    coreServices: c.coreServices,
+    ownerUserId: c.ownerUserId,
+    rankrocketSiteKey: c.rankrocketSiteKey,
+    gbpLocationName: c.gbpLocationName,
+    ...overrides,
+  };
+}
+
+// Points exactly one client's rankrocketSiteKey at this site key, and clears
+// it off any other client that previously had it (e.g. this key's site was
+// re-pointed to a different domain on update) - never leaves two clients
+// mapped to the same key.
+async function reassignClientSiteKey(key: string, newClient: Client, allClients: Client[]): Promise<void> {
+  for (const c of allClients) {
+    if (c.rankrocketSiteKey === key && c.id !== newClient.id) {
+      await clientStore.update(c.id, toInsertClient(c, { rankrocketSiteKey: null }));
+    }
+  }
+  await clientStore.update(newClient.id, toInsertClient(newClient, { rankrocketSiteKey: key }));
+}
+
+// Domain match is resolved BEFORE writing anything to rankrocket-mcp's own
+// registry - a site with no corresponding client (or an ambiguous one) is
+// never created/updated at all. This replaces an earlier design where a
+// human picked any site key for any client by hand on ClientDetail, which
+// let a real mismatch happen (a site meant for one business assigned to a
+// completely unrelated client) - the mapping is now derived programmatically
+// from primaryDomain, never hand-picked.
 export async function upsertSite(
   operation: "add" | "update",
   key: string,
   credentials: SiteCredentials
 ): Promise<void> {
+  if (!getRankRocketMcpConfig()) {
+    throw new Error("RankRocket MCP is not configured");
+  }
+
+  const clients = await clientStore.list();
+  const match = matchClientForBaseUrl(credentials.baseUrl, clients);
+  if (match.status === "no_match") {
+    throw new AppError(
+      400,
+      `No client found with a primaryDomain matching "${credentials.baseUrl}". Create or fix that client's domain before registering this site.`,
+      "NO_MATCHING_CLIENT"
+    );
+  }
+  if (match.status === "ambiguous") {
+    throw new AppError(
+      400,
+      `Multiple clients match "${credentials.baseUrl}" (${match.clients.map((c) => c.name).join(", ")}) - fix the duplicate domain before registering this site.`,
+      "AMBIGUOUS_CLIENT_MATCH"
+    );
+  }
+
   await withClient(async (client) => {
     const result = await client.callTool("rankrocket_sites_write", {
       operation,
@@ -79,6 +138,8 @@ export async function upsertSite(
     });
     if (result.isError) throw new Error(result.content);
   });
+
+  await reassignClientSiteKey(key, match.client, clients);
   await refreshRankRocketSitesCache();
 }
 
@@ -91,5 +152,12 @@ export async function deleteSite(key: string): Promise<void> {
     });
     if (result.isError) throw new Error(result.content);
   });
+
+  const clients = await clientStore.list();
+  const mapped = clients.find((c) => c.rankrocketSiteKey === key);
+  if (mapped) {
+    await clientStore.update(mapped.id, toInsertClient(mapped, { rankrocketSiteKey: null }));
+  }
+
   await refreshRankRocketSitesCache();
 }

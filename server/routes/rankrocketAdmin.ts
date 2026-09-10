@@ -99,6 +99,7 @@ export function registerRankrocketAdminRoutes(app: Express): void {
     try {
       await upsertSite("add", key, credentials);
     } catch (err) {
+      if (err instanceof AppError) throw err;
       logger.error("rankrocket-mcp site add failed", {
         key,
         error: err instanceof Error ? err.message : String(err),
@@ -116,6 +117,7 @@ export function registerRankrocketAdminRoutes(app: Express): void {
     try {
       await upsertSite("update", key, parsed.data);
     } catch (err) {
+      if (err instanceof AppError) throw err;
       logger.error("rankrocket-mcp site update failed", {
         key,
         error: err instanceof Error ? err.message : String(err),
@@ -130,6 +132,7 @@ export function registerRankrocketAdminRoutes(app: Express): void {
     try {
       await deleteSite(key);
     } catch (err) {
+      if (err instanceof AppError) throw err;
       logger.error("rankrocket-mcp site delete failed", {
         key,
         error: err instanceof Error ? err.message : String(err),

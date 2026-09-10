@@ -18,6 +18,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import { buildAuthApp } from "./_helpers/buildAuthApp";
+import { AppError } from "../../server/errors";
 
 const mockRankrocketQuestionOptionStore = {
   list: vi.fn(),
@@ -123,6 +124,29 @@ describe("POST /api/rankrocket-mcp/sites", () => {
 
     expect(JSON.stringify(res.body)).not.toContain("super-secret-value");
   });
+
+  it("passes through a 400 AppError from upsertSite (e.g. no matching client) instead of masking it as a generic 502", async () => {
+    mockUpsertSite.mockRejectedValue(
+      new AppError(400, 'No client found with a primaryDomain matching "https://x.com".', "NO_MATCHING_CLIENT")
+    );
+    const res = await request(buildApp("super_admin"))
+      .post("/api/rankrocket-mcp/sites")
+      .send({ key: "new-site", baseUrl: "https://x.com", authUser: "a", appPassword: "p" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("NO_MATCHING_CLIENT");
+    expect(res.body.error).toContain("No client found");
+  });
+
+  it("still returns a generic 502 for a non-AppError failure (e.g. real MCP connectivity)", async () => {
+    mockUpsertSite.mockRejectedValue(new Error("connect ECONNREFUSED 10.0.0.5:443"));
+    const res = await request(buildApp("super_admin"))
+      .post("/api/rankrocket-mcp/sites")
+      .send({ key: "new-site", baseUrl: "https://x.com", authUser: "a", appPassword: "p" });
+
+    expect(res.status).toBe(502);
+    expect(JSON.stringify(res.body)).not.toContain("10.0.0.5");
+  });
 });
 
 describe("PATCH /api/rankrocket-mcp/sites/:key", () => {
@@ -155,6 +179,18 @@ describe("PATCH /api/rankrocket-mcp/sites/:key", () => {
       authUser: "admin2",
       appPassword: "new pass",
     });
+  });
+
+  it("passes through a 400 AppError from upsertSite instead of masking it as a generic 502", async () => {
+    mockUpsertSite.mockRejectedValue(
+      new AppError(400, "Multiple clients match this domain.", "AMBIGUOUS_CLIENT_MATCH")
+    );
+    const res = await request(buildApp("agency_admin"))
+      .patch("/api/rankrocket-mcp/sites/tristate-hvac")
+      .send({ baseUrl: "https://tristate-hvac.com", authUser: "admin2", appPassword: "new pass" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("AMBIGUOUS_CLIENT_MATCH");
   });
 });
 

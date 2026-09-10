@@ -7,13 +7,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Plus, Trash2, ChevronDown, ChevronRight, X, AlertCircle } from "lucide-react";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { InfoTooltip } from "@/components/InfoTooltip";
@@ -207,33 +200,6 @@ export default function ClientDetail() {
     enabled: !!id,
   });
 
-  const { data: rankrocketSitesData } = useQuery<{ data: string[] }>({
-    queryKey: ["/api/rankrocket-mcp/sites"],
-    enabled: !!id,
-  });
-
-  const updateRankrocketSiteKeyMutation = useMutation({
-    mutationFn: async (rankrocketSiteKey: string | null) => {
-      if (!clientData) return;
-      const current = clientData.data;
-      await apiRequest("PATCH", `/api/clients/${id}`, {
-        name: current.name,
-        primaryDomain: current.primaryDomain,
-        geographies: current.geographies,
-        exclusions: current.exclusions,
-        coreServices: current.coreServices,
-        ownerUserId: current.ownerUserId,
-        rankrocketSiteKey,
-        gbpLocationName: current.gbpLocationName,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}`] });
-      toast({ title: "RankRocket site key updated" });
-    },
-    onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
-  });
-
   const addBrandMutation = useMutation({
     mutationFn: async (body: { canonicalName: string; kind: string; primaryDomain?: string }) => {
       await apiRequest("POST", `/api/clients/${id}/brands`, body);
@@ -252,7 +218,6 @@ export default function ClientDetail() {
   const client = clientData.data;
   const brands = brandsData?.data ?? [];
   const readiness = readinessData?.data;
-  const rankrocketSites = rankrocketSitesData?.data ?? [];
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -273,32 +238,6 @@ export default function ClientDetail() {
           <span className="text-sm text-muted-foreground">{client.geographies.join(", ")}</span>
         </div>
       )}
-
-      <div className="mb-6 max-w-xs space-y-1.5">
-        <Label htmlFor="rankrocket-site-key-picker">RankRocket site key</Label>
-        <Select
-          value={client.rankrocketSiteKey ?? "none"}
-          onValueChange={(v) =>
-            updateRankrocketSiteKeyMutation.mutate(v === "none" ? null : v)
-          }
-        >
-          <SelectTrigger id="rankrocket-site-key-picker" data-testid="rankrocket-site-key-picker">
-            <SelectValue placeholder="None" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">None</SelectItem>
-            {rankrocketSites.map((site) => (
-              <SelectItem key={site} value={site}>
-                {site}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground">
-          Maps this client to a WordPress site managed via RankRocket-MCP -
-          required for the growth-plan and location-page-builder in-app runs.
-        </p>
-      </div>
 
       {readiness && !readiness.ready && (
         <div className="mb-6 border border-orange-500/30 rounded-lg p-4 bg-orange-50/50 dark:bg-orange-950/20 flex items-start gap-3">
