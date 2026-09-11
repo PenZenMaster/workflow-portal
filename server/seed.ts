@@ -490,6 +490,8 @@ Return:
     optionalInputs: [
       "Business name",
       "Primary service / money page URL",
+      "Business model (storefront / SAB / hybrid)",
+      "Service delivery model (office / mobile / remote / hybrid)",
       "Page template / content style preferences",
     ],
     locationPageBuilderEnabled: true,

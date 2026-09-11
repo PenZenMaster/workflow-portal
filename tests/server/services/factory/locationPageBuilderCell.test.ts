@@ -103,6 +103,79 @@ describe("runLocationPageBuilder", () => {
     expect(prompt).toContain("match the homepage hero style");
   });
 
+  it("folds optional business model and service delivery model into the prompt", async () => {
+    const deps = makeDeps();
+    deps.clientStore.get.mockResolvedValue(CLIENT_WITH_SITE_KEY);
+
+    await runLocationPageBuilder(
+      4,
+      {
+        targetCitiesOrServiceAreas: "Austin",
+        businessModel: "sab",
+        serviceDeliveryModel: "remote",
+      },
+      deps
+    );
+
+    const [prompt] = mockRunRankRocketPageBuilderPrompt.mock.calls[0] as [string];
+    expect(prompt).toContain("sab");
+    expect(prompt).toContain("remote");
+  });
+
+  it("instructs the model to build a geographic knowledge node, not a doorway/city-swap page", async () => {
+    const deps = makeDeps();
+    deps.clientStore.get.mockResolvedValue(CLIENT_WITH_SITE_KEY);
+
+    await runLocationPageBuilder(4, { targetCitiesOrServiceAreas: "Austin" }, deps);
+
+    const [prompt] = mockRunRankRocketPageBuilderPrompt.mock.calls[0] as [string];
+    expect(prompt).toMatch(/geographic knowledge node/i);
+    expect(prompt).toMatch(/doorway/i);
+  });
+
+  it("instructs the model to include a direct-answer block that can stand alone", async () => {
+    const deps = makeDeps();
+    deps.clientStore.get.mockResolvedValue(CLIENT_WITH_SITE_KEY);
+
+    await runLocationPageBuilder(4, { targetCitiesOrServiceAreas: "Austin" }, deps);
+
+    const [prompt] = mockRunRankRocketPageBuilderPrompt.mock.calls[0] as [string];
+    expect(prompt).toMatch(/direct-answer block/i);
+    expect(prompt).toMatch(/45-90 words/);
+  });
+
+  it("instructs the model to build a query-fan-out FAQ from distinct sub-intents, not keyword paraphrases", async () => {
+    const deps = makeDeps();
+    deps.clientStore.get.mockResolvedValue(CLIENT_WITH_SITE_KEY);
+
+    await runLocationPageBuilder(4, { targetCitiesOrServiceAreas: "Austin" }, deps);
+
+    const [prompt] = mockRunRankRocketPageBuilderPrompt.mock.calls[0] as [string];
+    expect(prompt).toMatch(/query-fan-out FAQ/i);
+    expect(prompt).toMatch(/6-10 questions/);
+    expect(prompt).toMatch(/distinct sub-intents/i);
+  });
+
+  it("instructs the model to honestly reflect the service delivery model and never invent a fake office", async () => {
+    const deps = makeDeps();
+    deps.clientStore.get.mockResolvedValue(CLIENT_WITH_SITE_KEY);
+
+    await runLocationPageBuilder(4, { targetCitiesOrServiceAreas: "Austin" }, deps);
+
+    const [prompt] = mockRunRankRocketPageBuilderPrompt.mock.calls[0] as [string];
+    expect(prompt).toMatch(/fake office/i);
+  });
+
+  it("instructs the model to check for an existing locations hub page (hub-swap awareness)", async () => {
+    const deps = makeDeps();
+    deps.clientStore.get.mockResolvedValue(CLIENT_WITH_SITE_KEY);
+
+    await runLocationPageBuilder(4, { targetCitiesOrServiceAreas: "Austin" }, deps);
+
+    const [prompt] = mockRunRankRocketPageBuilderPrompt.mock.calls[0] as [string];
+    expect(prompt).toMatch(/locations?[/ -]?(service-area )?hub/i);
+  });
+
   it("instructs the model to preview with rankrocket_pages before writing, and to never publish", async () => {
     const deps = makeDeps();
     deps.clientStore.get.mockResolvedValue(CLIENT_WITH_SITE_KEY);
@@ -156,6 +229,22 @@ describe("mapLocationPageBuilderInputsFromLabels", () => {
       targetCitiesOrServiceAreas: "Austin, Dallas",
       businessName: "Camphouse Country Landscaping",
       primaryServiceUrl: "https://example.com/lawn-care",
+    });
+  });
+
+  it("maps business model and service delivery model labels to named fields", () => {
+    const result = mapLocationPageBuilderInputsFromLabels(
+      [
+        "Target city or service area(s)",
+        "Business model (storefront / SAB / hybrid)",
+        "Service delivery model (office / mobile / remote / hybrid)",
+      ],
+      ["Austin", "sab", "remote"]
+    );
+    expect(result).toEqual({
+      targetCitiesOrServiceAreas: "Austin",
+      businessModel: "sab",
+      serviceDeliveryModel: "remote",
     });
   });
 
