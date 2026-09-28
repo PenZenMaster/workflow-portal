@@ -1,60 +1,187 @@
 ## Resume From
 
-Last session: 2026-09-10 (site-key domain-match safety fix, cross-cutting - v1.104.0)
-Branch: main | Version: v1.104.0 | Committed, pushed, packaged, and DEPLOYED
-via SSH 2026-09-10 - live-verified (deployed JS bundle hash matches the local
-build exactly, 200 response). TD-16 clean single fresh worker on BOTH portal
-and mcp apps, checked this session (not just portal - the standing ritual
-was fully done, not partially, this time). See part 24 below for full detail.
-Short version: v1.103.0's
-new ClientDetail site-key picker (shipped 2026-09-09) let an admin assign ANY
-registered RankRocket site key to ANY client with no validation - user live-tested
-it and successfully mismatched tristate-hvac's site key onto "Overhead Door
-Joliet" (client id 7), a real cross-client contamination risk (an AI run for
-that client would have written content to the wrong business's live
-WordPress site). Fixed at the architecture level per user's own proposed
-redesign: removed the manual picker entirely: the client-to-site mapping is
-now derived programmatically by matching a site's baseUrl against every
-client's primaryDomain (server/services/clientDomainMatch.ts) at the moment a
-site is added/updated/deleted in the Site Insights admin page
-(server/mcp/sitesAdmin.ts) - site creation is REJECTED outright (400) if zero
-or more than one client matches, so a mismatched assignment can no longer be
-made at all, by anyone. The bad production mapping the user found while
-testing was cleared via direct SQL (client 7, rankrocket_site_key -> NULL,
-confirmed clean afterward) - Trevor Aspiranti (client 13) remains the only
-mapped client, verified legitimate (domain matches).
+Last coding session: 2026-09-10 (parts 25-31, v1.105.0 -> v1.109.0, see
+below) - Location Page Builder hardening (Elementor layout cloning, async
+factory-job conversion to dodge a reverse-proxy timeout, the
+rankrocket_elementor_write allowlist bug live-tested against
+trevoraspiranti.com) plus client archive/restore/permanent-delete.
+Branch: main | Version: v1.109.0 | Committed, pushed, packaged, and
+DEPLOYED - confirmed live via SSH package.json check on 2026-09-28
+(portal.fullmetaljacketseo.com running 1.109.0). These 7 commits were
+never written up here until the 2026-09-28 "project start" backfill
+(see the NOTE after part 31 below) - a documentation gap only, code was
+live the whole time.
 
-v1.103.0/v1.102.0 (parts 22-23) DEPLOYED and remain live. rankrocket-mcp is at
-v0.12.0, DEPLOYED and confirmed live - no rankrocket-mcp changes this session.
-rank_rocket_seo_plugin is at v3.15.0, live on rankrocket.co (user pushed the
-release directly between sessions) - no plugin changes this session.
-v1.100.1 (part 20) was DEPLOYED and live-verified in browser (banner text +
-footer version both confirmed post-deploy; TD-16 clean single fresh worker on
-portal immediately after that session's restart). v1.100.0's Admin Alerts
-(part 19) also DEPLOYED and user-confirmed. v1.99.1/v1.99.0 also DEPLOYED and
-user-confirmed fixed live that session (two Help-page bugs). v1.98.1/v1.98.0
-also DEPLOYED and confirmed good by the user. v1.97.1/v1.97.0 DEPLOYED and
-verified that session - see B-20's backlog entry for the
-`planning.gbp-snapshot` production verification trail.
+2026-09-28 session so far: doc catch-up (parts 25-31 written below) and
+TD-16 cleanup - found duplicate lsnode workers on BOTH portal (2) and mcp
+(2), killed the older PID on each (portal 3675324, mcp 3675364), kept
+the newer (portal 3713447 since Sep12, mcp 4152361 since Sep15), portal
+re-verified 200 after. Live-verification of Location Page Builder
+end-to-end (next bullet) still pending as of this note.
+
+v1.103.0/v1.104.0 (parts 22-24) remain deployed and live. rankrocket-mcp
+is at v0.13.0 (bumped alongside part 25's rankrocket_elementor_read
+tool), DEPLOYED. rank_rocket_seo_plugin is at v3.16.0 (bumped alongside
+part 25's GET /elementor/{post_id} endpoint), live on rankrocket.co - no
+confirmation captured this session that v3.16.0 was actually pushed
+live vs. just readied; verify alongside the Location Page Builder test
+below since the run depends on it.
 
 NEXT SESSION (3 bullets, per shutdown):
 1. Live-verify a real Location Page Builder run end-to-end against Trevor
-   Aspiranti (client 13, id 13) - still not actually done. All three repos
-   are deployed, the plugin is live on rankrocket.co, and the one client
-   with a legitimate site-key mapping exists - this is now genuinely
-   unblocked and just needs a real test run.
+   Aspiranti (client 13, id 13) on the CURRENT v1.109.0 code (v2 skill
+   methodology prompt + rankrocket_elementor_write now allowlisted +
+   async factory-job flow). Prior live tests (parts 25, 29, 30) each
+   surfaced and fixed a real bug but none confirmed a clean end-to-end
+   success on today's code - this is the actual gap, not a repeat of an
+   already-done check.
 2. Map any other client that needs Location Page Builder / growth-plan
-   access to a RankRocket site key - now that manual assignment is gone,
-   the only way to create the mapping is to register that client's actual
-   WordPress site via /admin/rankrocket-site-insights with a baseUrl
-   matching the client's own primaryDomain exactly (protocol/www/trailing-
-   slash are normalized, nothing else) - if the client's primaryDomain
-   field itself is wrong or missing, fix that first or site creation will
-   be rejected.
+   access to a RankRocket site key - the only way to create the mapping
+   is to register that client's actual WordPress site via
+   /admin/rankrocket-site-insights with a baseUrl matching the client's
+   own primaryDomain exactly (protocol/www/trailing-slash are
+   normalized, nothing else) - if the client's primaryDomain field
+   itself is wrong or missing, fix that first or site creation will be
+   rejected.
 3. Continue the TD-16 stale-worker check every session regardless of
-   deploy, per the standing ritual - clean on both portal and mcp as of
-   this session's check (2026-09-10), but that's a point-in-time result,
-   not a guarantee for next time.
+   deploy - clean on both portal and mcp as of this session's check
+   (2026-09-28), but that's a point-in-time result, not a guarantee for
+   next time.
+
+Session 2026-09-10 (part 31): v1.109.0 - Location Page Builder prompt
+rewritten to the v2 skill methodology (Phase 1 of the
+location-page-builder-v2.0 skill integration). Rewrites
+buildLocationPageBuilderPrompt to build geographic-knowledge-node pages
+instead of doorway/city-name-swap pages: direct-answer block, honest
+business_model/service_delivery_model framing (no fake office, no hidden
+SAB address), 2-4 researched local decision sections, a 6-10 question
+query-fan-out FAQ, and hub-page awareness. Adds two new optional
+workflow inputs (businessModel, serviceDeliveryModel). Uses only tools
+already on RANKROCKET_PAGE_BUILDER_TOOLS - no new MCP tools, no
+schema/meta writes, no Wikipedia hero sourcing (deferred to a later
+phase). Not yet live-verified end-to-end against a real client run.
+
+Session 2026-09-10 (part 30): v1.108.1 - fix: allow
+rankrocket_elementor_write on the Location Page Builder card.
+rankrocket_elementor_write was never added to
+RANKROCKET_PAGE_BUILDER_TOOLS when the Elementor-styling fix shipped
+(v1.107.0/part 25 below) - the prompt already instructed the model to
+call it, but it was missing from the allowlist. The existing toolBridge
+test suite actively encoded this as correct behavior (asserted the tool
+was dropped), so it passed while the bug shipped. Confirmed live against
+trevoraspiranti.com after part 29's async-job fix removed the timeout
+that had been masking this: page 4572 (Farmington Hills) came back with
+a fully validated Elementor layout (dry-run: valid, 12 widgets) that the
+model explicitly reported it could not apply because
+rankrocket_elementor_write "is not in my available toolset." Fixed the
+two toolBridge tests that had it backwards, added the tool to the
+page-builder allowlist alongside the existing rankrocket_pages_write
+exception (same safety story: drafts only, reversible via the plugin's
+own rollback). Full suite 1834/1834 green; lint/typecheck clean.
+
+Session 2026-09-10 (part 29): v1.108.0 - Location Page Builder now runs
+as an async factory job. The extra tool round-trip part 25's
+Elementor-styling fix added (read a sibling page's layout, then write
+the new page's layout to match) pushed real runs past the reverse-proxy
+request timeout in front of this app. Confirmed live: two runs against
+Trevor Aspiranti both got a generic 500 around 70-90s with no
+application-level error logged and no process restart; disabling
+LiteSpeed Cache on the target WordPress site (the first suspect) made no
+difference - the ceiling is on this app's own infra, not the site being
+written to. New createLocationPageBuilderCell() in
+server/services/factory/locationPageBuilderCell.ts wraps the existing
+runLocationPageBuilder() as a Factory Cell (content.location-page-builder),
+registered alongside the other Lights-Out Factory cells. The
+locationPageBuilderEnabled branch of POST /api/workflows/:id/run now
+creates a factory_jobs row and enqueues it instead of awaiting the run
+inline - returns 202 with { factoryJobId, status } rather than the
+markdown result. New GET /api/factory/jobs/:id (requireAuth only, not
+the list/approve routes' ADMIN_ROLES - has to stay at least as
+permissive as the run route it supports for polling). New
+client/src/lib/factoryJobPoll.ts pollFactoryJob() helper wired into
+WorkflowCard.tsx in place of reading the run response directly. Scoped
+to only this one card - no other workflow card affected. Full suite
+1834/1834 green; lint/typecheck clean.
+
+Session 2026-09-10 (part 28): v1.107.0 - clients: permanent delete with
+full cascade. The complement to part 27's archive/restore: a client
+that is genuinely not coming back can now be permanently deleted, along
+with every row across the app that transitively references it - brands,
+aliases, competitors, prompt collections, prompts, runs, responses,
+sentiment/mentions/citations/recommendations, metrics, exports,
+integrations, growth-plan runs, schedules, factory jobs, and the two
+polymorphically-scoped tables (annotations, share_tokens) cleaned via
+their run/prompt/response ids, not just a direct clientId match. Only
+reachable for an already-archived client (404 otherwise) and gated
+server-side by the client's exact name as confirmName - the same
+type-to-confirm dialog the UI requires, re-checked at the trust boundary
+rather than trusted from the client alone. server/services/clientHardDelete.ts
+runs the whole cascade inside a single db.transaction() (first use of a
+transaction in this codebase) so a failure partway through leaves
+nothing half-deleted. FK graph independently verified twice before
+writing anything, given this is the most destructive operation in the
+app. 22 tables covered, verified by seeding one full realistic chain
+across every cascaded table and asserting each is empty after delete
+(plus an isolation test confirming a second client's data is untouched);
+confirmed the test actually catches a regression by deliberately
+disabling one delete statement and watching the right test fail before
+re-enabling it. Full suite 1819/1819 green; lint/typecheck clean.
+
+Session 2026-09-10 (part 27): v1.106.0 - clients: archive and restore.
+Clients had a soft-delete (DELETE /api/clients/:id sets deleted_at) but
+no UI reached it, and no way back - a client that doesn't renew but
+might return later had no path except staying in the active list
+forever or being soft-deleted with no restore. clientStore.listArchived()
+/ restore() alongside the existing soft delete() - restore only
+succeeds on an already-archived client. New GET /api/clients/archived
+(registered ahead of /api/clients/:id so "archived" isn't parsed as an
+id, same precedent as /readiness) and POST /api/clients/:id/restore,
+both admin-only. ClientsList: an Archive action per active client row,
+and a "View archived clients" toggle showing archived clients with a
+Restore action. No confirm dialog on Archive - reversible, matches this
+page's existing no-confirm delete pattern (e.g. brand removal).
+Permanent delete deferred to part 28. Full suite green; lint/typecheck
+clean.
+
+Session 2026-09-10 (part 26): v1.105.1 - fix: bump hono and nodemailer
+for security advisories. npm audit fix, transitive-only (package.json
+dependency ranges unchanged): hono 4.13.2 -> 4.13.7 (path traversal /
+parser fixes), nodemailer 9.0.3 -> 9.1.1 (disableFileAccess/
+disableUrlAccess bypass, domain allow-list bypass, ReDoS in
+addressparser - high severity). Flagged by GitHub Dependabot (1 high, 8
+moderate at the repo level; npm audit resolved the 2 directly fixable
+ones). Remaining: @vitest/mocker moderate advisory needs vitest 5.0.0
+(breaking, dev-only) - not applied without approval. Full suite
+1788/1788 green; lint/typecheck clean.
+
+Session 2026-09-10 (part 25): v1.105.0 - match sibling page layout in
+Location Page Builder. New pages created by the Location Page Builder
+card had no Elementor layout at all - plain content, no hero image,
+styled nothing like the rest of the site. Found live testing against
+trevoraspiranti.com (page 4564, Farmington Hills), compared to an
+earlier page built the same way (Belleville) that did have full
+Elementor styling. Root cause: rankrocket_pages_write has no Elementor
+concept, and there was no tool anywhere in rankrocket-mcp that could
+read an existing page's Elementor layout to clone it. Fixed upstream in
+rank_rocket_seo_plugin (v3.16.0, new GET /elementor/{post_id}) and
+rankrocket-mcp (v0.13.0, new rankrocket_elementor_read tool). This
+change: add rankrocket_elementor_read to the read-only allowlist, and
+update the Location Page Builder prompt to read a sibling page's layout
+before creating the new page, then reapply it via
+rankrocket_elementor_write so the new page visually matches the site
+(this write permission itself was missing until part 30's v1.108.1 fix).
+Full suite 1786 -> 1788, all green; lint/typecheck clean.
+
+NOTE (added 2026-09-28, doc catch-up): parts 25-31 above (v1.105.0
+through v1.109.0) all happened in the 2026-09-10 session but were never
+written up here at the time - only discovered and backfilled from git
+log during a later "project start" on 2026-09-28. All 7 commits were
+already pushed, packaged, and (per SSH check 2026-09-28) live-deployed
+as v1.109.0 - this was a documentation gap only, not a deploy gap. See
+[[project_workflow_portal]] memory and B-new backlog entry: consider
+whether checkpoint discipline needs a stronger forcing function (e.g. a
+pre-commit reminder) since this is not the first time a shippable commit
+outran its projectStatus.md entry.
 
 Session 2026-09-10 (part 24): v1.104.0 - site-key domain-match safety fix.
 Directly prompted by the user live-testing part 23's new ClientDetail picker
