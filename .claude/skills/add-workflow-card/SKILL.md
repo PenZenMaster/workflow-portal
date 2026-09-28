@@ -43,16 +43,24 @@ ai_adapter_slug(nullable string)`.
 
 `prompt` convention: one `<PASTE>` token per entry in `inputs`, in the same
 order, followed by plain-English instructions for what to do with them. If
-the workflow is meant to invoke a named external "skill" (e.g. a Perplexity
-Comet skill), open the prompt with `Use the "<skill-name>" skill.` — see
+the workflow is meant to invoke a named external "skill" (e.g. a Claude
+skill), open the prompt with `Use the "<skill-name>" skill.` — see
 existing cards `SEO Site Audit (full skill)` (id 1) and `Location Page
 Builder (Rank Rocket + WordPress)` (id 20, added 2026-08-12) as reference
 patterns.
 
 `launch_url` conventions:
-- `https://www.perplexity.ai/` + `launch_label: "Launch in Perplexity"` for
-  skill-launch cards (Perplexity-specific auto-prefill behavior lives in
-  `client/src/lib/launchUtils.ts`).
+- `https://claude.ai/new` + `launch_label: "Launch in Claude"` for
+  skill-launch cards - the filled prompt travels via clipboard (non-Perplexity
+  hosts fall back to clipboard mode in `client/src/lib/launchUtils.ts`).
+  Do NOT launch cards into Perplexity (user decision 2026-09-28: Perplexity
+  Computer runs were billed as per-run credit top-ups);
+  `tests/server/seedLaunchTargets.test.ts` enforces this for `SEED`. Prefer
+  Claude; Gemini/Mistral/DeepSeek may be chosen per task later.
+- Cards that need a client's WordPress credentials should run client-scoped
+  in-app (RankRocket site key resolved from the registry, like the Ranking
+  Audit / Location Page Builder / Site Insights cards) rather than asking for
+  a pasted App Password.
 - An external repo/tool URL (e.g. GitHub) for dev-ops-style cards — falls
   back to clipboard-copy-and-open behavior for non-Perplexity hosts.
 - Empty string if the card has no launch target (pure copy-the-prompt card).

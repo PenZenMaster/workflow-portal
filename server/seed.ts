@@ -62,7 +62,7 @@ WordPress credentials (WP sites only — do NOT paste the App Password here):
     (or reuse the saved vault entry for this hostname if one exists)
 
 Run the parallel scans and return a prioritized findings report. Apply fixes one at a time and pause for rescan confirmation between each.`,
-    launchUrl: "https://www.perplexity.ai/computer",
+    launchUrl: "https://claude.ai/new",
     launchLabel: "Start Audit",
     pinned: true,
   },
@@ -84,7 +84,7 @@ Last audit: <DATE / link>
 Fixes deployed since: <LIST>
 
 Verify prior fixes, flag regressions, and add new findings.`,
-    launchUrl: "https://www.perplexity.ai/computer",
+    launchUrl: "https://claude.ai/new",
     launchLabel: "Start Audit",
     pinned: false,
   },
@@ -484,7 +484,7 @@ Return:
     // runLocationPageBuilder (locationPageBuilderEnabled below), which
     // resolves the chosen client's RankRocket site key automatically
     // instead of pasted WP credentials. The launchUrl/prompt below remain
-    // as a manual Perplexity fallback for any client not yet mapped to a
+    // as a manual claude.ai fallback for any client not yet mapped to a
     // RankRocket site key.
     inputs: ["Target city or service area(s)"],
     optionalInputs: [
@@ -511,8 +511,8 @@ WordPress credentials (do NOT paste the App Password here):
     (or reuse the saved vault entry for this hostname if one exists)
 
 Generate one SEO-optimized location page per target city/service area, matching the existing site's tone and template. Publish each page as a draft via the Rank Rocket plugin's WordPress REST API endpoints - do not publish live without explicit confirmation. Return the list of created draft page URLs/IDs for review.`,
-    launchUrl: "https://www.perplexity.ai/",
-    launchLabel: "Launch in Perplexity",
+    launchUrl: "https://claude.ai/new",
+    launchLabel: "Launch in Claude",
     pinned: true,
   },
 
@@ -524,7 +524,7 @@ Generate one SEO-optimized location page per target city/service area, matching 
     // Empty: runs client-scoped via runRankingGrowthPlan (growthPlanEnabled
     // below), which resolves the chosen client's RankRocket site key and
     // GBP location automatically instead of pasted WP credentials. The
-    // launchUrl/prompt below remain as a manual Perplexity fallback for any
+    // launchUrl/prompt below remain as a manual claude.ai fallback for any
     // client not yet mapped to a RankRocket site key.
     inputs: [],
     optionalInputs: [
@@ -590,7 +590,7 @@ Required output structure:
 ## Verification needed or blockers
 ## Project memory updates
 ## Final validation checklist`,
-    launchUrl: "https://www.perplexity.ai/computer",
+    launchUrl: "https://claude.ai/new",
     launchLabel: "Start Audit",
     pinned: false,
   },

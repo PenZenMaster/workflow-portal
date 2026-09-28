@@ -48,6 +48,41 @@ NEXT SESSION (3 bullets, per shutdown):
    (2026-09-28), but that's a point-in-time result, not a guarantee for
    next time.
 
+Session 2026-09-28 (part 32): v1.109.1 - card launch targets moved off
+Perplexity to Claude. Trigger: a typical run of "SEO Audit via Rank
+Rocket SEO Plugin" (launched into perplexity.ai/computer) cost three $27
+Perplexity credit top-ups. The portal's own Perplexity API use (AI
+Visibility measurement, ~700-830 calls/month, est. $0.14-$0.25/month)
+was NOT the cost source and is deliberately left unchanged - measurement
+queries every platform by design. User direction: cards use Claude
+(Anthropic); Gemini/Mistral/DeepSeek may be picked per task later.
+- SEED + dev db: SEO Audit, Re-audit, Ranking Audit and Improvement
+  Suite (manual fallback), Location Page Builder (manual fallback) now
+  launch https://claude.ai/new; "Launch in Perplexity" label -> "Launch
+  in Claude". No launchUtils change needed - non-Perplexity hosts already
+  use clipboard mode.
+- New tests/server/seedLaunchTargets.test.ts fails if any SEED card
+  launches into Perplexity or names it in its launch label.
+- WorkflowDialog placeholders and the add-workflow-card skill's
+  launch_url convention updated to match.
+- package-lock.json root version synced (was stale at 1.105.1) - per the
+  deploy rule, the next deploy must use `npm ci`, not install-modules.
+- PROD db rows 1, 2, 20, 22 (prod ids) still need the same launch_url /
+  launch_label update - a separate, explicitly-confirmed prod write.
+- Open follow-ups: (a) the "seo-site-audit" skill lives only in the
+  user's Perplexity account and must be ported to Claude before the
+  claude.ai launch is useful; (b) Re-audit's prompt uses <URL>/<DATE /
+  link>/<LIST> tokens, which fillPrompt never fills (only <PASTE>) - its
+  inputs have always been dropped; (c) Location Page Builder / SEO Audit
+  prompts still mention Perplexity's credential vault; (d) pre-existing
+  seed:diff drift: dev's Location Page Builder optionalInputs lack the
+  two v1.109.0 fields (businessModel, serviceDeliveryModel).
+- NEXT (user chose option A): convert SEO Audit (card 1) into a
+  client-scoped in-app Claude run resolving WordPress credentials from
+  the RankRocket site registry (like Ranking Audit / Location Page
+  Builder / Site Insights) instead of pasted WP username + App Password.
+  Consider overlap with Ranking Audit and Improvement Suite first.
+
 Session 2026-09-10 (part 31): v1.109.0 - Location Page Builder prompt
 rewritten to the v2 skill methodology (Phase 1 of the
 location-page-builder-v2.0 skill integration). Rewrites

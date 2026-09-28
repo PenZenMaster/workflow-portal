@@ -538,7 +538,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
                     <FormLabel>Launch URL (Required)</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="https://www.perplexity.ai/"
+                        placeholder="https://claude.ai/new"
                         {...field}
                         data-testid="input-launch-url"
                       />
@@ -555,7 +555,7 @@ export function WorkflowDialog({ open, onOpenChange, editing }: Props) {
                     <FormLabel>Launch button label</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Launch in Perplexity"
+                        placeholder="Launch in Claude"
                         {...field}
                         data-testid="input-launch-label"
                       />
