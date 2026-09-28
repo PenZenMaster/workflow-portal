@@ -67,8 +67,12 @@ queries every platform by design. User direction: cards use Claude
   launch_url convention updated to match.
 - package-lock.json root version synced (was stale at 1.105.1) - per the
   deploy rule, the next deploy must use `npm ci`, not install-modules.
-- PROD db rows 1, 2, 20, 22 (prod ids) still need the same launch_url /
-  launch_label update - a separate, explicitly-confirmed prod write.
+- PROD db rows 1, 2, 20, 22 (prod ids) updated 2026-09-28 (user-confirmed
+  prod write): all four launch https://claude.ai/new, row 22 labelled
+  "Launch in Claude", 0 Perplexity launch targets left. Backup:
+  persistent/data.db.bak-2026-09-28-pre-claude-launch. v1.109.1 code
+  itself NOT deployed (only Add Workflow placeholder text differs) - next
+  deploy must use `npm ci` (lockfile changed).
 - Open follow-ups: (a) the "seo-site-audit" skill lives only in the
   user's Perplexity account and must be ported to Claude before the
   claude.ai launch is useful; (b) Re-audit's prompt uses <URL>/<DATE /
