@@ -8,9 +8,10 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-07-03
- * Last Modified Date: 2026-07-03
+ * Last Modified Date: 2026-09-28
  * Comments:
  * - v1.00 Initial tests (launch-input persistence feature)
+ * - v1.01 Credential-labelled values are never saved or returned (v1.109.3)
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -111,6 +112,16 @@ describe("GET /api/workflows/:id/input-values", () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ "Service Area": "Nashville, TN" });
   });
+
+  it("never returns previously stored credential values for prefill", async () => {
+    mockInputValueStore.getByWorkflow.mockResolvedValue({
+      "Service Area": "Nashville, TN",
+      "WP App Password": "abcd efgh ijkl mnop qrst uvwx",
+    });
+    const res = await request(buildApp()).get("/api/workflows/1/input-values");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ "Service Area": "Nashville, TN" });
+  });
 });
 
 describe("PUT /api/workflows/:id/input-values", () => {
@@ -133,6 +144,24 @@ describe("PUT /api/workflows/:id/input-values", () => {
       .put("/api/workflows/999/input-values")
       .send({ values: { "Service Area": "Nashville, TN" } });
     expect(res.status).toBe(404);
+  });
+
+  it("never saves values whose label looks like a credential", async () => {
+    const res = await request(buildApp())
+      .put("/api/workflows/1/input-values")
+      .send({
+        values: {
+          "Service Area": "Nashville, TN",
+          "WP App Password": "abcd efgh ijkl mnop qrst uvwx",
+          "Rank Rocket API Key": "rr_live_123",
+          "Access Token": "tok",
+        },
+      });
+    expect(res.status).toBe(200);
+    expect(mockInputValueStore.upsertMany).toHaveBeenCalledWith(1, {
+      "Service Area": "Nashville, TN",
+    });
+    expect(res.body.data).toEqual({ "Service Area": "Nashville, TN" });
   });
 
   it("saves the values and returns them", async () => {

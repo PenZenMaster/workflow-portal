@@ -48,6 +48,16 @@ NEXT SESSION (3 bullets, per shutdown):
    (2026-09-28), but that's a point-in-time result, not a guarantee for
    next time.
 
+Session 2026-09-28 (part 34): v1.109.3 - security fix: launch inputs
+whose label looks like a credential (shared/sensitiveLabels.ts, same
+regex launchUtils used for clipboard-only launches) are never stored in
+workflow_input_values, never returned by GET input-values, never sent by
+LaunchInputsDialog and never prefilled. The table is shared prefill for
+every portal user, and prod held 3 plain-text WP App Passwords (see part
+33). The regex moved from client/src/lib/launchUtils.ts to shared/ so the
+server enforces it too. Prod rows deleted after this version deployed
+(backup first); user rotating the 3 App Passwords in WP admin.
+
 Session 2026-09-28 (part 33): v1.109.2 - seo-site-audit cards back on
 Perplexity with the v4.0 skill prompts. User decided to keep the
 seo-site-audit skill in Perplexity (model broker) and cut its credit cost by

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { ExternalLink, ClipboardCheck, FileUp, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { isSensitiveLabel, withoutSensitiveValues } from "@shared/sensitiveLabels";
 import {
   fillPrompt,
   getLaunchPlan,
@@ -100,6 +101,7 @@ export function LaunchInputsDialog({
 
   // Prefill from the shared last-used values (B-23). Only fills fields the
   // user has not already typed into, so a slow response never clobbers input.
+  // Credential fields are never prefilled (values are shared across users).
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -107,7 +109,7 @@ export function LaunchInputsDialog({
       .then((res) => (res.ok ? res.json() : null))
       .then((json: { data?: Record<string, string> } | null) => {
         if (cancelled || !json?.data) return;
-        const saved = json.data;
+        const saved = withoutSensitiveValues(json.data);
         setValues((prev) =>
           workflow.inputs.map((label, i) => prev[i] || saved[label] || "")
         );
@@ -166,13 +168,16 @@ export function LaunchInputsDialog({
   }, [open, workflow.rankrocketMcpEnabled]);
 
   // Remember non-blank values for the next launch (fire-and-forget).
+  // Credential fields are never sent - the server would drop them anyway.
   const persistValues = () => {
     const map: Record<string, string> = {};
     workflow.inputs.forEach((label, i) => {
-      if ((values[i] ?? "").trim()) map[label] = values[i];
+      if ((values[i] ?? "").trim() && !isSensitiveLabel(label)) map[label] = values[i];
     });
     workflow.optionalInputs.forEach((label, i) => {
-      if ((optionalValues[i] ?? "").trim()) map[label] = optionalValues[i];
+      if ((optionalValues[i] ?? "").trim() && !isSensitiveLabel(label)) {
+        map[label] = optionalValues[i];
+      }
     });
     if (Object.keys(map).length === 0) return;
     fetch(`/api/workflows/${workflow.id}/input-values`, {

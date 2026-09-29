@@ -1,9 +1,11 @@
+import { isSensitiveLabel } from "@shared/sensitiveLabels";
+
 // Browsers and servers commonly cap full URLs at ~2000 chars.
 const PPLX_URL_PROMPT_MAX = 1800;
 
-// Input labels that indicate credentials. Prompts built from these must
-// never travel in a URL query string (URLs are logged by servers/proxies).
-const SENSITIVE_LABEL = /password|passphrase|secret|token|api[\s_-]?key|credential/i;
+// Input labels that indicate credentials (shared/sensitiveLabels.ts).
+// Prompts built from these must never travel in a URL query string (URLs
+// are logged by servers/proxies), and their values are never remembered.
 
 export function fillPrompt(template: string, values: string[]): string {
   let i = 0;
@@ -20,7 +22,7 @@ export function isPerplexityHost(url: string): boolean {
 }
 
 export function hasSensitiveInputLabel(labels: string[]): boolean {
-  return labels.some((label) => SENSITIVE_LABEL.test(label));
+  return labels.some(isSensitiveLabel);
 }
 
 // Build a Perplexity launch URL that prefills the prompt via the q param.

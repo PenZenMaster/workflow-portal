@@ -9,13 +9,15 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-09
- * Last Modified Date: 2026-07-03
+ * Last Modified Date: 2026-09-28
  * Comments:
  * - v1.00 Carved out of server/routes.ts for Sprint 0 route/storage split
  * - v1.01 Added POST /api/workflows/:id/run-with-file (CSV upload feature)
  * - v1.02 B-21: run-with-file accepts JSON { csv, inputValues }
  * - v1.03 Added POST /api/workflows/:id/run (Phase 3 read-only slice:
  *   in-app run via the RankRocket MCP connector, no CSV)
+ * - v1.04 input-values never stores or returns credential-labelled values
+ *   (they are shared across all users as prefill)
  */
 
 import express, { type Express } from "express";
@@ -29,6 +31,7 @@ import {
   factoryJobStore,
 } from "../storage";
 import { insertWorkflowSchema, saveInputValuesSchema } from "@shared/schema";
+import { withoutSensitiveValues } from "@shared/sensitiveLabels";
 import { requireAuth } from "../auth";
 import { runWorkflowWithCsv, MAX_CSV_BYTES } from "../services/workflowFileRun";
 import { runWorkflowPrompt } from "../services/workflowPromptRun";
@@ -111,14 +114,15 @@ export function registerWorkflowRoutes(app: Express): void {
   });
 
   // Last-used launch input values (B-23), shared across users so
-  // rarely-changing inputs are prefilled on the next launch.
+  // rarely-changing inputs are prefilled on the next launch. Because every
+  // user sees them, credential-labelled values are never stored or returned.
   app.get("/api/workflows/:id/input-values", requireAuth, async (req, res) => {
     const id = Number(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid id" });
     const workflow = await storage.getWorkflow(id);
     if (!workflow) return res.status(404).json({ error: "Not found" });
     const values = await workflowInputValueStore.getByWorkflow(id);
-    res.json({ data: values });
+    res.json({ data: withoutSensitiveValues(values) });
   });
 
   app.put("/api/workflows/:id/input-values", requireAuth, async (req, res) => {
@@ -132,8 +136,9 @@ export function registerWorkflowRoutes(app: Express): void {
     }
     const workflow = await storage.getWorkflow(id);
     if (!workflow) return res.status(404).json({ error: "Not found" });
-    await workflowInputValueStore.upsertMany(id, parsed.data.values);
-    res.json({ data: parsed.data.values });
+    const safe = withoutSensitiveValues(parsed.data.values);
+    await workflowInputValueStore.upsertMany(id, safe);
+    res.json({ data: safe });
   });
 
   // CSV upload + AI run. Two body formats are accepted, both mounted

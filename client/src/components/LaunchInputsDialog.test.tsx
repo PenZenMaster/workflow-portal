@@ -175,6 +175,54 @@ describe("LaunchInputsDialog - saved input values (B-23)", () => {
     expect(body.values).toEqual({ "Website URL": "https://typed.com" });
     vi.unstubAllGlobals();
   });
+
+  const CRED_WORKFLOW: Workflow = {
+    ...WORKFLOW,
+    inputs: ["Website URL", "WP App Password"],
+    optionalInputs: [],
+    prompt: "Audit <PASTE> with <PASTE>.",
+  };
+
+  it("never sends credential-labelled values to the input-values endpoint", async () => {
+    const openSpy = vi.fn().mockReturnValue(null);
+    vi.stubGlobal("open", openSpy);
+    const user = setupUser();
+    renderDialog(CRED_WORKFLOW);
+
+    await user.type(screen.getByTestId("launch-input-0"), "https://typed.com");
+    await user.type(screen.getByTestId("launch-input-1"), "abcd efgh ijkl");
+    await user.click(screen.getByTestId("button-launch-confirm"));
+
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit | undefined)?.method === "PUT"
+      );
+      expect(put).toBeDefined();
+    });
+    const put = fetchMock.mock.calls.find(
+      ([, init]) => (init as RequestInit | undefined)?.method === "PUT"
+    )!;
+    const body = JSON.parse(String((put[1] as RequestInit).body)) as {
+      values: Record<string, string>;
+    };
+    expect(body.values).toEqual({ "Website URL": "https://typed.com" });
+    vi.unstubAllGlobals();
+  });
+
+  it("never prefills a credential field from saved values", async () => {
+    savedValuesResponse = {
+      "Website URL": "https://saved-client.com",
+      "WP App Password": "stale-secret",
+    };
+    renderDialog(CRED_WORKFLOW);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("launch-input-0")).toHaveValue(
+        "https://saved-client.com"
+      );
+    });
+    expect(screen.getByTestId("launch-input-1")).toHaveValue("");
+  });
 });
 
 describe("LaunchInputsDialog - launch instruction step", () => {
