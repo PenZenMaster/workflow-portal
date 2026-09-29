@@ -27,42 +27,36 @@ export const SEED: SeedRow[] = [
     name: "SEO Audit via Rank Rocket SEO Plugin",
     category: "Audit",
     description:
-      "Repeatable browser-rendered SEO audit: on-page, technical, local, schema, and off-page recommendations. Prompts for inputs, runs parallel browser scans, and delivers a prioritized fix list applied one at a time with rescan confirmation.",
+      "Scan phase of the seo-site-audit skill (v4.0, runs in Perplexity): scripted crawl, PageSpeed, RankRocket plugin checks and rule-based scoring, then a prioritized findings report and fix-cycle plan. Fix cycles and the PDF report run as separate follow-up tasks to keep credit use down.",
+    // v4.0 skill: WordPress credentials come from the Perplexity credential
+    // vault (never typed here); GBP inputs removed while GBP checks are
+    // disabled in the skill. Labels kept verbatim where unchanged so saved
+    // last-used values still prefill.
     inputs: [
       "Website URL",
-      "GBP URL - Maps Share Link or None",
+      "Business name",
       "Business Type - GBP Primary Category or Business Type",
       "Location/Market - Service Area",
-      "SAB or Exposed Address",
-      "GBP Restrictions - Are there any restrictions on touching the GBP? (e.g., recently verified, cooling off period, name set by Google)",
       "CMS — (WordPress, Squarespace, Wix, custom, etc.)",
       "SEO Plugin — (RankRocket SEO, RankMath, Yoast, HFCM, All-in-One SEO, none, etc.)",
       "Site Architecture - Standalone site (handles its own bookings/leads), Franchise/Parent-Child site (regional site that hands bookings off to a central parent domain), Multi-Location Site (one site covering multiple service areas with separate location pages)",
       "Report Branding - AMS, Rank Rocket, Other",
-      "WP Username",
-      "WP App Password",
     ],
-    tags: ["seo", "audit", "browser-rendered", "skill", "v2.6"],
+    tags: ["seo", "audit", "skill", "v4.0"],
     prompt: `Use the "seo-site-audit" skill.
 
-Website URL: <PASTE>
-GBP: <PASTE>
+seo-site-audit: scan <PASTE>
+
+Business name: <PASTE>
 Business type: <PASTE>
 Location/Market: <PASTE>
-SAB or exposed address: <PASTE>
-GBP Restrictions: <PASTE>
 CMS: <PASTE>
-SEO Plugin: <PASTE>
-Site Architecture: <PASTE>
+SEO plugin: <PASTE>
+Site architecture: <PASTE>
 Report branding: <PASTE>
 
-WordPress credentials (WP sites only — do NOT paste the App Password here):
-  WP Username: <PASTE username only>
-  WP App Password: enter in the secure credential form when prompted
-    (or reuse the saved vault entry for this hostname if one exists)
-
-Run the parallel scans and return a prioritized findings report. Apply fixes one at a time and pause for rescan confirmation between each.`,
-    launchUrl: "https://claude.ai/new",
+This task is the SCAN phase only: run the scan, save findings to Drive, report the scorecard and the fix-cycle plan, then stop and give me the prompt for fix cycle A. WordPress credentials come from the Perplexity credential vault - never ask for them in chat.`,
+    launchUrl: "https://www.perplexity.ai/computer",
     launchLabel: "Start Audit",
     pinned: true,
   },
@@ -70,21 +64,19 @@ Run the parallel scans and return a prioritized findings report. Apply fixes one
     name: "Re-audit existing client site",
     category: "Audit",
     description:
-      "Lightweight re-run of the SEO audit skill against a previously audited site. Confirms prior fixes, surfaces regressions, and adds any new findings since the last pass.",
-    inputs: [
-      "Website URL",
-      "Date / link of last audit",
-      "Any fixes deployed since last audit",
-    ],
-    tags: ["seo", "re-audit", "regression"],
+      "Drift check with the seo-site-audit skill (v4.0, runs in Perplexity): re-scans a previously audited site and compares it with the last saved baseline - score movement, regressions of previously fixed items, new findings and resolved ones.",
+    inputs: ["Website URL"],
+    optionalInputs: ["Compare against baseline date (YYYY-MM-DD, blank = latest)"],
+    tags: ["seo", "re-audit", "regression", "drift", "v4.0"],
     prompt: `Use the "seo-site-audit" skill.
 
-This is a re-audit for <URL>.
-Last audit: <DATE / link>
-Fixes deployed since: <LIST>
+seo-site-audit: drift check <PASTE>
 
-Verify prior fixes, flag regressions, and add new findings.`,
-    launchUrl: "https://claude.ai/new",
+Compare against baseline: <PASTE>
+(blank = the latest baseline on Drive)
+
+This task is the DRIFT CHECK only: report regressions, new and resolved findings, and ask me before saving a new baseline.`,
+    launchUrl: "https://www.perplexity.ai/computer",
     launchLabel: "Start Audit",
     pinned: false,
   },

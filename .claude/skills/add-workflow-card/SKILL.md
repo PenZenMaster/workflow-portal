@@ -54,9 +54,12 @@ patterns.
   skill-launch cards - the filled prompt travels via clipboard (non-Perplexity
   hosts fall back to clipboard mode in `client/src/lib/launchUtils.ts`).
   Do NOT launch cards into Perplexity (user decision 2026-09-28: Perplexity
-  Computer runs were billed as per-run credit top-ups);
-  `tests/server/seedLaunchTargets.test.ts` enforces this for `SEED`. Prefer
-  Claude; Gemini/Mistral/DeepSeek may be chosen per task later.
+  Computer runs were billed as per-run credit top-ups) - EXCEPT cards whose
+  prompt starts `Use the "seo-site-audit" skill.`: that skill (v4.0, cost-
+  tuned, one task per phase) lives in Perplexity and launches to
+  `https://www.perplexity.ai/computer`. `tests/server/seedLaunchTargets.test.ts`
+  enforces both rules for `SEED`. Prefer Claude; Gemini/Mistral/DeepSeek may
+  be chosen per task later.
 - Cards that need a client's WordPress credentials should run client-scoped
   in-app (RankRocket site key resolved from the registry, like the Ranking
   Audit / Location Page Builder / Site Insights cards) rather than asking for

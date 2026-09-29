@@ -48,6 +48,32 @@ NEXT SESSION (3 bullets, per shutdown):
    (2026-09-28), but that's a point-in-time result, not a guarantee for
    next time.
 
+Session 2026-09-28 (part 33): v1.109.2 - seo-site-audit cards back on
+Perplexity with the v4.0 skill prompts. User decided to keep the
+seo-site-audit skill in Perplexity (model broker) and cut its credit cost by
+refactoring the skill to v4.0 instead (scripted scans, rule-based scoring,
+one Perplexity task per phase; skill source lives outside this repo, zip in
+~/Downloads/seo-site-audit-v4/).
+- SEO Audit card: launches perplexity.ai/computer; prompt is now the scan
+  phase only (`seo-site-audit: scan <url>`); inputs cut from 12 to 8 - GBP
+  inputs removed (GBP disabled in the skill) and WP Username/App Password
+  removed (Perplexity credential vault). Old prompt had 10 <PASTE> tokens
+  for 12 inputs, so WP Username was never filled.
+- Re-audit card: launches Perplexity; prompt is `seo-site-audit: drift
+  check <url>` with an optional baseline date. Fixes the part-32 open item
+  (b): the old <URL>/<DATE / link>/<LIST> tokens were never filled.
+- seedLaunchTargets.test.ts: Perplexity allowed only for prompts starting
+  `Use the "seo-site-audit" skill.`; new assertions on the v4 prompts,
+  token/input parity and no credential inputs.
+- Dev db updated from SEED by name; prod pending in the same session.
+- SECURITY (found this session, fix = v1.109.3): workflow_input_values
+  stores launch inputs in plain text and prefills them for every user -
+  prod held 3 real WP App Passwords (cards 1, 20, 22: salvometalworks.com,
+  unitedstructuralsystems.com, tristate-hvac.com). User rotating them.
+- Also found: every rankrocket-mcp call for site key "trevoraspiranti"
+  (incl. /status) returns "no route" - plugin inactive or REST routes not
+  registering there; blocks NEXT bullet 1 (Location Page Builder live test).
+
 Session 2026-09-28 (part 32): v1.109.1 - card launch targets moved off
 Perplexity to Claude. Trigger: a typical run of "SEO Audit via Rank
 Rocket SEO Plugin" (launched into perplexity.ai/computer) cost three $27
