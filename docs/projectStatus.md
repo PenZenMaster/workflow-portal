@@ -55,8 +55,12 @@ workflow_input_values, never returned by GET input-values, never sent by
 LaunchInputsDialog and never prefilled. The table is shared prefill for
 every portal user, and prod held 3 plain-text WP App Passwords (see part
 33). The regex moved from client/src/lib/launchUtils.ts to shared/ so the
-server enforces it too. Prod rows deleted after this version deployed
-(backup first); user rotating the 3 App Passwords in WP admin.
+server enforces it too. DEPLOYED 2026-09-28 via SSH (npm ci, restart,
+single fresh worker 2569419, HTTP 200); then the 3 prod rows were deleted
+(0 credential-like rows remain). User rotating the 3 App Passwords in WP
+admin. TODO after rotation: delete persistent/data.db.bak-2026-09-28-*
+(pre-claude-launch, pre-1.109.2, pre-cred-purge) - they still contain the
+old passwords.
 
 Session 2026-09-28 (part 33): v1.109.2 - seo-site-audit cards back on
 Perplexity with the v4.0 skill prompts. User decided to keep the
