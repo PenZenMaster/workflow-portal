@@ -5,6 +5,7 @@ import { buildAuthApp } from "./_helpers/buildAuthApp";
 const mockClientStore = { list: vi.fn(), get: vi.fn() };
 const mockClientUserStore = { canAccess: vi.fn() };
 const mockMetricStore = { aggregateLiveForPeriod: vi.fn(), listByClient: vi.fn() };
+const mockApiTokenStore = { findByHash: vi.fn(), touchLastUsed: vi.fn() };
 
 vi.mock("../../server/storage", () => ({
   storage: { countUsers: vi.fn() },
@@ -13,6 +14,7 @@ vi.mock("../../server/storage", () => ({
   clientStore: mockClientStore,
   clientUserStore: mockClientUserStore,
   metricStore: mockMetricStore,
+  apiTokenStore: mockApiTokenStore,
 }));
 
 vi.mock("../../server/jobs/runner", () => ({
@@ -143,5 +145,40 @@ describe("GET /api/clients/:id/exports/executive.csv", () => {
     mockClientUserStore.canAccess.mockResolvedValue(false);
     const res = await request(buildApp("client_viewer")).get(URL_OK);
     expect(res.status).toBe(403);
+  });
+});
+
+describe("GET /api/clients/:id/exports/executive.csv - API token access", () => {
+  const RAW = "wfp_" + "b".repeat(64);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockClientStore.get.mockResolvedValue({ id: 4, name: "Salvo Metal Works" });
+    mockMetricStore.listByClient.mockResolvedValue([snap("2026-07-07")]);
+    mockApiTokenStore.touchLastUsed.mockResolvedValue(undefined);
+    mockApiTokenStore.findByHash.mockResolvedValue({
+      id: 11, clientId: 4, name: "Suite", tokenHash: "h", tokenPrefix: "wfp_bbbbbb",
+      expiresAt: Date.now() + 86_400_000, createdByUserId: 1, revokedAt: null, lastUsedAt: null, createdAt: 1,
+    });
+  });
+
+  it("serves the CSV to a bearer token for its own client with no session", async () => {
+    const res = await request(buildApp()).get(URL_OK).set("Authorization", `Bearer ${RAW}`);
+    expect(res.status).toBe(200);
+    expect(res.text.trim().split("\n")[1]).toBe("2026-07-07,144,74,434,228,2.48");
+    expect(mockClientUserStore.canAccess).not.toHaveBeenCalled();
+  });
+
+  it("refuses a bearer token for a different client", async () => {
+    const res = await request(buildApp()).get("/api/clients/5/exports/executive.csv?from=2026-07-01&to=2026-09-30")
+      .set("Authorization", `Bearer ${RAW}`);
+    expect(res.status).toBe(403);
+    expect(mockMetricStore.listByClient).not.toHaveBeenCalled();
+  });
+
+  it("refuses an invalid bearer token", async () => {
+    mockApiTokenStore.findByHash.mockResolvedValue(undefined);
+    const res = await request(buildApp()).get(URL_OK).set("Authorization", `Bearer ${RAW}`);
+    expect(res.status).toBe(401);
   });
 });

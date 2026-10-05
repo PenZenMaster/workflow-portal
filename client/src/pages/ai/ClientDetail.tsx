@@ -20,6 +20,7 @@ import { SourcesSection } from "./sections/SourcesSection";
 import { RecommendationsSection } from "./sections/RecommendationsSection";
 import { TrafficSection } from "./sections/TrafficSection";
 import { TokenUsageSection } from "./sections/TokenUsageSection";
+import { ApiAccessSection } from "./sections/ApiAccessSection";
 
 // ---------------------------------------------------------------------------
 // Brand row — handles its own aliases and expand/collapse state
@@ -420,6 +421,7 @@ export default function ClientDetail() {
         </div>
         <SourcesSection clientId={id!} />
         <TokenUsageSection clientId={id!} />
+        <ApiAccessSection clientId={id!} />
       </div>
     </div>
   );

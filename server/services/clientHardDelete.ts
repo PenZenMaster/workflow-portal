@@ -25,6 +25,7 @@
  * and need their target ids collected before they can be cleaned up:
  *   - annotations: scopeKind (run|prompt|response|client) + scopeId
  *   - share_tokens: kind (export|live-dashboard) + resourceId
+ *   - api_tokens: clientId
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-09-10
@@ -60,6 +61,7 @@ import {
   factoryJobs,
   annotations,
   shareTokens,
+  apiTokens,
 } from "@shared/schema";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -160,6 +162,9 @@ export function hardDeleteClient(database: DrizzleDb, clientId: number): boolean
     tx.delete(shareTokens)
       .where(and(eq(shareTokens.kind, "live-dashboard"), eq(shareTokens.resourceId, clientId)))
       .run();
+
+    // API tokens are bound to exactly one client
+    tx.delete(apiTokens).where(eq(apiTokens.clientId, clientId)).run();
 
     if (runIds.length) {
       tx.delete(responsesRaw).where(inArray(responsesRaw.runId, runIds)).run();

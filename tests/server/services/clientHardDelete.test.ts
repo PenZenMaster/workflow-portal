@@ -28,6 +28,7 @@ import {
   factoryJobs,
   annotations,
   shareTokens,
+  apiTokens,
 } from "../../../shared/schema";
 import { hardDeleteClient } from "../../../server/services/clientHardDelete";
 
@@ -196,6 +197,15 @@ function seedFullChain(db: Db, clientId: number) {
     createdByUserId: 1,
     createdAt: now,
   }).run();
+  db.insert(apiTokens).values({
+    clientId,
+    name: "Reporting Suite",
+    tokenHash: `api-hash-${clientId}`,
+    tokenPrefix: "wfp_abc123",
+    expiresAt: now + 1000,
+    createdByUserId: 1,
+    createdAt: now,
+  }).run();
 
   return { brandId, collectionId, promptId, runId, responseId, exportId };
 }
@@ -226,6 +236,7 @@ function countAll(db: Db) {
     factoryJobs: db.select().from(factoryJobs).all().length,
     annotations: db.select().from(annotations).all().length,
     shareTokens: db.select().from(shareTokens).all().length,
+    apiTokens: db.select().from(apiTokens).all().length,
   };
 }
 
@@ -277,5 +288,6 @@ describe("hardDeleteClient", () => {
     expect(db.select().from(brands).where(eq(brands.clientId, otherId)).all()).toHaveLength(1);
     expect(db.select().from(annotations).all()).toHaveLength(4);
     expect(db.select().from(shareTokens).all()).toHaveLength(1);
+    expect(db.select().from(apiTokens).all()).toHaveLength(1);
   });
 });

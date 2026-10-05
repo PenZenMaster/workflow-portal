@@ -825,6 +825,44 @@ export type ShareToken = {
   createdAt: number;
 };
 
+// --- AI Visibility: API Tokens ---------------------------------------------
+// Machine credentials for tools such as the Reporting Suite. One token is
+// bound to one client; only the SHA-256 hash is stored, the raw token is
+// shown once at creation.
+
+export const apiTokens = sqliteTable("api_tokens", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  name: text("name").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  tokenPrefix: text("token_prefix").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  createdByUserId: integer("created_by_user_id").notNull(),
+  revokedAt: integer("revoked_at"),
+  lastUsedAt: integer("last_used_at"),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const createApiTokenSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  ttlDays: z.number().int().min(1).max(365).default(90),
+});
+
+export type CreateApiToken = z.infer<typeof createApiTokenSchema>;
+
+export type ApiToken = {
+  id: number;
+  clientId: number;
+  name: string;
+  tokenHash: string;
+  tokenPrefix: string;
+  expiresAt: number;
+  createdByUserId: number;
+  revokedAt: number | null;
+  lastUsedAt: number | null;
+  createdAt: number;
+};
+
 // --- AI Visibility: Sentiment, Annotations, Exports -----------------------
 
 export const responseSentiment = sqliteTable("response_sentiment", {

@@ -13,15 +13,17 @@
  * - v1.00 Sprint 5 initial implementation
  * - v1.01 GET /api/exports/overview.csv: all-clients 30-day Overview metrics
  * - v1.02 GET /api/clients/:id/exports/executive.csv: single-client snapshot series
+ * - v1.03 executive.csv also accepts a client-bound API token (Bearer)
  */
 
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { exportStore, clientStore, clientUserStore, metricStore } from "../storage";
 import { triggerExportSchema } from "@shared/schema";
 import { requireAuth, requireRole } from "../auth";
+import { requireRoleOrApiToken } from "../apiTokenAuth";
 import { ok } from "../response";
 import { AppError } from "../errors";
 import { jobRunner } from "../jobs/runner";
@@ -69,16 +71,20 @@ export function registerExportRoutes(app: Express): void {
   // Agency roles may read any client; other roles only assigned clients.
   app.get(
     "/api/clients/:id/exports/executive.csv",
-    requireRole(...ALL_ROLES),
-    async (req, res) => {
+    requireRoleOrApiToken(ALL_ROLES),
+    async (req: Request, res: Response) => {
       const clientId = Number(req.params.id);
       if (!Number.isInteger(clientId) || clientId <= 0)
         throw new AppError(400, "Invalid client id", "INVALID_ID");
 
-      const { id: userId, role } = req.session.user!;
-      const isAgencyRole = (EDITOR_ROLES as readonly string[]).includes(role);
-      if (!isAgencyRole && !(await clientUserStore.canAccess(userId, clientId)))
-        throw new AppError(403, "Forbidden", "FORBIDDEN");
+      // An API token is already bound to this client by the guard; session
+      // callers need an agency role or an assignment to the client.
+      if (!req.apiToken) {
+        const { id: userId, role } = req.session.user!;
+        const isAgencyRole = (EDITOR_ROLES as readonly string[]).includes(role);
+        if (!isAgencyRole && !(await clientUserStore.canAccess(userId, clientId)))
+          throw new AppError(403, "Forbidden", "FORBIDDEN");
+      }
 
       const client = await clientStore.get(clientId);
       if (!client) throw new AppError(404, "Client not found", "CLIENT_NOT_FOUND");

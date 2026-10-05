@@ -27,6 +27,7 @@ import { SentimentStore } from "./storage/sentimentStore";
 import { AnnotationStore } from "./storage/annotationStore";
 import { ExportStore } from "./storage/exportStore";
 import { ShareTokenStore } from "./storage/shareTokenStore";
+import { ApiTokenStore } from "./storage/apiTokenStore";
 import { IntegrationStore } from "./storage/integrationStore";
 import { JobStore } from "./storage/jobStore";
 import { WorkflowInputValueStore } from "./storage/workflowInputValueStore";
@@ -56,6 +57,7 @@ export type { ISentimentStore } from "./storage/sentimentStore";
 export type { IAnnotationStore } from "./storage/annotationStore";
 export type { IExportStore } from "./storage/exportStore";
 export type { IShareTokenStore } from "./storage/shareTokenStore";
+export type { IApiTokenStore } from "./storage/apiTokenStore";
 export type { IIntegrationStore } from "./storage/integrationStore";
 export type { IJobStore, JobListFilter, JobStatusCounts } from "./storage/jobStore";
 export { WorkflowStore } from "./storage/workflowStore";
@@ -79,6 +81,7 @@ export { SentimentStore } from "./storage/sentimentStore";
 export { AnnotationStore } from "./storage/annotationStore";
 export { ExportStore } from "./storage/exportStore";
 export { ShareTokenStore } from "./storage/shareTokenStore";
+export { ApiTokenStore } from "./storage/apiTokenStore";
 export { IntegrationStore } from "./storage/integrationStore";
 export { JobStore } from "./storage/jobStore";
 export { WorkflowInputValueStore } from "./storage/workflowInputValueStore";
@@ -345,6 +348,18 @@ export const SCHEMA_SQL = `
     revoked_at INTEGER,
     created_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS api_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    token_prefix TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_by_user_id INTEGER NOT NULL,
+    revoked_at INTEGER,
+    last_used_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS response_sentiment (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     response_id INTEGER NOT NULL,
@@ -582,6 +597,7 @@ export const sentimentStore = new SentimentStore(db);
 export const annotationStore = new AnnotationStore(db);
 export const exportStore = new ExportStore(db);
 export const shareTokenStore = new ShareTokenStore(db);
+export const apiTokenStore = new ApiTokenStore(db);
 export const integrationStore = new IntegrationStore(db);
 export const jobStore = new JobStore(db);
 export const workflowInputValueStore = new WorkflowInputValueStore(db);

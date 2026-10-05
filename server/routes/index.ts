@@ -26,6 +26,7 @@ import { registerRunRoutes } from "./runs";
 import { registerMetricRoutes } from "./metrics";
 import { registerSentimentRoutes } from "./sentiment";
 import { registerExportRoutes } from "./exports";
+import { registerApiTokenRoutes } from "./apiTokens";
 import { registerSourceRoutes } from "./sources";
 import { registerIntegrationRoutes } from "./integrations";
 import { registerOAuthRoutes } from "./oauth";
@@ -59,6 +60,7 @@ export async function registerRoutes(
   registerMetricRoutes(app);
   registerSentimentRoutes(app);
   registerExportRoutes(app);
+  registerApiTokenRoutes(app);
   registerSourceRoutes(app);
   registerIntegrationRoutes(app);
   registerOAuthRoutes(app);
