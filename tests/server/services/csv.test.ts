@@ -105,3 +105,26 @@ describe("generateOverviewCsvLines", () => {
     expect(lines[1]).toBe("4,Acme Roofing,acme.com,2026-09-05,2026-10-05,0,0.00,0.00,0.00,0.00");
   });
 });
+
+// ---------------------------------------------------------------------------
+describe("generateCsvLines - spreadsheet formula protection", () => {
+  const mention = (matchedText: string) => ({
+    id: 1, responseId: 2, brandId: 3, matchedText, section: "summary",
+    recommendationRank: null, evidenceExcerpt: null, sentimentLabel: "neutral", sentimentScore: 0,
+  });
+
+  it.each(["=SUM(A1:A9)", "+1+1", "-2+3", "@cmd"])(
+    "prefixes a text cell starting with %s so Excel will not run it",
+    (text) => {
+      const lines = generateCsvLines("csv-mentions", { mentions: [mention(text)] });
+      expect(lines[1].split(",")[3]).toBe(`'${text}`);
+    }
+  );
+
+  it("leaves ordinary text and numeric cells untouched", () => {
+    const lines = generateCsvLines("csv-mentions", {
+      mentions: [{ ...mention("Acme Roofing"), recommendationRank: 1, sentimentScore: -0.5 }],
+    });
+    expect(lines[1]).toBe("1,2,3,Acme Roofing,summary,1,,neutral,-0.5");
+  });
+});

@@ -14,14 +14,20 @@
  * Comments:
  * - v1.00 Sprint 5 initial implementation
  * - v1.01 generateOverviewCsvLines: all-clients Overview metrics export
+ * - v1.02 escapeField prefixes formula-trigger text cells (CSV injection)
  */
 
 import type { ReportExport } from "@shared/schema";
 
 type ExportKind = ReportExport["kind"];
 
+// Text cells that start with these characters are run as formulas by Excel
+// and Sheets (CSV injection); a leading apostrophe keeps them literal.
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
+
 function escapeField(value: unknown): string {
-  const str = value == null ? "" : String(value);
+  let str = value == null ? "" : String(value);
+  if (typeof value === "string" && FORMULA_TRIGGER.test(str)) str = `'${str}`;
   if (str.includes(",") || str.includes('"') || str.includes("\n")) {
     return `"${str.replace(/"/g, '""')}"`;
   }

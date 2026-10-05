@@ -12,12 +12,14 @@
  * Comments:
  * - v1.00 Sprint 5 initial implementation
  * - v1.01 GET /api/exports/overview.csv: all-clients 30-day Overview metrics
+ * - v1.02 GET /api/clients/:id/exports/executive.csv: single-client snapshot series
  */
 
 import type { Express } from "express";
 import fs from "node:fs";
 import path from "node:path";
-import { exportStore, clientStore, metricStore } from "../storage";
+import { z } from "zod";
+import { exportStore, clientStore, clientUserStore, metricStore } from "../storage";
 import { triggerExportSchema } from "@shared/schema";
 import { requireAuth, requireRole } from "../auth";
 import { ok } from "../response";
@@ -29,11 +31,80 @@ import {
   computeMentionRate,
   computeAISoV,
 } from "../services/scoring";
-import { generateOverviewCsvLines } from "../services/csv";
+import { generateCsvLines, generateOverviewCsvLines } from "../services/csv";
 
 const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
+const ALL_ROLES = [...EDITOR_ROLES, "account_manager", "client_viewer"] as const;
+
+const EXECUTIVE_MAX_RANGE_DAYS = 366;
+const DAY_MS = 86_400_000;
+
+const isoDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((v) => {
+    const t = Date.parse(`${v}T00:00:00Z`);
+    return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === v;
+  });
+
+const executiveQuerySchema = z
+  .object({ from: isoDateSchema.optional(), to: isoDateSchema.optional() })
+  .refine((q) => (q.from === undefined) === (q.to === undefined), {
+    message: "from and to must be supplied together",
+  })
+  .refine((q) => q.from === undefined || q.to === undefined || q.from <= q.to, {
+    message: "from must not be after to",
+  })
+  .refine(
+    (q) =>
+      q.from === undefined ||
+      q.to === undefined ||
+      (Date.parse(q.to) - Date.parse(q.from)) / DAY_MS <= EXECUTIVE_MAX_RANGE_DAYS,
+    { message: `range must not exceed ${EXECUTIVE_MAX_RANGE_DAYS} days` }
+  );
 
 export function registerExportRoutes(app: Express): void {
+  // One client's daily snapshot series (same shape as the csv-executive
+  // export job), synchronous so tools can fetch it in a single request.
+  // Agency roles may read any client; other roles only assigned clients.
+  app.get(
+    "/api/clients/:id/exports/executive.csv",
+    requireRole(...ALL_ROLES),
+    async (req, res) => {
+      const clientId = Number(req.params.id);
+      if (!Number.isInteger(clientId) || clientId <= 0)
+        throw new AppError(400, "Invalid client id", "INVALID_ID");
+
+      const { id: userId, role } = req.session.user!;
+      const isAgencyRole = (EDITOR_ROLES as readonly string[]).includes(role);
+      if (!isAgencyRole && !(await clientUserStore.canAccess(userId, clientId)))
+        throw new AppError(403, "Forbidden", "FORBIDDEN");
+
+      const client = await clientStore.get(clientId);
+      if (!client) throw new AppError(404, "Client not found", "CLIENT_NOT_FOUND");
+
+      const parsed = executiveQuerySchema.safeParse(req.query);
+      if (!parsed.success)
+        throw new AppError(400, "Invalid date range", "INVALID_DATE_RANGE");
+      const { fromDate, toDate } =
+        parsed.data.from !== undefined && parsed.data.to !== undefined
+          ? { fromDate: parsed.data.from, toDate: parsed.data.to }
+          : periodToDates("30d");
+
+      const snapshots = (await metricStore.listByClient(clientId, fromDate, toDate))
+        .filter((s) => s.scopeKind === "overall")
+        .sort((a, b) => a.dateIso.localeCompare(b.dateIso));
+
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="executive-${clientId}-${fromDate}-${toDate}.csv"`
+      );
+      res.send(generateCsvLines("csv-executive", { snapshots }).join("\n") + "\n");
+    }
+  );
+
   // All active clients, last 30 days, same aggregate as the Overview tab.
   // Registered before /api/exports/:id/download so the literal path wins.
   app.get("/api/exports/overview.csv", requireAuth, async (_req, res) => {
