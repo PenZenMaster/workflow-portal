@@ -8,24 +8,62 @@
  *
  * Author(s): Rank Rocket Co (C) Copyright 2026 - All Rights Reserved
  * Created Date: 2026-05-10
- * Last Modified Date: 2026-05-10
+ * Last Modified Date: 2026-10-05
  * Comments:
  * - v1.00 Sprint 5 initial implementation
+ * - v1.01 GET /api/exports/overview.csv: all-clients 30-day Overview metrics
  */
 
 import type { Express } from "express";
 import fs from "node:fs";
 import path from "node:path";
-import { exportStore } from "../storage";
+import { exportStore, clientStore, metricStore } from "../storage";
 import { triggerExportSchema } from "@shared/schema";
 import { requireAuth, requireRole } from "../auth";
 import { ok } from "../response";
 import { AppError } from "../errors";
 import { jobRunner } from "../jobs/runner";
+import { periodToDates } from "../services/period";
+import {
+  computeCitationFrequency,
+  computeMentionRate,
+  computeAISoV,
+} from "../services/scoring";
+import { generateOverviewCsvLines } from "../services/csv";
 
 const EDITOR_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
 
 export function registerExportRoutes(app: Express): void {
+  // All active clients, last 30 days, same aggregate as the Overview tab.
+  // Registered before /api/exports/:id/download so the literal path wins.
+  app.get("/api/exports/overview.csv", requireAuth, async (_req, res) => {
+    const { fromDate, toDate } = periodToDates("30d");
+    const clients = await clientStore.list();
+    const rows = [];
+    for (const c of clients) {
+      const agg = await metricStore.aggregateLiveForPeriod(c.id, fromDate, toDate);
+      rows.push({
+        clientId: c.id,
+        clientName: c.name,
+        primaryDomain: c.primaryDomain,
+        periodFrom: fromDate,
+        periodTo: toDate,
+        totalResponses: agg.totalResponses,
+        citationFrequency: computeCitationFrequency(agg.totalCitations, agg.totalResponses),
+        mentionRate: computeMentionRate(agg.totalMentions, agg.totalResponses),
+        aiSoV: computeAISoV(agg.totalClientBrandMentions, agg.totalAllBrandMentions),
+        avgVisibilityScore:
+          agg.totalResponses > 0 ? agg.totalVisibilityScore / agg.totalResponses : 0,
+      });
+    }
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="overview-all-clients-${toDate}.csv"`
+    );
+    res.send(generateOverviewCsvLines(rows).join("\n") + "\n");
+  });
+
   app.post(
     "/api/clients/:id/exports",
     requireRole(...EDITOR_ROLES),

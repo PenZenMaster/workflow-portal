@@ -16,7 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, X, AlertCircle, Archive, RotateCcw, Trash2 } from "lucide-react";
+import { Plus, X, AlertCircle, Archive, RotateCcw, Trash2, Download } from "lucide-react";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 export default function ClientsList() {
@@ -137,6 +137,12 @@ export default function ClientsList() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Clients</h1>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" asChild>
+            <a href="/api/exports/overview.csv" download>
+              <Download className="h-4 w-4 mr-1.5" />
+              Export Overview CSV
+            </a>
+          </Button>
           <Button
             size="sm"
             variant="outline"

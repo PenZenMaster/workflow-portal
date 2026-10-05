@@ -47,6 +47,7 @@ import {
   DEFAULT_WEIGHTS,
 } from "../services/scoring";
 import { getAdapterCapabilities } from "../adapters/registry";
+import { periodToDates } from "../services/period";
 
 const ANALYST_ROLES = ["super_admin", "agency_admin", "analyst"] as const;
 
@@ -89,14 +90,6 @@ function computeRankDistribution(
     unrankedFrequency: pct(mentionedCount - rankedCount),
     mentionedCount,
   };
-}
-
-function periodToDates(period: string): { fromDate: string; toDate: string } {
-  const toDate = new Date().toISOString().slice(0, 10);
-  const days = period === "90d" ? 90 : period === "365d" ? 365 : 30;
-  const from = new Date();
-  from.setDate(from.getDate() - days);
-  return { fromDate: from.toISOString().slice(0, 10), toDate };
 }
 
 export function registerMetricRoutes(app: Express): void {

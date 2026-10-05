@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateCsvLines } from "../../../server/services/csv";
+import { generateCsvLines, generateOverviewCsvLines } from "../../../server/services/csv";
 
 // ---------------------------------------------------------------------------
 describe("generateCsvLines — csv-executive", () => {
@@ -62,5 +62,46 @@ describe("generateCsvLines — csv-mentions", () => {
     const lines = generateCsvLines("csv-mentions", { mentions });
     // "Acme, Inc" should be quoted in the CSV
     expect(lines[1]).toContain('"Acme, Inc"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("generateOverviewCsvLines", () => {
+  const base = {
+    clientId: 4,
+    clientName: "Acme Roofing",
+    primaryDomain: "acme.com",
+    periodFrom: "2026-09-05",
+    periodTo: "2026-10-05",
+    totalResponses: 40,
+    citationFrequency: 12.5,
+    mentionRate: 37.5,
+    aiSoV: 21.4285714,
+    avgVisibilityScore: 3.456,
+  };
+
+  it("emits the header row with the four overview metrics", () => {
+    const lines = generateOverviewCsvLines([]);
+    expect(lines).toEqual([
+      "client_id,client_name,primary_domain,period_from,period_to,total_responses,citation_frequency_pct,mention_rate_pct,ai_share_of_voice_pct,avg_visibility_score",
+    ]);
+  });
+
+  it("emits one row per client, rounding metrics to 2 decimals", () => {
+    const lines = generateOverviewCsvLines([base]);
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toBe("4,Acme Roofing,acme.com,2026-09-05,2026-10-05,40,12.50,37.50,21.43,3.46");
+  });
+
+  it("escapes commas and quotes in the client name", () => {
+    const lines = generateOverviewCsvLines([{ ...base, clientName: 'Smith, "Sons" LLC' }]);
+    expect(lines[1].startsWith('4,"Smith, ""Sons"" LLC",')).toBe(true);
+  });
+
+  it("writes zeros for a client with no responses", () => {
+    const lines = generateOverviewCsvLines([
+      { ...base, totalResponses: 0, citationFrequency: 0, mentionRate: 0, aiSoV: 0, avgVisibilityScore: 0 },
+    ]);
+    expect(lines[1]).toBe("4,Acme Roofing,acme.com,2026-09-05,2026-10-05,0,0.00,0.00,0.00,0.00");
   });
 });

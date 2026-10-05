@@ -233,3 +233,13 @@ describe("ClientsList — breadcrumbs", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("ClientsList — overview CSV export", () => {
+  it("offers an Export Overview CSV download link for all clients", async () => {
+    renderClientsList();
+
+    const link = await screen.findByRole("link", { name: /Export Overview CSV/i });
+    expect(link).toHaveAttribute("href", "/api/exports/overview.csv");
+    expect(link).toHaveAttribute("download");
+  });
+});
