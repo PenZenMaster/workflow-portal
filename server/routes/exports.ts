@@ -106,8 +106,9 @@ export function registerExportRoutes(app: Express): void {
   );
 
   // All active clients, last 30 days, same aggregate as the Overview tab.
+  // Agency roles only: this spans every client.
   // Registered before /api/exports/:id/download so the literal path wins.
-  app.get("/api/exports/overview.csv", requireAuth, async (_req, res) => {
+  app.get("/api/exports/overview.csv", requireRole(...EDITOR_ROLES), async (_req, res) => {
     const { fromDate, toDate } = periodToDates("30d");
     const clients = await clientStore.list();
     const rows = [];

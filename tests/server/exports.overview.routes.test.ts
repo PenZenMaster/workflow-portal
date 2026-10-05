@@ -71,3 +71,25 @@ describe("GET /api/exports/overview.csv", () => {
     expect(spanDays).toBe(30);
   });
 });
+
+describe("GET /api/exports/overview.csv - role limit", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockClientStore.list.mockResolvedValue([]);
+  });
+
+  it.each(["super_admin", "agency_admin", "analyst"] as const)("allows %s", async (role) => {
+    const res = await request(buildAuthApp((app) => registerExportRoutes(app), { role })).get("/api/exports/overview.csv");
+    expect(res.status).toBe(200);
+  });
+
+  it.each(["account_manager", "client_viewer"] as const)(
+    "returns 403 for %s without reading any client data",
+    async (role) => {
+      const res = await request(buildAuthApp((app) => registerExportRoutes(app), { role })).get("/api/exports/overview.csv");
+      expect(res.status).toBe(403);
+      expect(mockClientStore.list).not.toHaveBeenCalled();
+      expect(mockMetricStore.aggregateLiveForPeriod).not.toHaveBeenCalled();
+    }
+  );
+});
