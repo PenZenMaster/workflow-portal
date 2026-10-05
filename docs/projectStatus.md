@@ -1,5 +1,61 @@
 ## Resume From
 
+Session 2026-10-05 (parts 35-37): AI Overview export for the Reporting
+Suite. Branch main | Version v1.112.0 | ALL COMMITTED AND PUSHED; only
+v1.110.1 is DEPLOYED (live, 1 lsnode worker 2784936, QA passed by user for
+the dark-mode date icon and the all-clients CSV). v1.111.0, v1.111.1 and
+v1.112.0 are NOT deployed yet.
+- Part 35 v1.110.0/v1.110.1 (deployed): GET /api/exports/overview.csv
+  (all active clients, last 30 days, same aggregate as the Overview tab),
+  "Export Overview CSV" button on the Clients list; dark-mode white
+  calendar icon on native date inputs (client/src/index.css).
+- Part 36 v1.111.0/v1.111.1: GET /api/clients/:id/exports/executive.csv
+  ?from&to (default last 30 days, max 366 days) returns the csv-executive
+  snapshot shape from docs/export-shape-salvo-metal-works.csv (date,
+  mentionCount, citationCount, allBrandMentions, promptResponseCount,
+  avgVisibilityScore; ISO dates, cumulative lifetime totals, overall scope,
+  ascending). Agency roles any client; account_manager/client_viewer only
+  assigned clients (clientUserStore.canAccess). overview.csv now agency
+  roles only (was any logged-in user). CSV cells starting = + - @ are
+  apostrophe-prefixed (formula injection).
+- Part 37 v1.112.0 (migration 0035 api_tokens): client-bound API tokens.
+  wfp_ + 64 hex, SHA-256 hash only, one client each, 1-365 day expiry
+  (default 90), revocable, last-used tracked. Admin (super_admin /
+  agency_admin) POST/GET/DELETE /api/clients/:id/api-tokens + "API Access"
+  panel on the client page (ApiAccessSection). requireRoleOrApiToken
+  (server/apiTokenAuth.ts) on executive.csv: Bearer token must match the
+  URL client; invalid/expired/revoked = 401 generic; no session fallback;
+  60 req/min/IP on bearer requests. Hard delete cascades api_tokens.
+- Reporting Suite plan (separate repo E:/projects/reporting-suite, PyQt
+  app, pipeline/src/ui/client_config_builder.py): Stage B = new
+  extractors/ai-visibility AIVisibilityExtractor, run_pipeline.py stage 1d
+  producing dataset ai_visibility_data (+ Sheets loader entry like
+  gsc_master_data, retention on "date"), and an "AI Overview Export" group
+  box under the GSC Extractor (matched portal client from Client Name,
+  Verify button, date range pickers, token saved to keyring via
+  shared CredentialManager). User decisions: new box under GSC; full
+  pipeline extractor feeding Sheets; require a confirmed client-name match
+  (never silent fallback); one token per client; admin panel in portal.
+- Notes: the shell has NODE_ENV=production, which breaks client (jsdom)
+  tests - run with NODE_ENV=test. Full suite failed a few tests twice under
+  load and passed on immediate re-run (not identified; save the full-run
+  log next time). 09-28 TODO still open: delete persistent/data.db.bak-
+  2026-09-28-* once the 3 WP App Passwords are confirmed rotated.
+
+NEXT SESSION (3 bullets, per shutdown 2026-10-05):
+1. Deploy v1.112.0 (npm run package, scp, npm ci, restart - migration 0035
+   is additive), create a real API token for a test client in the API
+   Access panel, and verify executive.csv with curl using an Authorization
+   Bearer header, plus the panel UI (not browser-checked yet).
+2. Stage A step 3: token-allowed GET /api/exports/clients?name= (exact
+   case-insensitive match, 404 none, 409 duplicate; with one-token-one-
+   client it only confirms the token's own client). TDD, then deploy.
+3. Stage B in reporting-suite: AIVisibilityExtractor + run_pipeline stage
+   1d + ai_visibility_data Sheets dataset + "AI Overview Export" UI box
+   (ruff/black/mypy/pytest gates, CHANGELOG, CLIENT_CONFIG_UI_GUIDE).
+
+Earlier NEXT SESSION list (2026-09-28, still open where not superseded):
+
 Last coding session: 2026-09-10 (parts 25-31, v1.105.0 -> v1.109.0, see
 below) - Location Page Builder hardening (Elementor layout cloning, async
 factory-job conversion to dodge a reverse-proxy timeout, the
@@ -27,7 +83,6 @@ confirmation captured this session that v3.16.0 was actually pushed
 live vs. just readied; verify alongside the Location Page Builder test
 below since the run depends on it.
 
-NEXT SESSION (3 bullets, per shutdown):
 1. Live-verify a real Location Page Builder run end-to-end against Trevor
    Aspiranti (client 13, id 13) on the CURRENT v1.109.0 code (v2 skill
    methodology prompt + rankrocket_elementor_write now allowlisted +
