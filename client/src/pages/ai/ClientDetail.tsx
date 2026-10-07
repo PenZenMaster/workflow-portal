@@ -234,7 +234,7 @@ export default function ClientDetail() {
       <h1 className="text-2xl font-bold mb-1">{client.name}</h1>
       <p className="text-muted-foreground mb-6">{client.primaryDomain}</p>
 
-      <ClientTargetingSection key={client.updatedAt} client={client} />
+      <ClientTargetingSection client={client} />
 
       {readiness && !readiness.ready && (
         <div className="mb-6 border border-orange-500/30 rounded-lg p-4 bg-orange-50/50 dark:bg-orange-950/20 flex items-start gap-3">

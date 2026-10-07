@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Client } from "@shared/schema";
@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ClientTargetingSection } from "./ClientTargetingSection";
 
 let role: string;
+let patchOk: boolean;
 
 vi.mock("@/lib/auth", () => ({
   useAuth: () => ({ status: { user: { id: 1, username: "u", email: null, role } } }),
@@ -31,11 +32,12 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   role = "agency_admin";
+  patchOk = true;
   fetchMock = vi.fn(async () => {
-    const body = { data: CLIENT };
+    const body = patchOk ? { data: CLIENT } : { error: "boom" };
     return {
-      ok: true,
-      status: 200,
+      ok: patchOk,
+      status: patchOk ? 200 : 500,
       json: async () => body,
       text: async () => JSON.stringify(body),
     } as Response;
@@ -54,31 +56,46 @@ function renderSection(client: Client = CLIENT) {
   );
 }
 
-function patchBody(): Record<string, unknown> {
-  const call = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "PATCH");
-  expect(call).toBeDefined();
-  return JSON.parse((call![1] as RequestInit).body as string) as Record<string, unknown>;
+function patchCalls(): Record<string, unknown>[] {
+  return fetchMock.mock.calls
+    .filter(([, init]) => (init as RequestInit | undefined)?.method === "PATCH")
+    .map(([, init]) => JSON.parse((init as RequestInit).body as string) as Record<string, unknown>);
 }
 
 describe("ClientTargetingSection", () => {
-  it("shows the existing core services, geographies and exclusions as chips", () => {
+  it("shows each list as its own titled group with a count and one row per item", () => {
     renderSection();
+
     expect(screen.getByRole("heading", { level: 2, name: "Targeting" })).toBeInTheDocument();
-    expect(screen.getByText("scrap metal pickup")).toBeInTheDocument();
-    expect(screen.getByText("Seattle")).toBeInTheDocument();
-    expect(screen.getByText("jobs")).toBeInTheDocument();
+    for (const [name, item] of [
+      ["Core services", "scrap metal pickup"],
+      ["Geographies", "Seattle"],
+      ["Exclusions", "jobs"],
+    ]) {
+      const group = screen.getByRole("group", { name: new RegExp(name) });
+      expect(within(group).getByText(/\(1\)/)).toBeInTheDocument();
+      expect(within(group).getByRole("listitem")).toHaveTextContent(item);
+    }
   });
 
-  it("saves an added core service and preserves every other client field (PATCH is a full replace)", async () => {
+  it("has no Save button - changes save as they are made", () => {
+    renderSection();
+    expect(screen.queryByRole("button", { name: /save/i })).not.toBeInTheDocument();
+  });
+
+  it("adds an item immediately, shows it, and sends the full client record", async () => {
     renderSection();
 
-    await userEvent.type(screen.getByLabelText("Add core service"), "auto scrap metal recycling");
-    await userEvent.click(screen.getByRole("button", { name: "Add core service to list" }));
-    await userEvent.click(screen.getByRole("button", { name: /save targeting/i }));
+    await userEvent.type(screen.getByLabelText("New core service"), "auto scrap metal recycling");
+    await userEvent.click(screen.getByRole("button", { name: "Add core service" }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const group = screen.getByRole("group", { name: /Core services/ });
+    expect(within(group).getByText("auto scrap metal recycling")).toBeInTheDocument();
+    expect(screen.getByLabelText("New core service")).toHaveValue("");
+
+    await waitFor(() => expect(patchCalls()).toHaveLength(1));
     expect(fetchMock.mock.calls[0][0]).toContain("/api/clients/4");
-    expect(patchBody()).toEqual({
+    expect(patchCalls()[0]).toEqual({
       name: "Acme",
       primaryDomain: "acme.com",
       geographies: ["Seattle"],
@@ -90,37 +107,44 @@ describe("ClientTargetingSection", () => {
     });
   });
 
-  it("adds an entry when Enter is pressed in the input", async () => {
+  it("adds an item when Enter is pressed", async () => {
     renderSection();
-    await userEvent.type(screen.getByLabelText("Add geography"), "Tacoma{Enter}");
-    expect(screen.getByText("Tacoma")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("New geography"), "Tacoma{Enter}");
+
+    expect(within(screen.getByRole("group", { name: /Geographies/ })).getByText("Tacoma")).toBeInTheDocument();
+    await waitFor(() => expect(patchCalls()).toHaveLength(1));
+    expect(patchCalls()[0].geographies).toEqual(["Seattle", "Tacoma"]);
   });
 
-  it("removes a chip and saves the shortened list", async () => {
+  it("removes an item immediately and saves the shortened list", async () => {
     renderSection();
 
-    await userEvent.click(screen.getByRole("button", { name: "Remove scrap metal pickup" }));
-    await userEvent.click(screen.getByRole("button", { name: /save targeting/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove exclusion jobs" }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(patchBody().coreServices).toEqual([]);
+    expect(screen.queryByText("jobs")).not.toBeInTheDocument();
+    await waitFor(() => expect(patchCalls()).toHaveLength(1));
+    expect(patchCalls()[0].exclusions).toEqual([]);
   });
 
-  it("rejects blank and case/space-insensitive duplicate entries", async () => {
+  it("does not save blank input, and tells the user about a duplicate", async () => {
     renderSection();
 
-    await userEvent.type(screen.getByLabelText("Add core service"), "   {Enter}");
-    await userEvent.type(screen.getByLabelText("Add core service"), "  Scrap  Metal PICKUP {Enter}");
+    await userEvent.type(screen.getByLabelText("New core service"), "   {Enter}");
+    await userEvent.type(screen.getByLabelText("New core service"), "  Scrap  Metal PICKUP {Enter}");
 
+    expect(screen.getByText(/already in the list/i)).toBeInTheDocument();
     expect(screen.getAllByText(/scrap metal pickup/i)).toHaveLength(1);
+    expect(patchCalls()).toHaveLength(0);
   });
 
-  it("disables Save until something changes", async () => {
+  it("puts the item back and reports the failure when the save fails", async () => {
+    patchOk = false;
     renderSection();
-    expect(screen.getByRole("button", { name: /save targeting/i })).toBeDisabled();
 
-    await userEvent.type(screen.getByLabelText("Add exclusion"), "careers{Enter}");
-    expect(screen.getByRole("button", { name: /save targeting/i })).toBeEnabled();
+    await userEvent.type(screen.getByLabelText("New exclusion"), "careers{Enter}");
+
+    await waitFor(() => expect(screen.queryByText("careers")).not.toBeInTheDocument());
+    expect(screen.getByText("jobs")).toBeInTheDocument();
   });
 
   it("is read-only for roles outside super_admin / agency_admin", () => {
@@ -128,8 +152,8 @@ describe("ClientTargetingSection", () => {
     renderSection();
 
     expect(screen.getByText("scrap metal pickup")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Add core service")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /save targeting/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Remove scrap metal pickup" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("New core service")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^add /i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^remove /i })).not.toBeInTheDocument();
   });
 });
