@@ -21,6 +21,7 @@ import { RecommendationsSection } from "./sections/RecommendationsSection";
 import { TrafficSection } from "./sections/TrafficSection";
 import { TokenUsageSection } from "./sections/TokenUsageSection";
 import { ApiAccessSection } from "./sections/ApiAccessSection";
+import { ClientTargetingSection } from "./sections/ClientTargetingSection";
 
 // ---------------------------------------------------------------------------
 // Brand row — handles its own aliases and expand/collapse state
@@ -233,12 +234,7 @@ export default function ClientDetail() {
       <h1 className="text-2xl font-bold mb-1">{client.name}</h1>
       <p className="text-muted-foreground mb-6">{client.primaryDomain}</p>
 
-      {client.geographies.length > 0 && (
-        <div className="mb-4">
-          <span className="text-sm font-medium">Geographies: </span>
-          <span className="text-sm text-muted-foreground">{client.geographies.join(", ")}</span>
-        </div>
-      )}
+      <ClientTargetingSection key={client.updatedAt} client={client} />
 
       {readiness && !readiness.ready && (
         <div className="mb-6 border border-orange-500/30 rounded-lg p-4 bg-orange-50/50 dark:bg-orange-950/20 flex items-start gap-3">
