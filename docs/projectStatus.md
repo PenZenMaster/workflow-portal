@@ -1,10 +1,28 @@
 ## Resume From
 
+Session 2026-10-07 (parts 38-39): client Targeting editor. Branch main |
+Version v1.113.1 | ALL COMMITTED, PUSHED, TAGGED AND DEPLOYED (live, 1
+lsnode worker 2066105). This also took v1.111.0, v1.111.1 and v1.112.0
+live (migration 0035 api_tokens applied; pre-deploy DB backup
+persistent/data.db.bak-2026-10-07-pre-1.113.0).
+- Part 38 v1.113.0: ClientTargetingSection on the client page edits
+  coreServices / geographies / exclusions (no UI existed before; the
+  "not one of the client's configured core services" prompt warning comes
+  from server/services/promptMetadataValidation.ts). PATCH
+  /api/clients/:id is a FULL REPLACE, so the UI sends the whole client
+  record back (site key, GBP location, owner preserved).
+- Part 39 v1.113.1: user rejected the Save-button design (typed text that
+  was not added as a chip left Save disabled). Rewritten as three cards,
+  one row per item with Remove, immediate save on add/remove with
+  rollback + toast on failure, no Save button. Exclusions are optional
+  (fed to the prompt generator only; no post-generation check).
+- Live data touched: client 14 (Olson Recycling) now has core service
+  "auto scrap metal recycling" (added during debugging).
+- Not browser-verified by the user yet: new Targeting cards layout, API
+  Access panel, executive.csv with a real Bearer token.
+
 Session 2026-10-05 (parts 35-37): AI Overview export for the Reporting
-Suite. Branch main | Version v1.112.0 | ALL COMMITTED AND PUSHED; only
-v1.110.1 is DEPLOYED (live, 1 lsnode worker 2784936, QA passed by user for
-the dark-mode date icon and the all-clients CSV). v1.111.0, v1.111.1 and
-v1.112.0 are NOT deployed yet.
+Suite. (Superseded deploy state: everything below is now deployed.)
 - Part 35 v1.110.0/v1.110.1 (deployed): GET /api/exports/overview.csv
   (all active clients, last 30 days, same aggregate as the Overview tab),
   "Export Overview CSV" button on the Clients list; dark-mode white
@@ -42,11 +60,10 @@ v1.112.0 are NOT deployed yet.
   log next time). 09-28 TODO still open: delete persistent/data.db.bak-
   2026-09-28-* once the 3 WP App Passwords are confirmed rotated.
 
-NEXT SESSION (3 bullets, per shutdown 2026-10-05):
-1. Deploy v1.112.0 (npm run package, scp, npm ci, restart - migration 0035
-   is additive), create a real API token for a test client in the API
-   Access panel, and verify executive.csv with curl using an Authorization
-   Bearer header, plus the panel UI (not browser-checked yet).
+NEXT SESSION (3 bullets, per shutdown 2026-10-07):
+1. QA on live v1.113.1: Targeting cards on a client page (add/remove,
+   failure rollback), create an API token in the API Access panel, and
+   verify executive.csv with curl + Authorization Bearer header.
 2. Stage A step 3: token-allowed GET /api/exports/clients?name= (exact
    case-insensitive match, 404 none, 409 duplicate; with one-token-one-
    client it only confirms the token's own client). TDD, then deploy.
